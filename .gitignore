@@ -1,0 +1,6 @@
+# Build outputs
+Debug/
+Release/
+
+# Claude Code working directory
+.claude/
