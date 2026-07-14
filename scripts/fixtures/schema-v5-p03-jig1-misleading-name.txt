@@ -1,0 +1,8 @@
+Getting result!
+META,SchemaVersion=5,MCU_UID=0025002C3234470438353535,JigID=JIG2,JigKnown=1,MotorID=p03,MeasurementValid=1,TrackingValid=1,AcquisitionResult=OK
+Nonlinear 1 Angle: 2.50 degree
+MA600 Raw Nonlinear 1 Angle: 2.50 degree
+Nonlinear Final Average: 2.50 degree
+MA600 Raw Nonlinear Final Average: 2.50 degree
+Motor OK!
+END,SchemaVersion=5,Status=VALID

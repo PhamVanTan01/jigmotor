@@ -1,0 +1,4 @@
+Getting result!
+META,SchemaVersion=6,MCU_UID=0025002C3234470438353535,JigID=JIG1,JigKnown=1,MotorID=p03,OfficialMeasurementValid=1
+RESULT,SchemaVersion=6,RMS_AC=1.0000
+END,SchemaVersion=6,Status=VALID

@@ -23,9 +23,13 @@
 
 #include "nonlinear_test.h"
 #include "motor.h"
+#include "motor_config.h"
 #include "ma600.h"
+#include "ma600_acquisition.h"
 #include "main.h"
 #include "cmsis_os.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -33,6 +37,18 @@
 #include <string.h>
 
 extern UART_HandleTypeDef huart3;
+
+#define NL_ENGINE_COMMAND_START 1U
+
+static osMessageQueueId_t nlEngineCommandQueue;
+static osThreadId_t nlEngineTaskHandle;
+static volatile bool nlEngineBusy;
+static volatile NonlinearEngineState_t nlEngineState = NL_ENGINE_IDLE;
+
+static void SetEngineState(NonlinearEngineState_t state)
+{
+    nlEngineState = state;
+}
 
 /* Was 2 runs (discarding run 1, keeping run 2) matching the reference
  * firmware's convention. Changed to a single run per the user's request --
@@ -83,11 +99,19 @@ extern UART_HandleTypeDef huart3;
  * positions when the timer fires, even after commanding the identical
  * target. Now each point waits for the encoder's own reading to stop
  * changing (see WaitForPointSettle) instead of a blind delay. */
-#define NL_POINT_SETTLE_ERROR_DEG   0.05f  /* max angle change between consecutive polls to count as "settled". */
+#define NL_POINT_SETTLE_ERROR_RAW   9LL    /* 9 raw counts = 0.04944 deg. */
 #define NL_POINT_SETTLE_CONSECUTIVE 8      /* consecutive settled polls required. */
 #define NL_POINT_SETTLE_POLL_MS     1      /* polling period while waiting. */
 #define NL_POINT_SETTLE_TIMEOUT_MS  100    /* give up and sample anyway past this -- see the
                                              * per-sweep "did not settle" count logged at the end. */
+/* Pilot motion-integrity envelope, not a product-quality limit. Historical
+ * healthy tracking maxima are about 1.5..3.4 deg; five degrees detects a
+ * stable-but-clearly-wrong rotor without filtering the nonlinear curve we
+ * are trying to measure. Point 0 defines the sweep reference and therefore
+ * requires stability but has zero target error by definition. */
+#define NL_SETTLE_TARGET_TOLERANCE_RAW  910LL /* 4.99878 deg. */
+#define NL_SETTLE_CONTRACT_ID           "STABILITY_AND_TARGET_V1"
+#define NL_CONTINUOUS_CONTEXT_ID        "SWEEP_CONTEXT_V1"
 /* Was loosened to 0.15/10s at one point to work around a since-fixed PID
  * bug (pidCurrentPos truncating small outputs to 0 and stalling -- see
  * motor.c). With that fixed and Ki raised so the integral term breaks
@@ -101,6 +125,49 @@ extern UART_HandleTypeDef huart3;
 /* Caps the move-to-zero PID loop to ~500Hz -- see the comment at its
  * osDelay() call site for why this is required, not just a nice-to-have. */
 #define NL_MOVE_ZERO_LOOP_DELAY_MS  2
+#define NL_ACQ_MAX_ATTEMPTS         3U
+#define NL_SETTLE_MAX_JUMP_RAW      1821
+#define NL_SWEEP_MAX_JUMP_RAW       1821
+/* Phase-2B shadow sampler. Legacy schema-v5 DATA/ACQ/RESULT remain official;
+ * these limits apply only to the non-official CANONICAL_Q16_V1 capture made
+ * at the same settled point. The point sampler aborts when consecutive
+ * failures exceed maxConsecutiveFailures, so 2 means the third consecutive
+ * failure aborts, matching the legacy three-attempt failure boundary. */
+#define NL_SHADOW_POINT_MAX_TRANSACTIONS          96U
+#define NL_SHADOW_POINT_MAX_CONSECUTIVE_FAILURES  2U
+#define NL_SHADOW_POINT_MAX_ELAPSED_US             20000U
+#define NL_SHADOW_CONTRACT_ID                      "CANONICAL_Q16_V1"
+#define NL_SHADOW_SIGN_CONVENTION                  "MEASURED_MINUS_TARGET"
+#define NL_SHADOW_REFERENCE_DEFINITION             "POINT0_CANONICAL_MEAN"
+#define NL_SHADOW_CANONICAL_MEAN_SOURCE            "ALL_TIER1"
+#define NL_SHADOW_CLOSURE_LIMIT_DEG                 0.20f
+/* Phase-3B0-A passive closure hold probe. It never changes the command or
+ * power at Point 256 and its numeric result is diagnostic-only. The extra
+ * 200 ms dwell intentionally makes points after the first turn timing-
+ * incomparable with older sweeps, so that fact is explicit in the log. */
+#ifndef ENABLE_CLOSURE_HOLD_PROBE
+#define ENABLE_CLOSURE_HOLD_PROBE                    1
+#endif
+#define NL_CLOSURE_PROBE_PROTOCOL_ID                 "CLOSURE_HOLD_V1"
+#define NL_CLOSURE_PROBE_STAGE_COUNT                 4U
+/* Phase-3B0-R isolated experiment: every physical test starts its closed-loop
+ * home from the same zeroed controller and PID-acquisition state. Gains,
+ * ramp, dither, open-loop sweep, settle, and encoder math remain unchanged so
+ * reset-vs-persistent state is the only intentional experimental factor. */
+#define NL_CONTROLLER_STATE_POLICY_ID                "RESET_BEFORE_EACH_HOME_V1"
+#define NL_CLOSURE_POINT_INDEX                       \
+    (MOTOR_MECHANICAL_COUNTS_PER_REV / NL_POS_INCREASE)
+#if (MOTOR_MECHANICAL_COUNTS_PER_REV % NL_POS_INCREASE) != 0
+#error "Closure probe requires an integer full-turn point index"
+#endif
+/* Gross motion-integrity guards, not product-quality thresholds. Normal JIG1/P03
+ * baselines are about 1.1 deg RMS / 2.4 deg max, while the known stalled JIG2
+ * regression is 102 deg RMS / 180 deg max. These deliberately wide limits only
+ * prevent a lost/stalled rotor from being reported as a valid nonlinear sweep. */
+#define NL_TRACKING_RMS_VALID_DEG   15.0f
+#define NL_TRACKING_MAX_VALID_DEG   30.0f
+#define NL_TRACKING_RMS_LIMIT_TEXT  "15.0"
+#define NL_TRACKING_MAX_LIMIT_TEXT  "30.0"
 #define NL_CHECK_DIR_ANGLE_DEG      90.0f
 #define NL_DITHER_START_POS         20
 #define NL_DITHER_SETTLE_MS         200
@@ -141,7 +208,7 @@ extern UART_HandleTypeDef huart3;
  * NL_LEGACY_HARMONIC_ORDERS) -- no v3 log is known to exist outside this development session,
  * so v3 is simply retired rather than migrated. */
 #ifndef NL_LOG_SCHEMA_VERSION
-#define NL_LOG_SCHEMA_VERSION       4
+#define NL_LOG_SCHEMA_VERSION       5
 #endif
 #ifndef NL_FIT_EVAL_POINTS
 /* Grid used only to reconstruct Fitted_P2P/Fitted_P2P_Extended (see
@@ -161,18 +228,30 @@ extern UART_HandleTypeDef huart3;
  * a board not yet added to NL_KNOWN_JIGS, pass -DFORCE_JIG_ID=\"JIG3\" (etc.) at build time as
  * an explicit opt-in override; there is deliberately no silent default like the old "JIG1"
  * fallback used to be. */
-#ifndef MOTOR_ID
+#ifdef MOTOR_ID
+#define NL_MOTOR_ID_SOURCE          "BUILD_DEFINE"
+#else
 /* No input mechanism exists on this board (one button, no keypad/display) to enter a real
  * Motor ID -- left as a placeholder; the operator identifies the motor via the saved log
  * file's name, same convention scripts/analyze_nonlinear_logs.ps1's Get-SourceMetadata
  * already uses for Jig/Product. A SET_MOTOR_ID UART command is a reasonable future addition,
  * out of scope here. */
 #define MOTOR_ID                    "UNKNOWN"
+#define NL_MOTOR_ID_SOURCE          "UNSET"
 #endif
 #ifndef FIRMWARE_VERSION
 #define FIRMWARE_VERSION            "jigmotor-nl2"
 #endif
 #define FIRMWARE_BUILD_ID           (__DATE__ " " __TIME__)
+
+/* This jig has no independent reference encoder. The measured curve is the
+ * response of the complete motor/magnet/mounting/drive/sensor system, so the
+ * MA600A datasheet's sensor-only INL limit is not a valid acceptance gate.
+ * Keep this policy version in every META line so offline datasets cannot
+ * silently mix results produced under different acceptance semantics. */
+#define NL_MEASUREMENT_POLICY_ID    "WHOLE_SYSTEM_REPORT_ONLY_V1"
+#define NL_MEASUREMENT_DEFINITION   "WHOLE_SYSTEM_COMMAND_TRACKING"
+#define NL_ACCEPTANCE_MODE          "REPORT_ONLY"
 
 /* STM32F405's 96-bit factory-programmed Unique Device ID. Combined with TestID/SweepID (both
  * reset to 0 on every reboot -- see nlTestIdCounter/nlSweepIdCounter) this is what actually
@@ -184,21 +263,49 @@ extern UART_HandleTypeDef huart3;
 
 /* Lets the exact same compiled binary self-identify on whichever physical jig it's running on,
  * instead of needing a separate build per board with a hand-edited JIG_ID. Add a row here for
- * each new jig (grab its MCU_UID from any META line it has already logged). Words 1-2 are
- * identical between the two entries below (same manufacturing lot -- the STM32F405's UID packs
- * wafer X/Y position in word0 and lot number in words 1-2, so boards from one batch commonly
- * share words 1-2 and differ only in word0); comparing all 3 words anyway costs nothing and
- * stays correct for a future jig from a different lot. */
+ * each new jig (grab its MCU_UID from any META line it has already logged). JIG1/JIG2 words
+ * 1-2 are identical (same manufacturing lot -- the STM32F405's UID packs wafer X/Y position
+ * in word0 and lot number in words 1-2, so boards from one batch commonly share words 1-2 and
+ * differ only in word0); comparing all 3 words anyway costs nothing and stays correct for a
+ * jig from a different lot such as JIG3. */
 typedef struct
 {
     uint32_t uid0, uid1, uid2;
     const char *jigId;
+    MA600_ExpectedConfig_t expectedConfig;
 } NlKnownJig_t;
 
 static const NlKnownJig_t NL_KNOWN_JIGS[] = {
-    { 0x003C0027, 0x32344704, 0x38353535, "JIG1" }, /* MCU_UID=003C00273234470438353535 */
-    { 0x0025002C, 0x32344704, 0x38353535, "JIG2" }, /* MCU_UID=0025002C3234470438353535 */
+    {
+        0x003C0027, 0x32344704, 0x38353535, "JIG1",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=003C00273234470438353535 */
+    {
+        0x0025002C, 0x32344704, 0x38353535, "JIG2",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=0025002C3234470438353535 */
+    {
+        0x004C003A, 0x3034510B, 0x31363339, "JIG3",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=004C003A3034510B31363339 */
 };
+
+static const NlKnownJig_t *FindKnownJigByUid(void)
+{
+    uint32_t uid0 = MCU_UID_WORD0;
+    uint32_t uid1 = MCU_UID_WORD1;
+    uint32_t uid2 = MCU_UID_WORD2;
+    for (size_t i = 0; i < sizeof(NL_KNOWN_JIGS) / sizeof(NL_KNOWN_JIGS[0]); i++)
+    {
+        if (NL_KNOWN_JIGS[i].uid0 == uid0
+            && NL_KNOWN_JIGS[i].uid1 == uid1
+            && NL_KNOWN_JIGS[i].uid2 == uid2)
+        {
+            return &NL_KNOWN_JIGS[i];
+        }
+    }
+    return NULL;
+}
 
 /* Deliberately does NOT fall back to "JIG1" (or any other guess) for an unrecognized UID --
  * silently mislabeling a new/unknown board as an existing one corrupts a dataset without any
@@ -212,16 +319,11 @@ static const char *ResolveJigId(bool *outKnown)
     *outKnown = true;
     return FORCE_JIG_ID;
 #else
-    uint32_t uid0 = MCU_UID_WORD0;
-    uint32_t uid1 = MCU_UID_WORD1;
-    uint32_t uid2 = MCU_UID_WORD2;
-    for (size_t i = 0; i < sizeof(NL_KNOWN_JIGS) / sizeof(NL_KNOWN_JIGS[0]); i++)
+    const NlKnownJig_t *knownJig = FindKnownJigByUid();
+    if (knownJig != NULL)
     {
-        if (NL_KNOWN_JIGS[i].uid0 == uid0 && NL_KNOWN_JIGS[i].uid1 == uid1 && NL_KNOWN_JIGS[i].uid2 == uid2)
-        {
-            *outKnown = true;
-            return NL_KNOWN_JIGS[i].jigId;
-        }
+        *outKnown = true;
+        return knownJig->jigId;
     }
     *outKnown = false;
     return "UNKNOWN_JIG";
@@ -254,10 +356,9 @@ static const char *ResolveJigId(bool *outKnown)
  * a firmware-timed rest between them, so jig-to-jig comparisons aren't confounded by however
  * long the operator happened to wait. This is COOLDOWN-TIME control, not temperature control
  * -- there is no thermal sensor on this hardware, so "the motor reached the same temperature"
- * is never actually verified, only "the same rest interval elapsed every time". Gated off by
- * default like the other hardware-unverified engineering flags in this file
- * (ENABLE_CCW_ENGINEERING_TEST, ENABLE_NL_MATH_SELF_TEST) -- flip on only when deliberately
- * running a batch. */
+ * is never actually verified, only "the same rest interval elapsed every time". This flag is
+ * deliberately enabled for the current one-precondition plus ten-official-run hardware
+ * experiment; disable it again when returning to single-press production behavior. */
 #ifndef ENABLE_AUTO_BATCH_TEST
 #define ENABLE_AUTO_BATCH_TEST      1
 #endif
@@ -273,10 +374,10 @@ static const char *ResolveJigId(bool *outKnown)
 #define NL_TEST_REPEAT_1_RUN        0
 #endif
 #ifndef NL_TEST_REPEAT_3_RUNS
-#define NL_TEST_REPEAT_3_RUNS       1
+#define NL_TEST_REPEAT_3_RUNS       0
 #endif
 #ifndef NL_TEST_REPEAT_10_RUNS
-#define NL_TEST_REPEAT_10_RUNS      0
+#define NL_TEST_REPEAT_10_RUNS      1
 #endif
 #if ((NL_TEST_REPEAT_1_RUN + NL_TEST_REPEAT_3_RUNS + NL_TEST_REPEAT_10_RUNS) != 1)
 #error "Enable exactly one test mode: NL_TEST_REPEAT_1_RUN, NL_TEST_REPEAT_3_RUNS, or NL_TEST_REPEAT_10_RUNS"
@@ -303,7 +404,28 @@ static const char *ResolveJigId(bool *outKnown)
  * expected noise. */
 #define NL_COOLDOWN_TOLERANCE_MS    300UL
 #define NL_THERMAL_PROTOCOL_ID      "COOLDOWN_120S_V1"
+
+/* Experimental repeatability protocol requested for the fixed-jig study:
+ *   cycle 1  = one exact full sweep used only to precondition the motor/system;
+ *   120 s motor-off cooldown;
+ *   cycles 2..11 = ten official runs, also separated by the same 120 s cooldown.
+ * The precondition sweep is deliberately captured and logged for audit, but its RunOrder is
+ * zero, EligibleForStatistics is zero, and it cannot emit the legacy final average/Motor OK.
+ * A failed precondition aborts the batch before official RunOrder 1. This is a controlled
+ * time/energy history, not measured temperature control: no temperature sensor is fitted. */
+#define NL_PRECONDITION_COUNT               1U
+#define NL_OFFICIAL_RUN_COUNT               NL_BATCH_RUN_COUNT
+#define NL_BATCH_TOTAL_CYCLE_COUNT          (NL_PRECONDITION_COUNT + NL_OFFICIAL_RUN_COUNT)
+#define NL_PRECONDITION_PROTOCOL_ID         "ONE_FULL_SWEEP_120S_V1"
+#if (NL_BATCH_RUN_COUNT != 10U)
+#error "ONE_FULL_SWEEP_120S_V1 requires the 10-run batch mode"
+#endif
 #endif /* ENABLE_AUTO_BATCH_TEST */
+
+static void LogLine(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
+static void LogLineLarge(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
 
 static void LogLine(const char *fmt, ...)
 {
@@ -327,13 +449,11 @@ static void LogLine(const char *fmt, ...)
  * legacy (6-harmonic) and extended (12-harmonic) model fields plus ModelId/Orders/Valid and
  * PhaseValidMask (was 768, sized for the original single 6-harmonic RESULT line). Used
  * exclusively from PrintSweepLog(), which only ever runs after the motor has stopped (see
- * CaptureSweep's header comment) and is not nested under any other large-stack-frame call
- * chain, so a larger local buffer here is safe against the 4KB defaultTask stack (see
- * FreeRTOSConfig/main.c's defaultTask_attributes) -- 1700/4096 bytes still leaves comfortable
- * headroom. */
+ * CaptureSweep's header comment). PrintSweepLog and this helper do share a call chain, so
+ * the dedicated test task is sized from compiler stack-usage reports with explicit margin. */
 static void LogLineLarge(const char *fmt, ...)
 {
-    char buf[1700];
+    char buf[1900];
     va_list args;
     va_start(args, fmt);
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
@@ -405,6 +525,82 @@ static void FormatDegN(float value, int decimals, char *out, size_t outSize)
     else
     {
         snprintf(out, outSize, "%ld.%0*ld", (long)whole, decimals, (long)frac);
+    }
+}
+
+/* newlib-nano does not reliably provide every long-long printf variant used
+ * by full newlib. Keep exact signed Q16 values auditable without adding a
+ * linker feature or converting them through float. */
+static void FormatI64(int64_t value, char *out, size_t outSize)
+{
+    if (out == NULL || outSize == 0U)
+    {
+        return;
+    }
+
+    char reverse[24];
+    size_t count = 0U;
+    bool negative = value < 0;
+    uint64_t magnitude = negative
+        ? (uint64_t)(-(value + 1)) + 1U
+        : (uint64_t)value;
+
+    do
+    {
+        reverse[count++] = (char)('0' + (magnitude % 10U));
+        magnitude /= 10U;
+    } while (magnitude != 0U && count < sizeof(reverse) - 1U);
+
+    if (negative && count < sizeof(reverse) - 1U)
+    {
+        reverse[count++] = '-';
+    }
+
+    size_t written = 0U;
+    while (count > 0U && written + 1U < outSize)
+    {
+        out[written++] = reverse[--count];
+    }
+    out[written] = '\0';
+}
+
+static float ShadowRawQ16ToDegrees(int64_t rawQ16)
+{
+    return (float)((double)rawQ16 * 360.0 / (65536.0 * 65536.0));
+}
+
+static uint8_t SaturateU8(uint32_t value)
+{
+    return (uint8_t)((value > 255U) ? 255U : value);
+}
+
+static uint16_t SaturateU16(uint32_t value)
+{
+    return (uint16_t)((value > 65535U) ? 65535U : value);
+}
+
+static bool IsMotorIdConfigured(void)
+{
+    return MOTOR_ID[0] != '\0'
+        && strcmp(MOTOR_ID, "UNKNOWN") != 0
+        && strcmp(MOTOR_ID, "UNKNOWN_MOTOR") != 0;
+}
+
+static const char *MA600_ResultName(MA600_Result_t result)
+{
+    switch (result)
+    {
+        case MA600_RESULT_OK:           return "OK";
+        case MA600_RESULT_INVALID_ARG:  return "INVALID_ARG";
+        case MA600_RESULT_SPI_TIMEOUT:  return "SPI_TIMEOUT";
+        case MA600_RESULT_SPI_ERROR:    return "SPI_ERROR";
+        case MA600_RESULT_SAMPLE_JUMP:  return "SAMPLE_JUMP";
+        case MA600_RESULT_CONFIG_ERROR: return "CONFIG_ERROR";
+        case MA600_RESULT_TIMING_METADATA_INVALID: return "TIMING_METADATA_INVALID";
+        case MA600_RESULT_ACQUISITION_BUDGET_EXCEEDED: return "ACQUISITION_BUDGET_EXCEEDED";
+        case MA600_RESULT_ACQUISITION_TIMEOUT: return "ACQUISITION_TIMEOUT";
+        case MA600_RESULT_MATH_OVERFLOW: return "MATH_OVERFLOW";
+        default:                        return "UNKNOWN";
     }
 }
 
@@ -760,7 +956,44 @@ typedef enum
     NL_ZERO_OK = 0,
     NL_ZERO_DIRECTION_ERROR,
     NL_ZERO_TIMEOUT,
+    NL_ZERO_ACQUISITION_ERROR,
 } NlZeroResult_t;
+
+typedef struct
+{
+    NlZeroResult_t result;
+    uint32_t durationMs;
+    uint32_t updateCount;
+    float initialErrorDeg;
+    float finalErrorDeg;
+    int32_t initialCommandedPositionRaw;
+    int32_t finalCommandedPositionRaw;
+} NlZeroObservation_t;
+
+static NlZeroResult_t FinishMoveToZeroObservation(NlZeroObservation_t *out,
+                                                   NlZeroResult_t result,
+                                                   uint32_t startTick)
+{
+    if (out != NULL)
+    {
+        out->result = result;
+        out->durationMs = HAL_GetTick() - startTick;
+        out->finalCommandedPositionRaw = Motor_GetCommandedPos();
+    }
+    return result;
+}
+
+static const char *NlZeroResultName(NlZeroResult_t result)
+{
+    switch (result)
+    {
+        case NL_ZERO_OK:                return "OK";
+        case NL_ZERO_DIRECTION_ERROR:   return "DIRECTION_ERROR";
+        case NL_ZERO_TIMEOUT:           return "TIMEOUT";
+        case NL_ZERO_ACQUISITION_ERROR: return "ACQUISITION_ERROR";
+        default:                        return "UNKNOWN";
+    }
+}
 
 /* Drives back to angle 0 with the position PID and waits for it to settle.
  * This loop originally had no time bound at all (matching the reference
@@ -771,16 +1004,39 @@ typedef enum
  * looking indistinguishable from a hang. It now times out and prints
  * periodic diagnostics so a stuck run is visible and recoverable instead of
  * silent. */
-static NlZeroResult_t MoveToZeroAndCheckDirection(void)
+static NlZeroResult_t MoveToZeroAndCheckDirection(NlZeroObservation_t *out)
 {
-    float errorBefore = Motor_MoveToAngle(0.0f);
-    int32_t settled = 0;
+    if (out == NULL)
+    {
+        return NL_ZERO_ACQUISITION_ERROR;
+    }
+    memset(out, 0, sizeof(*out));
     uint32_t startTick = HAL_GetTick();
+    out->initialCommandedPositionRaw = Motor_GetCommandedPos();
+
+    SetEngineState(NL_ENGINE_HOME);
+    float errorBefore = 0.0f;
+    if (Motor_MoveToAngle(0.0f, &errorBefore) != MA600_RESULT_OK)
+    {
+        return FinishMoveToZeroObservation(out, NL_ZERO_ACQUISITION_ERROR,
+            startTick);
+    }
+    out->initialErrorDeg = errorBefore;
+    out->finalErrorDeg = errorBefore;
+    out->updateCount = 1U;
+    int32_t settled = 0;
     uint32_t lastDiagTick = startTick;
 
     for (;;)
     {
-        float error = Motor_MoveToAngle(0.0f);
+        float error = 0.0f;
+        if (Motor_MoveToAngle(0.0f, &error) != MA600_RESULT_OK)
+        {
+            return FinishMoveToZeroObservation(out, NL_ZERO_ACQUISITION_ERROR,
+                startTick);
+        }
+        out->finalErrorDeg = error;
+        out->updateCount++;
 
         if (fabsf(error) < NL_MOVE_ZERO_ERROR_DEG)
         {
@@ -793,12 +1049,13 @@ static NlZeroResult_t MoveToZeroAndCheckDirection(void)
 
         if (settled > NL_MOVE_ZERO_SETTLE_TICKS)
         {
-            return NL_ZERO_OK;
+            return FinishMoveToZeroObservation(out, NL_ZERO_OK, startTick);
         }
 
         if (fabsf(error) - fabsf(errorBefore) > NL_CHECK_DIR_ANGLE_DEG)
         {
-            return NL_ZERO_DIRECTION_ERROR;
+            return FinishMoveToZeroObservation(out, NL_ZERO_DIRECTION_ERROR,
+                startTick);
         }
 
         uint32_t now = HAL_GetTick();
@@ -814,7 +1071,7 @@ static NlZeroResult_t MoveToZeroAndCheckDirection(void)
 
         if (now - startTick >= NL_MOVE_ZERO_TIMEOUT_MS)
         {
-            return NL_ZERO_TIMEOUT;
+            return FinishMoveToZeroObservation(out, NL_ZERO_TIMEOUT, startTick);
         }
 
         /* This is the actual bug behind the "vibrates but never rotates"
@@ -844,6 +1101,7 @@ static NlZeroResult_t MoveToZeroAndCheckDirection(void)
  * that. */
 static void LockStartPosition(void)
 {
+    SetEngineState(NL_ENGINE_LOCK);
     for (int32_t d = NL_DITHER_START_POS; d > 0; d--)
     {
         Motor_SetElectricalPos((uint16_t)(0 - d), 1.0f);
@@ -855,48 +1113,186 @@ static void LockStartPosition(void)
     osDelay(NL_DITHER_SETTLE_MS);
 }
 
-/* Waits until the encoder's own reading stops changing between polls
- * (NL_POINT_SETTLE_CONSECUTIVE consecutive polls each within
- * NL_POINT_SETTLE_ERROR_DEG of the previous one), instead of a blind fixed
- * delay -- see the NL_POINT_SETTLE_* comment for why this matters: a timer
- * doesn't know whether the shaft actually stopped, so two jigs with
- * different friction/damping can end up sampled at genuinely different
- * settle states after the same fixed wait. Returns false if it never
- * settles within NL_POINT_SETTLE_TIMEOUT_MS (sampling proceeds anyway --
- * the caller counts these for a per-sweep summary rather than aborting,
- * since one slow point shouldn't kill an otherwise-good sweep). */
-static bool WaitForPointSettle(void)
+/* A point is valid only when both the raw movement delta and the distance to
+ * the expected unwrapped target remain within their limits for the complete
+ * consecutive window. A timeout is retained as diagnostic data; the caller
+ * captures the point but rejects the sweep's measurement validity. */
+typedef enum
 {
-    MA600_UpdateMultiTurn();
-    float lastAngle = MA600_ReadMultiTurnDegrees();
-    int32_t settledCount = 0;
+    NL_SETTLE_OK = 0,
+    NL_SETTLE_TIMEOUT,
+    NL_SETTLE_WRONG_POSITION,
+    NL_SETTLE_ACQUISITION_ERROR,
+} NlSettleResult_t;
+
+typedef struct
+{
+    NlSettleResult_t result;
+    MA600_Result_t acquisitionResult;
+    MA600_Sample_t finalSample;
+    uint32_t pollCount;
+    uint32_t maxStableConsecutive;
+    uint32_t maxCombinedConsecutive;
+    int64_t positionErrorRaw;
+    bool stabilityValid;
+    bool targetProximityValid;
+    bool valid;
+} NlSettleObservation_t;
+
+typedef struct
+{
+    uint32_t readAttempts;
+    uint32_t acceptedSamples;
+    uint32_t retryCount;
+    uint32_t transportErrorCount;
+    uint32_t jumpRejectCount;
+    uint32_t failedSampleCount;
+} NlAcquisitionCounters_t;
+
+static NlAcquisitionCounters_t SnapshotAcquisitionCounters(
+    const MA600_AcquisitionContext_t *ctx)
+{
+    NlAcquisitionCounters_t snapshot = {0};
+    if (ctx != NULL)
+    {
+        snapshot.readAttempts = ctx->readAttempts;
+        snapshot.acceptedSamples = ctx->acceptedSamples;
+        snapshot.retryCount = ctx->retryCount;
+        snapshot.transportErrorCount = ctx->transportErrorCount;
+        snapshot.jumpRejectCount = ctx->jumpRejectCount;
+        snapshot.failedSampleCount = ctx->failedSampleCount;
+    }
+    return snapshot;
+}
+
+static void AccumulateCounterDelta(const MA600_AcquisitionContext_t *ctx,
+                                   const NlAcquisitionCounters_t *before,
+                                   NlAcquisitionCounters_t *total)
+{
+    if (ctx == NULL || before == NULL || total == NULL)
+    {
+        return;
+    }
+    total->readAttempts += ctx->readAttempts - before->readAttempts;
+    total->acceptedSamples += ctx->acceptedSamples - before->acceptedSamples;
+    total->retryCount += ctx->retryCount - before->retryCount;
+    total->transportErrorCount += ctx->transportErrorCount - before->transportErrorCount;
+    total->jumpRejectCount += ctx->jumpRejectCount - before->jumpRejectCount;
+    total->failedSampleCount += ctx->failedSampleCount - before->failedSampleCount;
+}
+
+static uint64_t AbsI64ToU64(int64_t value)
+{
+    return (value < 0) ? (uint64_t)(-(value + 1)) + 1U : (uint64_t)value;
+}
+
+static const char *SettleResultName(NlSettleResult_t result)
+{
+    switch (result)
+    {
+        case NL_SETTLE_OK:                return "OK";
+        case NL_SETTLE_TIMEOUT:           return "TIMEOUT";
+        case NL_SETTLE_WRONG_POSITION:    return "WRONG_POSITION";
+        case NL_SETTLE_ACQUISITION_ERROR: return "ACQUISITION_ERROR";
+        default:                          return "UNKNOWN";
+    }
+}
+
+/* Uses the caller-owned sweep context. Stability and target proximity must
+ * hold together for one complete consecutive window. No context is created
+ * or reacquired here, so wrap history remains continuous through ramp,
+ * settle, and point capture. */
+static NlSettleResult_t WaitForPointSettle(
+    MA600_AcquisitionContext_t *sweepAcquisition,
+    int64_t expectedTargetUnwrapped,
+    bool targetRequired,
+    NlSettleObservation_t *out)
+{
+    if (sweepAcquisition == NULL || out == NULL)
+    {
+        return NL_SETTLE_ACQUISITION_ERROR;
+    }
+    memset(out, 0, sizeof(*out));
+    out->result = NL_SETTLE_ACQUISITION_ERROR;
+    out->acquisitionResult = MA600_RESULT_OK;
+
+    MA600_Sample_t sample;
+    MA600_Result_t result = MA600_AcquireSample(sweepAcquisition,
+        NL_SETTLE_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
+    if (result != MA600_RESULT_OK)
+    {
+        out->acquisitionResult = result;
+        return NL_SETTLE_ACQUISITION_ERROR;
+    }
+    out->finalSample = sample;
+    out->pollCount = 1U;
+    int64_t lastUnwrapped = sample.unwrappedRaw;
+    uint32_t stableConsecutive = 0U;
+    uint32_t combinedConsecutive = 0U;
     uint32_t startTick = HAL_GetTick();
 
     for (;;)
     {
         osDelay(NL_POINT_SETTLE_POLL_MS);
-        MA600_UpdateMultiTurn();
-        float angle = MA600_ReadMultiTurnDegrees();
-        float delta = fabsf(angle - lastAngle);
-        lastAngle = angle;
-
-        if (delta < NL_POINT_SETTLE_ERROR_DEG)
+        result = MA600_AcquireSample(sweepAcquisition, NL_SETTLE_MAX_JUMP_RAW,
+            NL_ACQ_MAX_ATTEMPTS, &sample);
+        if (result != MA600_RESULT_OK)
         {
-            settledCount++;
+            out->acquisitionResult = result;
+            out->result = NL_SETTLE_ACQUISITION_ERROR;
+            return NL_SETTLE_ACQUISITION_ERROR;
+        }
+        out->finalSample = sample;
+        out->pollCount++;
+        uint64_t deltaRaw = AbsI64ToU64(sample.unwrappedRaw - lastUnwrapped);
+        lastUnwrapped = sample.unwrappedRaw;
+        out->positionErrorRaw = sample.unwrappedRaw - expectedTargetUnwrapped;
+        bool stable = deltaRaw <= (uint64_t)NL_POINT_SETTLE_ERROR_RAW;
+        bool targetNear = !targetRequired
+            || AbsI64ToU64(out->positionErrorRaw)
+                <= (uint64_t)NL_SETTLE_TARGET_TOLERANCE_RAW;
+
+        if (stable)
+        {
+            stableConsecutive++;
         }
         else
         {
-            settledCount = 0;
+            stableConsecutive = 0U;
         }
-
-        if (settledCount >= NL_POINT_SETTLE_CONSECUTIVE)
+        if (stable && targetNear)
         {
-            return true;
+            combinedConsecutive++;
+        }
+        else
+        {
+            combinedConsecutive = 0U;
+        }
+        if (stableConsecutive > out->maxStableConsecutive)
+            out->maxStableConsecutive = stableConsecutive;
+        if (combinedConsecutive > out->maxCombinedConsecutive)
+            out->maxCombinedConsecutive = combinedConsecutive;
+        out->stabilityValid = out->maxStableConsecutive
+            >= NL_POINT_SETTLE_CONSECUTIVE;
+        out->targetProximityValid = targetNear;
+
+        if (combinedConsecutive >= NL_POINT_SETTLE_CONSECUTIVE)
+        {
+            out->valid = true;
+            out->result = NL_SETTLE_OK;
+            return NL_SETTLE_OK;
         }
 
         if (HAL_GetTick() - startTick >= NL_POINT_SETTLE_TIMEOUT_MS)
         {
-            return false;
+            out->valid = false;
+            if (out->stabilityValid && !out->targetProximityValid)
+            {
+                out->result = NL_SETTLE_WRONG_POSITION;
+                return NL_SETTLE_WRONG_POSITION;
+            }
+            out->result = NL_SETTLE_TIMEOUT;
+            return NL_SETTLE_TIMEOUT;
         }
     }
 }
@@ -912,8 +1308,8 @@ static float WrapSignedDeg(float deg)
  * logged per harmonic (H{k}_PhaseSweepDeg) are relative to sweep *progress* (0->360 deg by
  * magnitude, same convention for either direction), not the MA600A's absolute physical angle
  * -- ghép trục CW/CCW về cùng 1 hệ quy chiếu tuyệt đối is offline/future work. The encoder's
- * multi-turn unwrap (MA600_UpdateMultiTurn, see ma600.c) is based on the delta between
- * consecutive reads and should be direction-symmetric in principle, but has only ever
+ * per-capture unwrap is based on the delta between consecutive accepted reads and should be
+ * direction-symmetric in principle, but has only ever
  * actually been exercised moving CW on real hardware -- treat the CCW path as compile-
  * verified only until a dedicated hardware validation run confirms it. */
 typedef enum
@@ -921,6 +1317,42 @@ typedef enum
     NL_SWEEP_CW = 0,
     NL_SWEEP_CCW = 1,
 } NlSweepDirection_t;
+
+/* Point-heavy Phase-2B storage lives in CPU-only CCM RAM. It is explicitly
+ * cleared before each capture, so it does not depend on startup initialization
+ * of the custom linker section. No DMA peripheral accesses these arrays. */
+typedef struct
+{
+    int64_t  pointMeanRawQ16[NL_MAX_SWEEP_POINTS];
+    int64_t  settlePositionErrorRaw[NL_MAX_SWEEP_POINTS];
+    uint32_t firstAttemptCycle[NL_MAX_SWEEP_POINTS];
+    uint32_t elapsedCycle[NL_MAX_SWEEP_POINTS];
+    uint16_t settlePollCount[NL_MAX_SWEEP_POINTS];
+    uint8_t  transactions[NL_MAX_SWEEP_POINTS];
+    uint8_t  accepted[NL_MAX_SWEEP_POINTS];
+    uint8_t  spiFailures[NL_MAX_SWEEP_POINTS];
+    uint8_t  jumpRejects[NL_MAX_SWEEP_POINTS];
+    uint8_t  metadataInvalid[NL_MAX_SWEEP_POINTS];
+    uint8_t  results[NL_MAX_SWEEP_POINTS];
+    uint8_t  settleResults[NL_MAX_SWEEP_POINTS];
+    uint8_t  settleFlags[NL_MAX_SWEEP_POINTS];
+    uint8_t  rampAcceptedSamples[NL_MAX_SWEEP_POINTS];
+} NlShadowPointStorage_t;
+
+typedef struct
+{
+    bool     attempted;
+    bool     valid;
+    MA600_Result_t result;
+    uint32_t nominalHoldMs;
+    uint32_t captureStartElapsedMs;
+    uint32_t captureEndElapsedMs;
+    int32_t  commandRaw;
+    int64_t  positionErrorRawQ16;
+    int64_t  windowP2PRaw;
+    int64_t  windowDriftRaw;
+    MA600_PointSample_t point;
+} NlClosureProbeStage_t;
 
 /* Full result of one sweep (one direction, one run). Capturing into this struct instead of
  * logging inline is what lets CaptureSweep() stay 100% silent on UART -- see its header
@@ -934,11 +1366,24 @@ typedef struct
     uint32_t sweepId;          /* unique per CaptureSweep() call, monotonic for the whole boot session. */
     NlSweepDirection_t direction;
 
+    /* Run-boundary controller-state contract. This is copied in after
+     * CaptureSweep() clears/initializes the capture so every emitted sweep
+     * records the exact home session that established its starting state. */
+    bool controllerResetApplied;
+    bool controllerResetStateValid;
+    Motor_ControllerState_t controllerStateBeforeReset;
+    Motor_ControllerState_t controllerStateAfterReset;
+    NlZeroObservation_t homeObservation;
+
 #if ENABLE_AUTO_BATCH_TEST
     uint32_t batchId;
-    uint32_t runOrder;          /* 1-based position of this run within its batch. */
-    uint32_t batchRunCount;     /* NL_BATCH_RUN_COUNT at capture time. */
-    bool     firstRunInBatch;   /* true only for runOrder==1 -- no firmware-controlled cooldown
+    uint32_t cycleOrder;         /* 1..11 physical sweep order, including precondition. */
+    uint32_t runOrder;           /* 0 for precondition; 1..10 for official runs. */
+    uint32_t batchRunCount;      /* Official run count (10), excluding precondition. */
+    bool     preconditionRun;
+    bool     eligibleForStatistics;
+    bool     preconditionValid;  /* true for official runs only after cycle 1 passed. */
+    bool     firstRunInBatch;   /* true only for cycleOrder==1 -- no firmware-controlled cooldown
                                   * preceded this run, so the three cooldown fields below are
                                   * not meaningful and are logged as NA rather than a fabricated 0. */
     uint32_t cooldownTargetMs;
@@ -955,11 +1400,9 @@ typedef struct
 
     int      capturedCount;    /* total points captured, including the >360 deg margin. */
     int      analysisCount;    /* points actually used for harmonic/RMS/residual (== 256 at NL_POS_INCREASE=256). */
-    bool     measurementValid; /* acquisition-level only: analysisCount matches expectation AND
-                                 * notSettledCount==0. Independent of legacyModelValid/
-                                 * extendedModelValid below -- a model-side issue (e.g. an order
-                                 * above Nyquist after changing NL_POS_INCREASE) shouldn't make
-                                 * the raw captured curve itself look unusable. */
+    bool     measurementValid; /* protocol validity: acquisition succeeded, point count and
+                                 * settling are complete, and gross tracking integrity passed.
+                                 * Independent of nonlinear magnitude and model validity. */
 
     uint16_t rawAtOffset;
     uint16_t motorOffset;
@@ -976,6 +1419,11 @@ typedef struct
      * available as harmonics[] entries -- same amplitude/phase, no need to duplicate). */
     NlHarmonicResult_t harmonicH4;
     NlHarmonicResult_t harmonicH8;
+    NlHarmonicResult_t electricalRippleHarmonic;
+    uint16_t motorPoleCount;
+    uint16_t motorPolePairs;
+    uint16_t electricalRippleOrder;
+    bool     electricalRippleValid;
     uint8_t  dominantSelectedOrder;       /* order with the largest amplitude in harmonics[] --
                                             * describes the target-grid curve only, not proof of
                                             * a physical origin -- see NL_HARMONIC_ORDERS. */
@@ -1006,7 +1454,76 @@ typedef struct
     float    p99AbsDeviation;
     float    trackingErrorRmsDeg;
     float    trackingErrorMaxAbsDeg;
+    bool     trackingValid;
     uint32_t featureComputeTimeMs;
+
+    MA600_Result_t acquisitionResult;
+    uint32_t acquisitionReadAttempts;
+    uint32_t acquisitionRetries;
+    uint32_t acquisitionTransportErrors;
+    uint32_t acquisitionJumpRejects;
+    uint32_t acquisitionFailedSamples;
+
+    /* Phase-3A motion acquisition uses one continuous unwrap context. The
+     * phase counters below are subtracted from the context totals so frozen
+     * schema-v5 Acq* fields retain their original point-capture meaning. */
+    NlAcquisitionCounters_t contextAcquisition;
+    NlAcquisitionCounters_t rampAcquisition;
+    NlAcquisitionCounters_t settleAcquisition;
+    uint32_t contextReacquireCount;
+    int      settlePointCount;
+    int      settleStabilityValidCount;
+    int      settleTargetProximityValidCount;
+    int      settleValidCount;
+    int      settleTimeoutCount;
+    int      settleWrongPositionCount;
+    int64_t  maxAbsSettlePositionErrorRaw;
+
+    /* Phase-2B diagnostic capture. None of these fields participate in
+     * measurementValid, Motor OK, batch completion, or the legacy RESULT.
+     * Keeping point counters separate prevents shadow/ramp reads from
+     * silently changing the meaning of schema-v5 Acq* fields. */
+    bool     shadowCanonicalEnabled;
+    bool     shadowCanonicalStarted;
+    bool     shadowCanonicalValid;
+    bool     shadowClosureValid;
+    MA600_Result_t shadowAcquisitionResult;
+    int      shadowAttemptedPointCount;
+    int      shadowCapturedCount;
+    int      shadowAnalysisCount;
+    uint32_t shadowTransactionCount;
+    uint32_t shadowAcceptedSampleCount;
+    uint32_t shadowSpiFailureCount;
+    uint32_t shadowJumpRejectedCount;
+    uint32_t shadowMetadataInvalidCount;
+    uint32_t shadowFailedPointCount;
+    uint32_t shadowSkippedSlotCount;
+    uint32_t shadowTimingOverrunCount;
+    uint32_t shadowMaxAbsTimingErrorCycles;
+    uint32_t shadowMaxConsecutiveFailuresObserved;
+    uint32_t shadowFeatureComputeTimeMs;
+    int64_t  shadowPoint0MeanRawQ16;
+    int64_t  shadowClosureErrorRawQ16;
+    float    shadowMean;
+    float    shadowRmsAc;
+    float    shadowA36;
+    float    shadowP2P;
+    float    shadowClosureErrorDeg;
+    float    shadowLegacyMinusCanonicalRms;
+    float    shadowLegacyMinusCanonicalA36;
+    NlShadowPointStorage_t *shadowPoints;
+
+    /* Phase-3B0-A diagnostic only. A numeric closure value here never
+     * participates in measurementValid/Motor OK/batch disposition. A read
+     * failure is still a safety/acquisition failure and stops the sweep. */
+    bool     closureProbeEnabled;
+    bool     closureProbeStarted;
+    bool     closureProbeComplete;
+    bool     postTurnTimingComparable;
+    MA600_Result_t closureProbeAcquisitionResult;
+    uint32_t closureProbeAttemptedStageCount;
+    uint32_t closureProbeValidStageCount;
+    NlClosureProbeStage_t closureProbeStages[NL_CLOSURE_PROBE_STAGE_COUNT];
 
     int      notSettledCount;
     float    absoluteAngleAtMax;
@@ -1019,12 +1536,330 @@ typedef struct
     float    errorSamples[NL_MAX_SWEEP_POINTS];
     uint16_t rawAngleSamples[NL_MAX_SWEEP_POINTS];
     int32_t  targetRawSamples[NL_MAX_SWEEP_POINTS];
+    uint32_t csAssertCycleSamples[NL_MAX_SWEEP_POINTS];
+    uint16_t pwmCounterSamples[NL_MAX_SWEEP_POINTS];
+    uint8_t  acquisitionAttemptSamples[NL_MAX_SWEEP_POINTS];
+    uint8_t  acquisitionFlagSamples[NL_MAX_SWEEP_POINTS];
+
 } NlSweepCapture_t;
 
 static NlSweepCapture_t nlCaptures[NL_MAX_SWEEPS_PER_TEST];
+static NlShadowPointStorage_t nlShadowPointStorage[NL_MAX_SWEEPS_PER_TEST]
+    __attribute__((section(".ccmram_bss")));
 static float nlSortScratch[NL_MAX_SWEEP_POINTS];
 static uint32_t nlTestIdCounter = 0;
 static uint32_t nlSweepIdCounter = 0;
+
+enum
+{
+    NL_SETTLE_FLAG_STABILITY_VALID = (1U << 0),
+    NL_SETTLE_FLAG_TARGET_VALID    = (1U << 1),
+    NL_SETTLE_FLAG_COMBINED_VALID  = (1U << 2),
+};
+
+static void RecordSettleObservation(NlSweepCapture_t *out, int pointIndex,
+                                    const NlSettleObservation_t *observation,
+                                    uint32_t rampAcceptedSamples)
+{
+    if (out == NULL || observation == NULL
+            || pointIndex < 0 || pointIndex >= NL_MAX_SWEEP_POINTS)
+    {
+        return;
+    }
+
+    uint8_t flags = 0U;
+    if (observation->stabilityValid)
+    {
+        flags |= NL_SETTLE_FLAG_STABILITY_VALID;
+        out->settleStabilityValidCount++;
+    }
+    if (observation->targetProximityValid)
+    {
+        flags |= NL_SETTLE_FLAG_TARGET_VALID;
+        out->settleTargetProximityValidCount++;
+    }
+    if (observation->valid)
+    {
+        flags |= NL_SETTLE_FLAG_COMBINED_VALID;
+        out->settleValidCount++;
+    }
+    if (observation->result == NL_SETTLE_TIMEOUT)
+    {
+        out->settleTimeoutCount++;
+    }
+    else if (observation->result == NL_SETTLE_WRONG_POSITION)
+    {
+        out->settleWrongPositionCount++;
+    }
+
+    uint64_t absPositionErrorRaw = AbsI64ToU64(observation->positionErrorRaw);
+    if (absPositionErrorRaw > (uint64_t)out->maxAbsSettlePositionErrorRaw)
+    {
+        out->maxAbsSettlePositionErrorRaw = (int64_t)absPositionErrorRaw;
+    }
+
+    out->settlePointCount++;
+    if (out->shadowPoints != NULL)
+    {
+        out->shadowPoints->settlePositionErrorRaw[pointIndex] = observation->positionErrorRaw;
+        out->shadowPoints->settlePollCount[pointIndex] = SaturateU16(observation->pollCount);
+        out->shadowPoints->settleResults[pointIndex] = (uint8_t)observation->result;
+        out->shadowPoints->settleFlags[pointIndex] = flags;
+        out->shadowPoints->rampAcceptedSamples[pointIndex] = SaturateU8(rampAcceptedSamples);
+    }
+}
+
+static void RecordShadowPoint(NlSweepCapture_t *out, int pointIndex,
+                              const MA600_PointSample_t *point,
+                              MA600_Result_t result)
+{
+    if (out == NULL || point == NULL || out->shadowPoints == NULL)
+    {
+        return;
+    }
+
+    out->shadowCanonicalStarted = true;
+    out->shadowAttemptedPointCount++;
+    out->shadowTransactionCount += point->transactionCount;
+    out->shadowAcceptedSampleCount += point->acceptedSampleCount;
+    out->shadowSpiFailureCount += point->spiFailureCount;
+    out->shadowJumpRejectedCount += point->jumpRejectedCount;
+    out->shadowMetadataInvalidCount += point->metadataInvalidCount;
+    out->shadowSkippedSlotCount += point->skippedSlotCount;
+    out->shadowTimingOverrunCount += point->timingOverrunCount;
+    if (point->maxAbsTimingErrorCycles > out->shadowMaxAbsTimingErrorCycles)
+    {
+        out->shadowMaxAbsTimingErrorCycles = point->maxAbsTimingErrorCycles;
+    }
+    if (point->maxConsecutiveFailures > out->shadowMaxConsecutiveFailuresObserved)
+    {
+        out->shadowMaxConsecutiveFailuresObserved = point->maxConsecutiveFailures;
+    }
+
+    if (pointIndex >= 0 && pointIndex < NL_MAX_SWEEP_POINTS)
+    {
+        out->shadowPoints->firstAttemptCycle[pointIndex] = point->firstAttemptCycle;
+        out->shadowPoints->elapsedCycle[pointIndex] = point->elapsedCycles;
+        out->shadowPoints->transactions[pointIndex] = SaturateU8(point->transactionCount);
+        out->shadowPoints->accepted[pointIndex] = SaturateU8(point->acceptedSampleCount);
+        out->shadowPoints->spiFailures[pointIndex] = SaturateU8(point->spiFailureCount);
+        out->shadowPoints->jumpRejects[pointIndex] = SaturateU8(point->jumpRejectedCount);
+        out->shadowPoints->metadataInvalid[pointIndex] = SaturateU8(point->metadataInvalidCount);
+        out->shadowPoints->results[pointIndex] = (uint8_t)result;
+    }
+
+    if (result == MA600_RESULT_OK && point->valid
+            && pointIndex >= 0 && pointIndex < NL_MAX_SWEEP_POINTS)
+    {
+        out->shadowPoints->pointMeanRawQ16[pointIndex] = point->pointMeanRawQ16;
+        if (pointIndex == 0)
+        {
+            out->shadowPoint0MeanRawQ16 = point->pointMeanRawQ16;
+        }
+        out->shadowCapturedCount++;
+    }
+    else
+    {
+        out->shadowFailedPointCount++;
+        out->shadowAcquisitionResult = result;
+    }
+}
+
+static const char *ClosureProbeStageName(uint32_t stageIndex)
+{
+    static const char *const names[NL_CLOSURE_PROBE_STAGE_COUNT] = {
+        "INITIAL", "HOLD_50", "HOLD_100", "HOLD_200"
+    };
+    return (stageIndex < NL_CLOSURE_PROBE_STAGE_COUNT)
+        ? names[stageIndex] : "UNKNOWN";
+}
+
+static void WaitForClosureProbeTime(uint32_t startTick, uint32_t targetElapsedMs)
+{
+    for (;;)
+    {
+        uint32_t elapsedMs = (uint32_t)(HAL_GetTick() - startTick);
+        if (elapsedMs >= targetElapsedMs)
+        {
+            return;
+        }
+        osDelay(targetElapsedMs - elapsedMs);
+    }
+}
+
+static MA600_Result_t RecordClosureProbeStage(NlSweepCapture_t *out,
+                                               uint32_t stageIndex,
+                                               const MA600_PointSample_t *point,
+                                               MA600_Result_t result,
+                                               uint32_t nominalHoldMs,
+                                               uint32_t captureStartElapsedMs,
+                                               uint32_t captureEndElapsedMs,
+                                               int32_t commandRaw,
+                                               int32_t directionSign)
+{
+    if (out == NULL || point == NULL || stageIndex >= NL_CLOSURE_PROBE_STAGE_COUNT)
+    {
+        return MA600_RESULT_INVALID_ARG;
+    }
+
+    NlClosureProbeStage_t *stage = &out->closureProbeStages[stageIndex];
+    memset(stage, 0, sizeof(*stage));
+    stage->attempted = true;
+    stage->result = result;
+    stage->nominalHoldMs = nominalHoldMs;
+    stage->captureStartElapsedMs = captureStartElapsedMs;
+    stage->captureEndElapsedMs = captureEndElapsedMs;
+    stage->commandRaw = commandRaw;
+    stage->point = *point;
+    out->closureProbeAttemptedStageCount++;
+
+    if (result != MA600_RESULT_OK || !point->valid)
+    {
+        if (result == MA600_RESULT_OK)
+        {
+            stage->result = MA600_RESULT_INVALID_ARG;
+        }
+        return stage->result;
+    }
+
+    if (!MA600_ComputeCanonicalErrorQ16(point->pointMeanRawQ16,
+            out->shadowPoint0MeanRawQ16, directionSign,
+            NL_CLOSURE_POINT_INDEX, NL_POS_INCREASE,
+            &stage->positionErrorRawQ16))
+    {
+        stage->result = MA600_RESULT_MATH_OVERFLOW;
+        return stage->result;
+    }
+
+    stage->windowP2PRaw = point->maxRelRaw - point->minRelRaw;
+    stage->windowDriftRaw = point->lastAcceptedUnwrapped
+        - point->firstAcceptedUnwrapped;
+    stage->valid = true;
+    out->closureProbeValidStageCount++;
+    return MA600_RESULT_OK;
+}
+
+static MA600_Result_t CaptureClosureHoldProbe(NlSweepCapture_t *out,
+                                               MA600_UnwrapContext_t *shadowUnwrap,
+                                               int64_t pointAnchorUnwrapped,
+                                               const MA600_PointSamplerConfig_t *config,
+                                               const MA600_PointSample_t *baselinePoint,
+                                               int32_t commandRaw,
+                                               NlSweepDirection_t direction)
+{
+    static const uint32_t nominalHoldMs[NL_CLOSURE_PROBE_STAGE_COUNT] = {
+        0U, 50U, 100U, 200U
+    };
+    int32_t directionSign = (direction == NL_SWEEP_CW) ? 1 : -1;
+
+    out->closureProbeStarted = true;
+    out->postTurnTimingComparable = false;
+    uint32_t probeStartTick = HAL_GetTick();
+
+    MA600_Result_t result = RecordClosureProbeStage(out, 0U, baselinePoint,
+        MA600_RESULT_OK, 0U, 0U, 0U, commandRaw, directionSign);
+    if (result != MA600_RESULT_OK)
+    {
+        out->closureProbeAcquisitionResult = result;
+        return result;
+    }
+
+    for (uint32_t stageIndex = 1U;
+            stageIndex < NL_CLOSURE_PROBE_STAGE_COUNT; stageIndex++)
+    {
+        WaitForClosureProbeTime(probeStartTick, nominalHoldMs[stageIndex]);
+        uint32_t captureStartElapsedMs = (uint32_t)(HAL_GetTick() - probeStartTick);
+        MA600_PointSample_t point;
+        result = MA600_ReadAveragedPoint(shadowUnwrap, pointAnchorUnwrapped,
+            config, &point);
+        uint32_t captureEndElapsedMs = (uint32_t)(HAL_GetTick() - probeStartTick);
+        result = RecordClosureProbeStage(out, stageIndex, &point, result,
+            nominalHoldMs[stageIndex], captureStartElapsedMs,
+            captureEndElapsedMs, commandRaw, directionSign);
+        if (result != MA600_RESULT_OK)
+        {
+            out->closureProbeAcquisitionResult = result;
+            return result;
+        }
+    }
+
+    out->closureProbeComplete = true;
+    out->closureProbeAcquisitionResult = MA600_RESULT_OK;
+    return MA600_RESULT_OK;
+}
+
+static void ComputeShadowMetrics(NlSweepCapture_t *out, NlSweepDirection_t direction)
+{
+    uint32_t startTick = HAL_GetTick();
+    out->shadowCanonicalValid = false;
+    out->shadowClosureValid = false;
+
+    if (!out->shadowCanonicalEnabled || !out->shadowCanonicalStarted
+            || out->shadowPoints == NULL
+            || out->shadowAcquisitionResult != MA600_RESULT_OK
+            || out->shadowCapturedCount != out->capturedCount
+            || out->analysisCount <= 0
+            || out->shadowCapturedCount <= 256)
+    {
+        out->shadowFeatureComputeTimeMs = HAL_GetTick() - startTick;
+        return;
+    }
+
+    out->shadowPoint0MeanRawQ16 = out->shadowPoints->pointMeanRawQ16[0];
+    int32_t directionSign = (direction == NL_SWEEP_CW) ? 1 : -1;
+    float sum = 0.0f;
+    float minError = 1.0e9f;
+    float maxError = -1.0e9f;
+
+    for (int i = 0; i < out->shadowCapturedCount; i++)
+    {
+        int64_t errorRawQ16 = 0;
+        if (!MA600_ComputeCanonicalErrorQ16(out->shadowPoints->pointMeanRawQ16[i],
+                out->shadowPoint0MeanRawQ16, directionSign, (uint32_t)i,
+                NL_POS_INCREASE, &errorRawQ16))
+        {
+            out->shadowAcquisitionResult = MA600_RESULT_MATH_OVERFLOW;
+            out->shadowFeatureComputeTimeMs = HAL_GetTick() - startTick;
+            return;
+        }
+
+        float errorDeg = ShadowRawQ16ToDegrees(errorRawQ16);
+        if (i < out->analysisCount)
+        {
+            nlSortScratch[i] = errorDeg;
+            sum += errorDeg;
+            if (errorDeg < minError) minError = errorDeg;
+            if (errorDeg > maxError) maxError = errorDeg;
+        }
+        if (i == 256)
+        {
+            out->shadowClosureErrorRawQ16 = errorRawQ16;
+            out->shadowClosureErrorDeg = errorDeg;
+        }
+    }
+
+    out->shadowAnalysisCount = out->analysisCount;
+    out->shadowMean = sum / (float)out->shadowAnalysisCount;
+    float sumSqAc = 0.0f;
+    for (int i = 0; i < out->shadowAnalysisCount; i++)
+    {
+        float dev = nlSortScratch[i] - out->shadowMean;
+        sumSqAc += dev * dev;
+    }
+    out->shadowRmsAc = sqrtf(sumSqAc / (float)out->shadowAnalysisCount);
+
+    NlHarmonicResult_t h36;
+    ComputeHarmonicFull(nlSortScratch, out->shadowAnalysisCount,
+        out->shadowMean, 36, &h36);
+    out->shadowA36 = h36.amplitude;
+    out->shadowP2P = maxError - minError;
+    out->shadowLegacyMinusCanonicalRms = out->rmsAc - out->shadowRmsAc;
+    out->shadowLegacyMinusCanonicalA36 = out->harmonics[8].amplitude - out->shadowA36;
+    out->shadowClosureValid = fabsf(out->shadowClosureErrorDeg)
+        <= NL_SHADOW_CLOSURE_LIMIT_DEG;
+    out->shadowCanonicalValid = true;
+    out->shadowFeatureComputeTimeMs = HAL_GetTick() - startTick;
+}
 
 #if ENABLE_AUTO_BATCH_TEST
 typedef enum
@@ -1046,11 +1881,12 @@ static NlBatchState_t nlBatchState = NL_BATCH_IDLE;
  * doubles as MountCycle without a separate field. */
 static uint32_t nlBatchIdCounter = 0;
 static uint32_t nlBatchId;
-static uint32_t nlCurrentRun;
+static uint32_t nlCurrentCycle;
 static uint32_t nlCooldownStartTick;
 static uint32_t nlCooldownActualMs;
 static bool     nlCooldownValid;
 static bool     nlFirstRunInBatch;
+static bool     nlPreconditionValid;
 static uint32_t nlLastMotorOffTick; /* set by NonlinearTest_Run() right after Motor_Disable() --
                                       * the real "torque off" moment cooldown must be timed from,
                                       * not whenever logging/feature computation finishes after it. */
@@ -1066,6 +1902,37 @@ static bool HasTimeElapsed(uint32_t startTick, uint32_t durationMs)
 }
 #endif /* ENABLE_AUTO_BATCH_TEST */
 
+static bool ControllerStateIsReset(const Motor_ControllerState_t *state)
+{
+    return state != NULL
+        && state->integralTerm == 0.0f
+        && state->lastErrorDeg == 0.0f
+        && state->commandedPositionRaw == 0.0f
+        && !state->feedbackTrackerInitialized
+        && state->feedbackAcceptedSamples == 0U
+        && state->outputElectricalPositionRaw == 0U
+        && state->outputPower == 0.0f
+        && !state->outputEnabled;
+}
+
+static void RecordControllerObservation(NlSweepCapture_t *capture,
+    const Motor_ControllerState_t *beforeReset,
+    const Motor_ControllerState_t *afterReset,
+    const NlZeroObservation_t *home)
+{
+    if (capture == NULL || beforeReset == NULL || afterReset == NULL
+            || home == NULL)
+    {
+        return;
+    }
+
+    capture->controllerResetApplied = true;
+    capture->controllerResetStateValid = ControllerStateIsReset(afterReset);
+    capture->controllerStateBeforeReset = *beforeReset;
+    capture->controllerStateAfterReset = *afterReset;
+    capture->homeObservation = *home;
+}
+
 /* One sweep: drives the shaft open-loop from 0 to NL_SWEEP_ANGLE_DEG in NL_POS_INCREASE
  * steps (CW: increasing; CCW: decreasing, see NlSweepDirection_t), comparing the commanded
  * position against the MA600A's reading at each step, and computes the full schema-v2
@@ -1076,25 +1943,107 @@ static bool HasTimeElapsed(uint32_t startTick, uint32_t durationMs)
  * printing between sweeps (when multiple sweeps run per test, e.g. with CCW enabled) changes
  * inter-sweep rest time the same way. All UART output happens later, from PrintSweepLog(),
  * only after every sweep of the test has finished and Motor_Disable() has already run. */
-static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t testId, NlSweepCapture_t *out)
+static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
+                                   uint32_t testId, NlSweepCapture_t *out)
 {
+    size_t captureSlot = (size_t)(out - nlCaptures);
+    NlShadowPointStorage_t *shadowPoints = (captureSlot < NL_MAX_SWEEPS_PER_TEST)
+        ? &nlShadowPointStorage[captureSlot]
+        : NULL;
+    memset(out, 0, sizeof(*out));
+    if (shadowPoints != NULL)
+    {
+        memset(shadowPoints, 0, sizeof(*shadowPoints));
+    }
+    out->shadowPoints = shadowPoints;
+    out->shadowCanonicalEnabled = shadowPoints != NULL;
+    out->shadowAcquisitionResult = MA600_RESULT_OK;
+    out->closureProbeEnabled = (ENABLE_CLOSURE_HOLD_PROBE != 0)
+        && shadowPoints != NULL;
+    out->closureProbeAcquisitionResult = MA600_RESULT_OK;
+    out->postTurnTimingComparable = true;
     out->runIndex = runIndex;
     out->direction = direction;
     out->testId = testId;
     out->sweepId = ++nlSweepIdCounter;
+    out->motorPoleCount = Motor_GetPoleCount();
+    out->motorPolePairs = Motor_GetPolePairs();
+    out->electricalRippleOrder = (uint16_t)(out->motorPolePairs
+        * MOTOR_ELECTRICAL_RIPPLE_MULTIPLE);
 
-    out->rawAtOffset = MA600_ReadRawAngle();
+    MA600_AcquisitionContext_t sweepAcquisition;
+    MA600_AcquisitionInit(&sweepAcquisition);
+    MA600_Sample_t sample;
+    MA600_Result_t acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
+        NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
+    if (acquisitionResult != MA600_RESULT_OK)
+    {
+        out->acquisitionResult = acquisitionResult;
+        out->acquisitionReadAttempts = sweepAcquisition.readAttempts;
+        out->acquisitionRetries = sweepAcquisition.retryCount;
+        out->acquisitionTransportErrors = sweepAcquisition.transportErrorCount;
+        out->acquisitionJumpRejects = sweepAcquisition.jumpRejectCount;
+        out->acquisitionFailedSamples = sweepAcquisition.failedSampleCount;
+        return acquisitionResult;
+    }
+
+    /* Point 0 establishes the mechanical reference, but still has to prove
+     * stability. Its target-proximity check is intentionally not required:
+     * there is no earlier continuous-sweep origin to compare it against. */
+    NlAcquisitionCounters_t settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+    NlSettleObservation_t settleObservation;
+    SetEngineState(NL_ENGINE_SETTLE);
+    NlSettleResult_t settleResult = WaitForPointSettle(&sweepAcquisition,
+        sample.unwrappedRaw, false, &settleObservation);
+    AccumulateCounterDelta(&sweepAcquisition, &settleBefore, &out->settleAcquisition);
+    if (settleResult == NL_SETTLE_ACQUISITION_ERROR)
+    {
+        out->acquisitionResult = settleObservation.acquisitionResult;
+        out->contextAcquisition = SnapshotAcquisitionCounters(&sweepAcquisition);
+        out->acquisitionReadAttempts = out->contextAcquisition.readAttempts
+            - out->settleAcquisition.readAttempts;
+        out->acquisitionRetries = out->contextAcquisition.retryCount
+            - out->settleAcquisition.retryCount;
+        out->acquisitionTransportErrors = out->contextAcquisition.transportErrorCount
+            - out->settleAcquisition.transportErrorCount;
+        out->acquisitionJumpRejects = out->contextAcquisition.jumpRejectCount
+            - out->settleAcquisition.jumpRejectCount;
+        out->acquisitionFailedSamples = out->contextAcquisition.failedSampleCount
+            - out->settleAcquisition.failedSampleCount;
+        return out->acquisitionResult;
+    }
+
+    settleObservation.positionErrorRaw = 0;
+    settleObservation.targetProximityValid = true;
+    settleObservation.valid = (settleResult == NL_SETTLE_OK)
+        && settleObservation.stabilityValid;
+    sample = settleObservation.finalSample;
+    const int64_t sweepOriginUnwrapped = sample.unwrappedRaw;
+    out->rawAtOffset = sample.raw;
     out->motorOffset = Motor_ElectricalOffset(out->rawAtOffset);
-    out->angleOffsetAtStart = MA600_ReadMultiTurnDegrees();
-    out->multiTurnRawAtStart = MA600_ReadMultiTurnRaw();
+    out->angleOffsetAtStart = MA600_UnwrappedRawToDegrees(sweepOriginUnwrapped);
+    out->multiTurnRawAtStart = (int32_t)sweepOriginUnwrapped;
     float angleOffset = out->angleOffsetAtStart;
+
+    /* Shadow is an independent consumer: seed it from the accepted sweep
+     * origin, then let it advance on its own. Its reads and rejects cannot
+     * mutate legacy unwrap state or schema-v5 Acq* counters. */
+    MA600_UnwrapContext_t shadowUnwrap = sweepAcquisition.unwrap;
+    bool shadowActive = out->shadowCanonicalEnabled;
+    const MA600_PointSamplerConfig_t shadowPointConfig = {
+        .timingMode = MA600_POINT_TIMING_BACK_TO_BACK,
+        .sampleIntervalCycles = 0U,
+        .requiredAcceptedSamples = NL_SAMPLES_PER_POINT,
+        .maxTransactions = NL_SHADOW_POINT_MAX_TRANSACTIONS,
+        .maxConsecutiveFailures = NL_SHADOW_POINT_MAX_CONSECUTIVE_FAILURES,
+        .maxElapsedCycles = MA600_DwtUsToCycles(NL_SHADOW_POINT_MAX_ELAPSED_US),
+        .maxJumpRaw = NL_SWEEP_MAX_JUMP_RAW,
+    };
 
     int32_t pos = 0;
     float sweptAngleDeg = 0.0f;
-    int sampleCount = 0;
-    float angleSampleSum = 0.0f;
     int pointIndex = 0;
-    int notSettledCount = 0;
+    uint32_t rampAcceptedForPoint = 0U;
     float errorMaxTrack = -1.0e9f;
     float errorMinTrack = 1.0e9f;
     float absoluteAngleAtMax = 0.0f;
@@ -1102,13 +2051,43 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
     uint16_t rawAtMax = 0;
     uint16_t rawAtMin = 0;
 
-    while (sweptAngleDeg < NL_SWEEP_ANGLE_DEG)
+    while (pointIndex < NL_MAX_SWEEP_POINTS)
     {
-        if (sampleCount < NL_SAMPLES_PER_POINT)
+        RecordSettleObservation(out, pointIndex, &settleObservation,
+            rampAcceptedForPoint);
+        const int64_t pointAnchorUnwrapped = settleObservation.finalSample.unwrappedRaw;
+
+        /* Bring the independent shadow unwrap up to the same settled raw
+         * observation. Its anchor is the immutable post-settle sample, not
+         * whichever sample happened to be last after the legacy window. */
+        if (shadowActive && pointIndex > 0)
         {
-            MA600_UpdateMultiTurn();
-            angleSampleSum += MA600_ReadMultiTurnDegrees();
-            sampleCount++;
+            int64_t shadowAnchorUnwrapped = 0;
+            MA600_Result_t shadowSyncResult = MA600_UnwrapUpdate(&shadowUnwrap,
+                settleObservation.finalSample.raw,
+                settleObservation.finalSample.meta.csAssertCycle,
+                NL_SWEEP_MAX_JUMP_RAW, &shadowAnchorUnwrapped);
+            if (shadowSyncResult != MA600_RESULT_OK)
+            {
+                MA600_PointSample_t failedShadowPoint;
+                memset(&failedShadowPoint, 0, sizeof(failedShadowPoint));
+                failedShadowPoint.result = shadowSyncResult;
+                RecordShadowPoint(out, pointIndex, &failedShadowPoint, shadowSyncResult);
+                shadowActive = false;
+            }
+        }
+
+        SetEngineState(NL_ENGINE_ACQUIRE);
+        float angleSampleSum = 0.0f;
+        for (int sampleCount = 0; sampleCount < NL_SAMPLES_PER_POINT; sampleCount++)
+        {
+            acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
+                NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
+            if (acquisitionResult != MA600_RESULT_OK)
+            {
+                goto capture_complete;
+            }
+            angleSampleSum += MA600_UnwrappedRawToDegrees(sample.unwrappedRaw);
             /* No inter-sample delay here (there used to be one, as a test
              * for whether residual mechanical ringing was corrupting the
              * average) -- a real "NL curve" log came back nearly identical
@@ -1116,24 +2095,27 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
              * shape is a repeatable, position-dependent signature, not
              * averaging noise, so there's nothing to gain by spreading
              * these out and it only costs time. */
-            continue;
         }
 
-        float encAngle = angleSampleSum / (float)sampleCount;
-        angleSampleSum = 0.0f;
-        sampleCount = 0;
+        float encAngle = angleSampleSum / (float)NL_SAMPLES_PER_POINT;
 
         sweptAngleDeg = 360.0f * fabsf((float)pos) / NL_FULL_TURN_RAW;
         float signedTargetDeg = (direction == NL_SWEEP_CW) ? sweptAngleDeg : -sweptAngleDeg;
         float error = signedTargetDeg - (encAngle - angleOffset);
 
         /* Absolute reference for this point, independent of this run's
-         * LockStartPosition/MA600_ResetMultiTurn origin: the MA600A's raw
+         * LockStartPosition/per-capture unwrap origin: the MA600A's raw
          * reading itself, which this driver never re-zeros (MA600_Init()
          * writes no registers, ZERO0/ZERO1 are never touched), so it stays
          * tied to the sensor's own fixed factory-zero orientation across
          * every run and every jig. */
-        uint16_t rawAtPoint = MA600_ReadRawAngle();
+        acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
+            NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
+        if (acquisitionResult != MA600_RESULT_OK)
+        {
+            goto capture_complete;
+        }
+        uint16_t rawAtPoint = sample.raw;
         float absoluteAngleDeg = MA600_RawToDegrees(rawAtPoint);
 
         if (error > errorMaxTrack)
@@ -1154,8 +2136,52 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
             out->errorSamples[pointIndex] = error;
             out->rawAngleSamples[pointIndex] = rawAtPoint;
             out->targetRawSamples[pointIndex] = pos;
+            out->csAssertCycleSamples[pointIndex] = sample.meta.csAssertCycle;
+            out->pwmCounterSamples[pointIndex] = sample.meta.pwmCounterAtCs;
+            out->acquisitionAttemptSamples[pointIndex] = sample.attempts;
+            out->acquisitionFlagSamples[pointIndex] = sample.flags;
+        }
+
+        /* Phase-2B only: take a second, canonical window after the official
+         * legacy point is already frozen. A shadow failure is recorded and
+         * disables later shadow points, but never aborts or invalidates the
+         * legacy sweep. */
+        if (shadowActive)
+        {
+            MA600_PointSample_t shadowPoint;
+            MA600_Result_t shadowResult = MA600_ReadAveragedPoint(&shadowUnwrap,
+                pointAnchorUnwrapped, &shadowPointConfig, &shadowPoint);
+            RecordShadowPoint(out, pointIndex, &shadowPoint, shadowResult);
+            if (shadowResult == MA600_RESULT_OK && out->closureProbeEnabled
+                    && pointIndex == (int)NL_CLOSURE_POINT_INDEX)
+            {
+                /* INITIAL is the exact already-recorded Point-256 shadow
+                 * window. It is copied, never re-read or overwritten. The
+                 * same command/power and same shadow unwrap then continue
+                 * through the three passive hold windows. */
+                MA600_Result_t probeResult = CaptureClosureHoldProbe(out,
+                    &shadowUnwrap, pointAnchorUnwrapped, &shadowPointConfig,
+                    &shadowPoint, pos, direction);
+                if (probeResult != MA600_RESULT_OK)
+                {
+                    acquisitionResult = probeResult;
+                    shadowActive = false;
+                    goto capture_complete;
+                }
+            }
+            if (shadowResult != MA600_RESULT_OK)
+            {
+                shadowActive = false;
+            }
         }
         pointIndex++;
+
+        /* The current point already covers the requested >360-degree margin.
+         * Stop here so the motor is not ramped to an unused extra point. */
+        if (sweptAngleDeg >= NL_SWEEP_ANGLE_DEG)
+        {
+            break;
+        }
 
         /* Ramp to the next point in small NL_RAMP_STEP increments instead
          * of one NL_POS_INCREASE (256-count) jump -- a single jump that
@@ -1166,6 +2192,8 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
          * motor heating too (confirmed as a real concern running back-to-back
          * sweeps on hardware). */
         int32_t targetPos = pos + ((direction == NL_SWEEP_CW) ? NL_POS_INCREASE : -NL_POS_INCREASE);
+        SetEngineState(NL_ENGINE_RAMP);
+        NlAcquisitionCounters_t rampBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
         if (direction == NL_SWEEP_CW)
         {
             while (pos < targetPos)
@@ -1177,6 +2205,15 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
                 }
                 Motor_SetElectricalPos((uint16_t)pos, 1.0f);
                 osDelay(NL_RAMP_STEP_DELAY_MS);
+                MA600_Sample_t rampSample;
+                acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
+                    NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &rampSample);
+                if (acquisitionResult != MA600_RESULT_OK)
+                {
+                    AccumulateCounterDelta(&sweepAcquisition, &rampBefore,
+                        &out->rampAcquisition);
+                    goto capture_complete;
+                }
             }
         }
         else
@@ -1190,27 +2227,70 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
                 }
                 Motor_SetElectricalPos((uint16_t)pos, 1.0f);
                 osDelay(NL_RAMP_STEP_DELAY_MS);
+                MA600_Sample_t rampSample;
+                acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
+                    NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &rampSample);
+                if (acquisitionResult != MA600_RESULT_OK)
+                {
+                    AccumulateCounterDelta(&sweepAcquisition, &rampBefore,
+                        &out->rampAcquisition);
+                    goto capture_complete;
+                }
             }
         }
+        AccumulateCounterDelta(&sweepAcquisition, &rampBefore, &out->rampAcquisition);
+        rampAcceptedForPoint = sweepAcquisition.acceptedSamples - rampBefore.acceptedSamples;
 
-        /* Sample only once the encoder itself confirms the shaft actually
-         * stopped moving, not after a fixed guess at how long that takes
-         * (see WaitForPointSettle) -- this is the fix for sampling on a
-         * timer instead of on the real measured position. */
-        if (!WaitForPointSettle())
+        /* Stability alone is insufficient: a stalled rotor can be perfectly
+         * stable at the wrong angle. Require stability and target proximity
+         * together while preserving the same continuous unwrap context. */
+        SetEngineState(NL_ENGINE_SETTLE);
+        settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+        int64_t expectedTargetUnwrapped = sweepOriginUnwrapped + (int64_t)pos;
+        settleResult = WaitForPointSettle(&sweepAcquisition,
+            expectedTargetUnwrapped, true, &settleObservation);
+        AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
+            &out->settleAcquisition);
+        if (settleResult == NL_SETTLE_ACQUISITION_ERROR)
         {
-            notSettledCount++;
+            acquisitionResult = settleObservation.acquisitionResult;
+            goto capture_complete;
         }
     }
 
+capture_complete:
     int capturedCount = (pointIndex < NL_MAX_SWEEP_POINTS) ? pointIndex : NL_MAX_SWEEP_POINTS;
     out->capturedCount = capturedCount;
-    out->notSettledCount = notSettledCount;
+    out->notSettledCount = out->settlePointCount - out->settleValidCount;
     out->absoluteAngleAtMax = absoluteAngleAtMax;
     out->absoluteAngleAtMin = absoluteAngleAtMin;
     out->rawAtMax = rawAtMax;
     out->rawAtMin = rawAtMin;
+    out->acquisitionResult = acquisitionResult;
+    out->contextAcquisition = SnapshotAcquisitionCounters(&sweepAcquisition);
+    /* Frozen schema-v5 Acq* fields continue to mean the original origin +
+     * 64 averaged reads + one raw read per point. Motion reads are exposed
+     * separately in MOTION_RESULT and do not silently change that contract. */
+    out->acquisitionReadAttempts = out->contextAcquisition.readAttempts
+        - out->rampAcquisition.readAttempts - out->settleAcquisition.readAttempts;
+    out->acquisitionRetries = out->contextAcquisition.retryCount
+        - out->rampAcquisition.retryCount - out->settleAcquisition.retryCount;
+    out->acquisitionTransportErrors = out->contextAcquisition.transportErrorCount
+        - out->rampAcquisition.transportErrorCount
+        - out->settleAcquisition.transportErrorCount;
+    out->acquisitionJumpRejects = out->contextAcquisition.jumpRejectCount
+        - out->rampAcquisition.jumpRejectCount - out->settleAcquisition.jumpRejectCount;
+    out->acquisitionFailedSamples = out->contextAcquisition.failedSampleCount
+        - out->rampAcquisition.failedSampleCount
+        - out->settleAcquisition.failedSampleCount;
 
+    if (acquisitionResult != MA600_RESULT_OK)
+    {
+        out->measurementValid = false;
+        return acquisitionResult;
+    }
+
+    SetEngineState(NL_ENGINE_ANALYZE);
     uint32_t featureStartTick = HAL_GetTick();
 
     /* One full mechanical revolution is exactly NL_FULL_TURN_RAW/NL_POS_INCREASE points at
@@ -1233,10 +2313,11 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
         analysisCount++;
     }
     out->analysisCount = analysisCount;
-    out->measurementValid = divisible
+    bool structuralValid = divisible
         && (analysisCount == (int)expectedAnalysisCount)
         && (capturedCount >= (int)expectedAnalysisCount)
-        && (notSettledCount == 0);
+        && (out->settlePointCount == capturedCount)
+        && (out->settleValidCount == capturedCount);
 
     float sum = 0.0f;
     for (int i = 0; i < analysisCount; i++)
@@ -1270,6 +2351,18 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
      * margin (order 4/8 vs. analysisCount ~256, limit ~128). */
     ComputeHarmonicFull(out->errorSamples, analysisCount, meanVal, 4, &out->harmonicH4);
     ComputeHarmonicFull(out->errorSamples, analysisCount, meanVal, 8, &out->harmonicH8);
+
+    /* Six torque/ripple opportunities per electrical cycle map to order
+     * 6*p over one mechanical revolution. With MOTOR_NUM_POLSE=12, p=6 and
+     * this is A36. Keep fixed A36 above for historical comparison while
+     * making the motor-geometry interpretation explicit and configurable. */
+    out->electricalRippleValid = (out->electricalRippleOrder > 0U)
+        && ((uint32_t)out->electricalRippleOrder * 2U < (uint32_t)analysisCount);
+    if (out->electricalRippleValid)
+    {
+        ComputeHarmonicFull(out->errorSamples, analysisCount, meanVal,
+            (int)out->electricalRippleOrder, &out->electricalRippleHarmonic);
+    }
 
     out->dominantSelectedOrder = out->harmonics[0].order;
     out->dominantSelectedAmplitude = out->harmonics[0].amplitude;
@@ -1349,8 +2442,14 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
     }
     out->trackingErrorRmsDeg = (capturedCount > 0) ? sqrtf(trackSumSq / (float)capturedCount) : 0.0f;
     out->trackingErrorMaxAbsDeg = trackMaxAbs;
+    out->trackingValid = (capturedCount > 0)
+        && (out->trackingErrorRmsDeg <= NL_TRACKING_RMS_VALID_DEG)
+        && (out->trackingErrorMaxAbsDeg <= NL_TRACKING_MAX_VALID_DEG);
+    out->measurementValid = structuralValid && out->trackingValid;
 
     out->featureComputeTimeMs = HAL_GetTick() - featureStartTick;
+    ComputeShadowMetrics(out, direction);
+    return MA600_RESULT_OK;
 }
 
 /* Emits every UART line for one capture: META, then the full-resolution DATA curve, then
@@ -1367,6 +2466,95 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
  * represent a CCW sweep. Printing them for CCW too (when the engineering flag is on) could
  * duplicate a run-numbered field the parser keys by number, silently shadowing the real CW
  * value -- so CCW captures only ever get the new schema-v2 (META/DATA/RESULT/END) lines. */
+static void PrintClosureProbeLog(const NlSweepCapture_t *c, const char *jigId,
+                                 const char *direction)
+{
+    for (uint32_t i = 0U; i < NL_CLOSURE_PROBE_STAGE_COUNT; i++)
+    {
+        const NlClosureProbeStage_t *stage = &c->closureProbeStages[i];
+        if (!stage->attempted)
+        {
+            continue;
+        }
+
+        char pointMeanBuf[24], closureRawBuf[24], p2pRawBuf[24], driftRawBuf[24];
+        char closureDegBuf[20], p2pDegBuf[20], driftDegBuf[20];
+        if (stage->valid)
+        {
+            FormatI64(stage->point.pointMeanRawQ16,
+                pointMeanBuf, sizeof(pointMeanBuf));
+            FormatI64(stage->positionErrorRawQ16,
+                closureRawBuf, sizeof(closureRawBuf));
+            FormatI64(stage->windowP2PRaw, p2pRawBuf, sizeof(p2pRawBuf));
+            FormatI64(stage->windowDriftRaw, driftRawBuf, sizeof(driftRawBuf));
+            FormatDegN(ShadowRawQ16ToDegrees(stage->positionErrorRawQ16), 5,
+                closureDegBuf, sizeof(closureDegBuf));
+            FormatDegN(MA600_UnwrappedRawToDegrees(stage->windowP2PRaw), 5,
+                p2pDegBuf, sizeof(p2pDegBuf));
+            FormatDegN(MA600_UnwrappedRawToDegrees(stage->windowDriftRaw), 5,
+                driftDegBuf, sizeof(driftDegBuf));
+        }
+        else
+        {
+            snprintf(pointMeanBuf, sizeof(pointMeanBuf), "NA");
+            snprintf(closureRawBuf, sizeof(closureRawBuf), "NA");
+            snprintf(p2pRawBuf, sizeof(p2pRawBuf), "NA");
+            snprintf(driftRawBuf, sizeof(driftRawBuf), "NA");
+            snprintf(closureDegBuf, sizeof(closureDegBuf), "NA");
+            snprintf(p2pDegBuf, sizeof(p2pDegBuf), "NA");
+            snprintf(driftDegBuf, sizeof(driftDegBuf), "NA");
+        }
+
+        LogLineLarge(
+            "CLOSURE_PROBE,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+            "Direction=%s,Official=0,Protocol=%s,Stage=%s,Point=%u,CommandRaw=%ld,Power=1.00000,"
+            "NominalHoldMs=%lu,CaptureStartElapsedMs=%lu,CaptureEndElapsedMs=%lu,"
+            "PointMeanRawQ16=%s,ClosureErrorRawQ16=%s,ClosureErrorDeg=%s,"
+            "WindowP2PRaw=%s,WindowP2PDeg=%s,WindowDriftRaw=%s,WindowDriftDeg=%s,"
+            "Transactions=%lu,AcceptedSamples=%lu,SpiFailures=%lu,JumpRejects=%lu,"
+            "MetadataInvalid=%lu,SkippedSlots=%lu,TimingOverruns=%lu,"
+            "MaxConsecutiveFailuresObserved=%lu,AcquisitionResult=%s,Valid=%d\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+            (unsigned long)c->sweepId, jigId, MOTOR_ID, direction,
+            NL_CLOSURE_PROBE_PROTOCOL_ID, ClosureProbeStageName(i),
+            (unsigned)NL_CLOSURE_POINT_INDEX, (long)stage->commandRaw,
+            (unsigned long)stage->nominalHoldMs,
+            (unsigned long)stage->captureStartElapsedMs,
+            (unsigned long)stage->captureEndElapsedMs,
+            pointMeanBuf, closureRawBuf, closureDegBuf,
+            p2pRawBuf, p2pDegBuf, driftRawBuf, driftDegBuf,
+            (unsigned long)stage->point.transactionCount,
+            (unsigned long)stage->point.acceptedSampleCount,
+            (unsigned long)stage->point.spiFailureCount,
+            (unsigned long)stage->point.jumpRejectedCount,
+            (unsigned long)stage->point.metadataInvalidCount,
+            (unsigned long)stage->point.skippedSlotCount,
+            (unsigned long)stage->point.timingOverrunCount,
+            (unsigned long)stage->point.maxConsecutiveFailures,
+            MA600_ResultName(stage->result), stage->valid ? 1 : 0);
+    }
+
+    const char *status = !c->closureProbeEnabled ? "DISABLED"
+        : ((c->closureProbeComplete
+                && c->closureProbeValidStageCount == NL_CLOSURE_PROBE_STAGE_COUNT
+                && c->closureProbeAcquisitionResult == MA600_RESULT_OK)
+            ? "VALID" : "INVALID");
+    LogLineLarge(
+        "CLOSURE_PROBE_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,Official=0,Protocol=%s,Enabled=%d,Started=%d,Complete=%d,"
+        "ExpectedStages=%u,AttemptedStages=%lu,ValidStages=%lu,"
+        "PostTurnTimingComparable=%d,AcquisitionResult=%s,Status=%s\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+        (unsigned long)c->sweepId, jigId, MOTOR_ID, direction,
+        NL_CLOSURE_PROBE_PROTOCOL_ID, c->closureProbeEnabled ? 1 : 0,
+        c->closureProbeStarted ? 1 : 0, c->closureProbeComplete ? 1 : 0,
+        (unsigned)NL_CLOSURE_PROBE_STAGE_COUNT,
+        (unsigned long)c->closureProbeAttemptedStageCount,
+        (unsigned long)c->closureProbeValidStageCount,
+        c->postTurnTimingComparable ? 1 : 0,
+        MA600_ResultName(c->closureProbeAcquisitionResult), status);
+}
+
 static void PrintSweepLog(const NlSweepCapture_t *c)
 {
     const char *dirStr = (c->direction == NL_SWEEP_CW) ? "CW" : "CCW";
@@ -1375,6 +2563,31 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
 
     char startAngleBuf[16];
     FormatDeg2(c->angleOffsetAtStart, startAngleBuf, sizeof(startAngleBuf));
+    char controllerBeforeIntegralBuf[20], controllerBeforeLastErrorBuf[20];
+    char controllerBeforeCommandBuf[24], controllerAfterIntegralBuf[20];
+    char controllerAfterLastErrorBuf[20], controllerAfterCommandBuf[24];
+    char controllerBeforeOutputPowerBuf[20], controllerAfterOutputPowerBuf[20];
+    char homeInitialErrorBuf[20], homeFinalErrorBuf[20];
+    FormatDegN(c->controllerStateBeforeReset.integralTerm, 5,
+        controllerBeforeIntegralBuf, sizeof(controllerBeforeIntegralBuf));
+    FormatDegN(c->controllerStateBeforeReset.lastErrorDeg, 5,
+        controllerBeforeLastErrorBuf, sizeof(controllerBeforeLastErrorBuf));
+    FormatDegN(c->controllerStateBeforeReset.commandedPositionRaw, 3,
+        controllerBeforeCommandBuf, sizeof(controllerBeforeCommandBuf));
+    FormatDegN(c->controllerStateAfterReset.integralTerm, 5,
+        controllerAfterIntegralBuf, sizeof(controllerAfterIntegralBuf));
+    FormatDegN(c->controllerStateAfterReset.lastErrorDeg, 5,
+        controllerAfterLastErrorBuf, sizeof(controllerAfterLastErrorBuf));
+    FormatDegN(c->controllerStateAfterReset.commandedPositionRaw, 3,
+        controllerAfterCommandBuf, sizeof(controllerAfterCommandBuf));
+    FormatDegN(c->controllerStateBeforeReset.outputPower, 3,
+        controllerBeforeOutputPowerBuf, sizeof(controllerBeforeOutputPowerBuf));
+    FormatDegN(c->controllerStateAfterReset.outputPower, 3,
+        controllerAfterOutputPowerBuf, sizeof(controllerAfterOutputPowerBuf));
+    FormatDegN(c->homeObservation.initialErrorDeg, 5,
+        homeInitialErrorBuf, sizeof(homeInitialErrorBuf));
+    FormatDegN(c->homeObservation.finalErrorDeg, 5,
+        homeFinalErrorBuf, sizeof(homeFinalErrorBuf));
 #if ENABLE_AUTO_BATCH_TEST
     /* Run 1 has no firmware-controlled cooldown before it -- log "NA", not a fabricated 0,
      * which would look like "0ms cooldown, perfectly on target" instead of "not applicable". */
@@ -1404,31 +2617,130 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     {
         snprintf(timeSincePreviousRunBuf, sizeof(timeSincePreviousRunBuf), "NA");
     }
+    const char *runRole = c->preconditionRun ? "PRECONDITION" : "OFFICIAL";
+    const char *preconditionValid = c->preconditionRun ? "NA"
+        : (c->preconditionValid ? "1" : "0");
 #endif
     LogLineLarge(
         "META,SchemaVersion=%d,Firmware=%s,BuildID=%s,MCU_UID=%08lX%08lX%08lX,CounterScope=BOOT,"
-        "JigID=%s,JigKnown=%d,MotorID=%s,TestID=%lu,SweepID=%lu,Direction=%s,"
+        "JigID=%s,JigKnown=%d,MotorID=%s,MotorIDSource=%s,MotorIDValid=%d,"
+        "MotorPoleCount=%u,MotorPolePairs=%u,ElectricalRippleMultiple=%u,ElectricalRippleOrder=%u,"
+        "TestID=%lu,SweepID=%lu,Direction=%s,"
+        "MeasurementPolicy=%s,MeasurementDefinition=%s,AcceptanceMode=%s,"
+        "OfficialResultSource=LEGACY,ShadowCanonicalEnabled=%d,"
+        "ShadowContractVersion=%s,ShadowOfficial=0,"
+        "ClosureProbeEnabled=%d,ClosureProbeProtocol=%s,ClosureProbeOfficial=0,"
         "PhaseReference=SweepProgress,StepRaw=%d,ExpectedAnalysisPoints=%d,CapturedPoints=%d,"
-        "AnalysisPoints=%d,MeasurementValid=%d,StartRaw=%u,StartAngleDeg=%s,AnalysisStartRaw=%u"
+        "AnalysisPoints=%d,MeasurementValid=%d,TrackingValid=%d,"
+        "TrackingRmsLimitDeg=" NL_TRACKING_RMS_LIMIT_TEXT ","
+        "TrackingMaxLimitDeg=" NL_TRACKING_MAX_LIMIT_TEXT ","
+        "AcquisitionResult=%s,AcqReadAttempts=%lu,"
+        "AcqRetries=%lu,AcqTransportErrors=%lu,AcqJumpRejects=%lu,AcqFailedSamples=%lu,"
+        "ContinuousSweepContext=%s,ContextReacquireCount=%lu,RampFeedbackEnabled=1,"
+        "SettleContract=%s,SettleStabilityLimitRaw=%ld,SettleTargetToleranceRaw=%ld,"
+        "SettlePoints=%d,SettleStabilityValid=%d,SettleTargetProximityValid=%d,SettleValid=%d,"
+        "StartRaw=%u,StartAngleDeg=%s,AnalysisStartRaw=%u,"
+        "ControllerStatePolicy=%s,ControllerResetApplied=%d,ControllerResetStateValid=%d,"
+        "HomeResult=%s,HomeDurationMs=%lu,HomeUpdateCount=%lu"
 #if ENABLE_AUTO_BATCH_TEST
-        ",BatchID=%lu,RunOrder=%lu,BatchRunCount=%lu,ThermalProtocol=%s,FirstRunInBatch=%d,"
+        ",BatchID=%lu,CycleOrder=%lu,RunOrder=%lu,BatchRunCount=%lu,"
+        "PreconditionProtocol=%s,RunRole=%s,EligibleForStatistics=%d,PreconditionValid=%s,"
+        "ThermalProtocol=%s,FirstRunInBatch=%d,"
         "MotorActiveDurationMs=%lu,CooldownTargetMs=%s,CooldownActualMs=%s,CooldownValid=%s,"
         "TimeSincePreviousRunMs=%s"
 #endif
         "\r\n",
         NL_LOG_SCHEMA_VERSION, FIRMWARE_VERSION, FIRMWARE_BUILD_ID,
         (unsigned long)MCU_UID_WORD0, (unsigned long)MCU_UID_WORD1, (unsigned long)MCU_UID_WORD2,
-        jigId, jigKnown ? 1 : 0, MOTOR_ID, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
+        jigId, jigKnown ? 1 : 0, MOTOR_ID, NL_MOTOR_ID_SOURCE,
+        IsMotorIdConfigured() ? 1 : 0,
+        (unsigned)c->motorPoleCount, (unsigned)c->motorPolePairs,
+        (unsigned)MOTOR_ELECTRICAL_RIPPLE_MULTIPLE,
+        (unsigned)c->electricalRippleOrder,
+        (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
+        NL_MEASUREMENT_POLICY_ID, NL_MEASUREMENT_DEFINITION, NL_ACCEPTANCE_MODE,
+        c->shadowCanonicalEnabled ? 1 : 0, NL_SHADOW_CONTRACT_ID,
+        c->closureProbeEnabled ? 1 : 0, NL_CLOSURE_PROBE_PROTOCOL_ID,
         NL_POS_INCREASE, (int)(NL_FULL_TURN_RAW / (float)NL_POS_INCREASE),
         c->capturedCount, c->analysisCount, c->measurementValid ? 1 : 0,
+        c->trackingValid ? 1 : 0,
+        MA600_ResultName(c->acquisitionResult),
+        (unsigned long)c->acquisitionReadAttempts, (unsigned long)c->acquisitionRetries,
+        (unsigned long)c->acquisitionTransportErrors, (unsigned long)c->acquisitionJumpRejects,
+        (unsigned long)c->acquisitionFailedSamples,
+        NL_CONTINUOUS_CONTEXT_ID, (unsigned long)c->contextReacquireCount,
+        NL_SETTLE_CONTRACT_ID, (long)NL_POINT_SETTLE_ERROR_RAW,
+        (long)NL_SETTLE_TARGET_TOLERANCE_RAW,
+        c->settlePointCount,
+        (c->capturedCount > 0 && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0 && c->settleTargetProximityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0 && c->settleValidCount == c->capturedCount) ? 1 : 0,
         (unsigned)c->rawAtOffset, startAngleBuf,
-        (unsigned)(c->capturedCount > 0 ? c->rawAngleSamples[0] : c->rawAtOffset)
+        (unsigned)(c->capturedCount > 0 ? c->rawAngleSamples[0] : c->rawAtOffset),
+        NL_CONTROLLER_STATE_POLICY_ID, c->controllerResetApplied ? 1 : 0,
+        c->controllerResetStateValid ? 1 : 0,
+        NlZeroResultName(c->homeObservation.result),
+        (unsigned long)c->homeObservation.durationMs,
+        (unsigned long)c->homeObservation.updateCount
 #if ENABLE_AUTO_BATCH_TEST
-        , (unsigned long)c->batchId, (unsigned long)c->runOrder, (unsigned long)c->batchRunCount,
-        NL_THERMAL_PROTOCOL_ID, c->firstRunInBatch ? 1 : 0, (unsigned long)c->motorActiveDurationMs,
+        , (unsigned long)c->batchId, (unsigned long)c->cycleOrder,
+        (unsigned long)c->runOrder, (unsigned long)c->batchRunCount,
+        NL_PRECONDITION_PROTOCOL_ID, runRole, c->eligibleForStatistics ? 1 : 0,
+        preconditionValid, NL_THERMAL_PROTOCOL_ID, c->firstRunInBatch ? 1 : 0,
+        (unsigned long)c->motorActiveDurationMs,
         cooldownTargetBuf, cooldownActualBuf, cooldownValidBuf, timeSincePreviousRunBuf
 #endif
         );
+
+    LogLineLarge(
+        "CONTROL_STATE,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,Policy=%s,ResetApplied=%d,ResetStateValid=%d,"
+        "BeforeIntegralTerm=%s,BeforeLastErrorDeg=%s,BeforeCommandRaw=%s,"
+        "BeforeFeedbackInitialized=%d,BeforeFeedbackAccepted=%lu,"
+        "BeforeOutputElectricalPositionRaw=%u,BeforeOutputPower=%s,BeforeOutputEnabled=%d,"
+        "AfterIntegralTerm=%s,AfterLastErrorDeg=%s,AfterCommandRaw=%s,"
+        "AfterFeedbackInitialized=%d,AfterFeedbackAccepted=%lu,"
+        "AfterOutputElectricalPositionRaw=%u,AfterOutputPower=%s,AfterOutputEnabled=%d,"
+        "HomeResult=%s,HomeDurationMs=%lu,HomeUpdateCount=%lu,"
+        "HomeInitialErrorDeg=%s,HomeFinalErrorDeg=%s,"
+        "HomeInitialCommandRaw=%ld,HomeFinalCommandRaw=%ld\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+        (unsigned long)c->sweepId, jigId, MOTOR_ID, dirStr,
+        NL_CONTROLLER_STATE_POLICY_ID, c->controllerResetApplied ? 1 : 0,
+        c->controllerResetStateValid ? 1 : 0,
+        controllerBeforeIntegralBuf, controllerBeforeLastErrorBuf,
+        controllerBeforeCommandBuf,
+        c->controllerStateBeforeReset.feedbackTrackerInitialized ? 1 : 0,
+        (unsigned long)c->controllerStateBeforeReset.feedbackAcceptedSamples,
+        (unsigned)c->controllerStateBeforeReset.outputElectricalPositionRaw,
+        controllerBeforeOutputPowerBuf,
+        c->controllerStateBeforeReset.outputEnabled ? 1 : 0,
+        controllerAfterIntegralBuf, controllerAfterLastErrorBuf,
+        controllerAfterCommandBuf,
+        c->controllerStateAfterReset.feedbackTrackerInitialized ? 1 : 0,
+        (unsigned long)c->controllerStateAfterReset.feedbackAcceptedSamples,
+        (unsigned)c->controllerStateAfterReset.outputElectricalPositionRaw,
+        controllerAfterOutputPowerBuf,
+        c->controllerStateAfterReset.outputEnabled ? 1 : 0,
+        NlZeroResultName(c->homeObservation.result),
+        (unsigned long)c->homeObservation.durationMs,
+        (unsigned long)c->homeObservation.updateCount,
+        homeInitialErrorBuf, homeFinalErrorBuf,
+        (long)c->homeObservation.initialCommandedPositionRaw,
+        (long)c->homeObservation.finalCommandedPositionRaw);
+
+    LogLineLarge(
+        "SHADOW_META,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Official=0,ContractVersion=%s,SignedConvention=%s,ReferenceDefinition=%s,"
+        "CanonicalMeanSource=%s,MadFilteringEnabled=0,TimingMode=BACK_TO_BACK,"
+        "RequiredAcceptedSamples=%u,MaxTransactions=%u,MaxConsecutiveFailures=%u,"
+        "MaxElapsedUs=%lu,MaxJumpRaw=%ld\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
+        jigId, MOTOR_ID, NL_SHADOW_CONTRACT_ID, NL_SHADOW_SIGN_CONVENTION,
+        NL_SHADOW_REFERENCE_DEFINITION, NL_SHADOW_CANONICAL_MEAN_SOURCE,
+        (unsigned)NL_SAMPLES_PER_POINT, (unsigned)NL_SHADOW_POINT_MAX_TRANSACTIONS,
+        (unsigned)NL_SHADOW_POINT_MAX_CONSECUTIVE_FAILURES,
+        (unsigned long)NL_SHADOW_POINT_MAX_ELAPSED_US, (long)NL_SWEEP_MAX_JUMP_RAW);
 
     for (int i = 0; i < c->capturedCount; i++)
     {
@@ -1446,7 +2758,119 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
             jigId, MOTOR_ID, dirStr, i, (unsigned)targetRawAbs,
             (unsigned)c->rawAngleSamples[i], angleDegBuf, nlValBuf);
+        LogLine("ACQ,%d,%lu,%lu,%s,%d,%lu,%u,%u,0x%02X\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
+            dirStr, i, (unsigned long)c->csAssertCycleSamples[i],
+            (unsigned)c->pwmCounterSamples[i], (unsigned)c->acquisitionAttemptSamples[i],
+            (unsigned)c->acquisitionFlagSamples[i]);
+
+        if (c->shadowPoints != NULL && i < c->settlePointCount)
+        {
+            uint8_t settleFlags = c->shadowPoints->settleFlags[i];
+            int64_t settleErrorRaw = c->shadowPoints->settlePositionErrorRaw[i];
+            char settleErrorRawBuf[24], settleErrorDegBuf[20];
+            FormatI64(settleErrorRaw, settleErrorRawBuf, sizeof(settleErrorRawBuf));
+            FormatDegN(MA600_UnwrappedRawToDegrees(settleErrorRaw), 5,
+                settleErrorDegBuf, sizeof(settleErrorDegBuf));
+            LogLineLarge(
+                "MOTION,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+                "Direction=%s,Point=%d,RampAcceptedSamples=%u,SettleResult=%s,"
+                "StabilityValid=%d,TargetProximityValid=%d,SettleValid=%d,"
+                "PositionErrorRaw=%s,PositionErrorDeg=%s,PollCount=%u\r\n",
+                NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+                (unsigned long)c->sweepId, jigId, MOTOR_ID, dirStr, i,
+                (unsigned)c->shadowPoints->rampAcceptedSamples[i],
+                SettleResultName((NlSettleResult_t)c->shadowPoints->settleResults[i]),
+                (settleFlags & NL_SETTLE_FLAG_STABILITY_VALID) != 0U ? 1 : 0,
+                (settleFlags & NL_SETTLE_FLAG_TARGET_VALID) != 0U ? 1 : 0,
+                (settleFlags & NL_SETTLE_FLAG_COMBINED_VALID) != 0U ? 1 : 0,
+                settleErrorRawBuf, settleErrorDegBuf,
+                (unsigned)c->shadowPoints->settlePollCount[i]);
+        }
+
+        if (c->shadowPoints != NULL && i < c->shadowCapturedCount)
+        {
+            int64_t shadowErrorRawQ16 = 0;
+            int32_t directionSign = (c->direction == NL_SWEEP_CW) ? 1 : -1;
+            if (MA600_ComputeCanonicalErrorQ16(c->shadowPoints->pointMeanRawQ16[i],
+                    c->shadowPoints->pointMeanRawQ16[0], directionSign, (uint32_t)i,
+                    NL_POS_INCREASE, &shadowErrorRawQ16))
+            {
+                char meanQ16Buf[24], errorQ16Buf[24], errorDegBuf[20];
+                FormatI64(c->shadowPoints->pointMeanRawQ16[i], meanQ16Buf, sizeof(meanQ16Buf));
+                FormatI64(shadowErrorRawQ16, errorQ16Buf, sizeof(errorQ16Buf));
+                FormatDegN(ShadowRawQ16ToDegrees(shadowErrorRawQ16), 5,
+                    errorDegBuf, sizeof(errorDegBuf));
+                LogLine("SHADOW_DATA,%d,%lu,%lu,%s,%s,%s,%d,%s,%s,%s\r\n",
+                    NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+                    (unsigned long)c->sweepId, jigId, MOTOR_ID, dirStr, i,
+                    meanQ16Buf, errorQ16Buf, errorDegBuf);
+            }
+        }
+
+        if (c->shadowPoints != NULL && i < c->shadowAttemptedPointCount)
+        {
+            LogLine("SHADOW_ACQ,%d,%lu,%lu,%s,%d,%lu,%lu,%u,%u,%u,%u,%u,%s\r\n",
+                NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+                (unsigned long)c->sweepId, dirStr, i,
+                (unsigned long)c->shadowPoints->firstAttemptCycle[i],
+                (unsigned long)c->shadowPoints->elapsedCycle[i],
+                (unsigned)c->shadowPoints->transactions[i],
+                (unsigned)c->shadowPoints->accepted[i],
+                (unsigned)c->shadowPoints->spiFailures[i],
+                (unsigned)c->shadowPoints->jumpRejects[i],
+                (unsigned)c->shadowPoints->metadataInvalid[i],
+                MA600_ResultName((MA600_Result_t)c->shadowPoints->results[i]));
+        }
     }
+
+    char maxSettleErrorRawBuf[24], maxSettleErrorDegBuf[20];
+    FormatI64(c->maxAbsSettlePositionErrorRaw,
+        maxSettleErrorRawBuf, sizeof(maxSettleErrorRawBuf));
+    FormatDegN(MA600_UnwrappedRawToDegrees(c->maxAbsSettlePositionErrorRaw), 5,
+        maxSettleErrorDegBuf, sizeof(maxSettleErrorDegBuf));
+    LogLineLarge(
+        "MOTION_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,ContractVersion=%s,ContinuousSweepContext=%s,ContextReacquireCount=%lu,"
+        "ContextReadAttempts=%lu,ContextAcceptedSamples=%lu,ContextRetries=%lu,"
+        "ContextTransportErrors=%lu,ContextJumpRejects=%lu,ContextFailedSamples=%lu,"
+        "RampReadAttempts=%lu,RampAcceptedSamples=%lu,RampRetries=%lu,"
+        "RampTransportErrors=%lu,RampJumpRejects=%lu,RampFailedSamples=%lu,"
+        "SettleReadAttempts=%lu,SettleAcceptedSamples=%lu,SettleRetries=%lu,"
+        "SettleTransportErrors=%lu,SettleJumpRejects=%lu,SettleFailedSamples=%lu,"
+        "SettlePoints=%d,StabilityValidPoints=%d,TargetProximityValidPoints=%d,"
+        "SettleValidPoints=%d,SettleTimeoutPoints=%d,SettleWrongPositionPoints=%d,"
+        "SettleStabilityValid=%d,SettleTargetProximityValid=%d,SettleValid=%d,"
+        "MaxAbsSettlePositionErrorRaw=%s,MaxAbsSettlePositionErrorDeg=%s\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
+        jigId, MOTOR_ID, dirStr, NL_SETTLE_CONTRACT_ID, NL_CONTINUOUS_CONTEXT_ID,
+        (unsigned long)c->contextReacquireCount,
+        (unsigned long)c->contextAcquisition.readAttempts,
+        (unsigned long)c->contextAcquisition.acceptedSamples,
+        (unsigned long)c->contextAcquisition.retryCount,
+        (unsigned long)c->contextAcquisition.transportErrorCount,
+        (unsigned long)c->contextAcquisition.jumpRejectCount,
+        (unsigned long)c->contextAcquisition.failedSampleCount,
+        (unsigned long)c->rampAcquisition.readAttempts,
+        (unsigned long)c->rampAcquisition.acceptedSamples,
+        (unsigned long)c->rampAcquisition.retryCount,
+        (unsigned long)c->rampAcquisition.transportErrorCount,
+        (unsigned long)c->rampAcquisition.jumpRejectCount,
+        (unsigned long)c->rampAcquisition.failedSampleCount,
+        (unsigned long)c->settleAcquisition.readAttempts,
+        (unsigned long)c->settleAcquisition.acceptedSamples,
+        (unsigned long)c->settleAcquisition.retryCount,
+        (unsigned long)c->settleAcquisition.transportErrorCount,
+        (unsigned long)c->settleAcquisition.jumpRejectCount,
+        (unsigned long)c->settleAcquisition.failedSampleCount,
+        c->settlePointCount, c->settleStabilityValidCount,
+        c->settleTargetProximityValidCount, c->settleValidCount,
+        c->settleTimeoutCount, c->settleWrongPositionCount,
+        (c->capturedCount > 0 && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0
+            && c->settleTargetProximityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0 && c->settleValidCount == c->capturedCount) ? 1 : 0,
+        maxSettleErrorRawBuf, maxSettleErrorDegBuf);
 
     char ampBuf[NL_HARMONIC_COUNT][16];
     char phaseBuf[NL_HARMONIC_COUNT][16];
@@ -1464,10 +2888,15 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     /* Datasheet-aligned H4/H8 -- bits 12/13 are a pure append to PhaseValidMask, bits 0-11
      * keep their exact existing meaning (order 1..108, see the comment above). */
     char ampBufH4[16], phaseBufH4[16], ampBufH8[16], phaseBufH8[16];
+    char electricalRippleAmpBuf[16], electricalRipplePhaseBuf[16];
     FormatDegN(c->harmonicH4.amplitude, 4, ampBufH4, sizeof(ampBufH4));
     FormatDegN(c->harmonicH4.phaseDeg, 4, phaseBufH4, sizeof(phaseBufH4));
     FormatDegN(c->harmonicH8.amplitude, 4, ampBufH8, sizeof(ampBufH8));
     FormatDegN(c->harmonicH8.phaseDeg, 4, phaseBufH8, sizeof(phaseBufH8));
+    FormatDegN(c->electricalRippleHarmonic.amplitude, 4,
+        electricalRippleAmpBuf, sizeof(electricalRippleAmpBuf));
+    FormatDegN(c->electricalRippleHarmonic.phaseDeg, 4,
+        electricalRipplePhaseBuf, sizeof(electricalRipplePhaseBuf));
     if (c->harmonicH4.phaseValid) phaseValidMask |= (1u << 12);
     if (c->harmonicH8.phaseValid) phaseValidMask |= (1u << 13);
 
@@ -1514,6 +2943,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         "H9_PhaseSweepDeg=%s,H12_PhaseSweepDeg=%s,H18_PhaseSweepDeg=%s,H27_PhaseSweepDeg=%s,"
         "H36_PhaseSweepDeg=%s,H45_PhaseSweepDeg=%s,H72_PhaseSweepDeg=%s,H108_PhaseSweepDeg=%s,"
         "A4=%s,H4_PhaseSweepDeg=%s,A8=%s,H8_PhaseSweepDeg=%s,"
+        "MotorPoleCount=%u,MotorPolePairs=%u,ElectricalRippleMultiple=%u,ElectricalRippleOrder=%u,"
+        "AElectrical6=%s,Electrical6_PhaseSweepDeg=%s,ElectricalRippleValid=%d,"
         "PhaseValidMask=0x%04X,"
         "DominantSelectedOrder=%u,DominantSelectedAmplitude=%s,DominantSelectedEnergyRatio=%s,"
         "LegacyModelId=HSET6_V1,LegacyOrders=1|2|3|6|12|18,LegacyModelValid=%d,"
@@ -1521,7 +2952,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         "ExtendedModelId=HSET12_V1,ExtendedOrders=1|2|3|6|9|12|18|27|36|45|72|108,ExtendedModelValid=%d,"
         "Residual_RMS_Extended=%s,Fitted_P2P_Extended=%s,FitExplainedRatio_Extended=%s,"
         "Motor_Error_P2P_Deg=%s,Motor_System_INL_Deg=%s,"
-        "CrestFactor=%s,P99_AbsDeviation=%s,TrackingError_RMS_Deg=%s,"
+        "CrestFactor=%s,P99_AbsDeviation=%s,TrackingValid=%d,TrackingError_RMS_Deg=%s,"
         "TrackingError_MaxAbs_Deg=%s,FeatureComputeTimeMs=%lu\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
         jigId, MOTOR_ID, dirStr, c->capturedCount, c->analysisCount, meanBuf, rmsAcBuf,
@@ -1530,6 +2961,10 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         phaseBuf[0], phaseBuf[1], phaseBuf[2], phaseBuf[3], phaseBuf[4], phaseBuf[5],
         phaseBuf[6], phaseBuf[7], phaseBuf[8], phaseBuf[9], phaseBuf[10], phaseBuf[11],
         ampBufH4, phaseBufH4, ampBufH8, phaseBufH8,
+        (unsigned)c->motorPoleCount, (unsigned)c->motorPolePairs,
+        (unsigned)MOTOR_ELECTRICAL_RIPPLE_MULTIPLE,
+        (unsigned)c->electricalRippleOrder, electricalRippleAmpBuf,
+        electricalRipplePhaseBuf, c->electricalRippleValid ? 1 : 0,
         phaseValidMask,
         (unsigned)c->dominantSelectedOrder, domAmpBuf, domEnergyBuf,
         c->legacyModelValid ? 1 : 0,
@@ -1537,10 +2972,87 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         c->extendedModelValid ? 1 : 0,
         resExtBuf, fittedExtBuf, ferExtBuf,
         motorP2PBuf, motorInlBuf,
-        crestBuf, p99Buf, trkRmsBuf, trkMaxBuf,
+        crestBuf, p99Buf, c->trackingValid ? 1 : 0, trkRmsBuf, trkMaxBuf,
         (unsigned long)c->featureComputeTimeMs);
 
-    if (c->direction == NL_SWEEP_CW)
+    char shadowMeanBuf[20], shadowRmsBuf[20], shadowA36Buf[20], shadowP2PBuf[20];
+    char shadowClosureBuf[20], shadowRmsDeltaBuf[20], shadowA36DeltaBuf[20];
+    char shadowPoint0Q16Buf[24], shadowClosureQ16Buf[24], shadowError0Q16Buf[24];
+    FormatDegN(c->shadowMean, 5, shadowMeanBuf, sizeof(shadowMeanBuf));
+    FormatDegN(c->shadowRmsAc, 5, shadowRmsBuf, sizeof(shadowRmsBuf));
+    FormatDegN(c->shadowA36, 5, shadowA36Buf, sizeof(shadowA36Buf));
+    FormatDegN(c->shadowP2P, 5, shadowP2PBuf, sizeof(shadowP2PBuf));
+    FormatDegN(c->shadowClosureErrorDeg, 5, shadowClosureBuf, sizeof(shadowClosureBuf));
+    FormatDegN(c->shadowLegacyMinusCanonicalRms, 5,
+        shadowRmsDeltaBuf, sizeof(shadowRmsDeltaBuf));
+    FormatDegN(c->shadowLegacyMinusCanonicalA36, 5,
+        shadowA36DeltaBuf, sizeof(shadowA36DeltaBuf));
+    if (c->shadowCapturedCount > 0)
+    {
+        FormatI64(c->shadowPoint0MeanRawQ16,
+            shadowPoint0Q16Buf, sizeof(shadowPoint0Q16Buf));
+        FormatI64(0, shadowError0Q16Buf, sizeof(shadowError0Q16Buf));
+    }
+    else
+    {
+        snprintf(shadowPoint0Q16Buf, sizeof(shadowPoint0Q16Buf), "NA");
+        snprintf(shadowError0Q16Buf, sizeof(shadowError0Q16Buf), "NA");
+    }
+    if (c->shadowCanonicalValid)
+    {
+        FormatI64(c->shadowClosureErrorRawQ16,
+            shadowClosureQ16Buf, sizeof(shadowClosureQ16Buf));
+    }
+    else
+    {
+        snprintf(shadowClosureQ16Buf, sizeof(shadowClosureQ16Buf), "NA");
+    }
+
+    LogLineLarge(
+        "SHADOW_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Official=0,ContractVersion=%s,Valid=%d,AnalysisPoints=%d,MeanDC=%s,RMS_AC=%s,"
+        "A36=%s,P2P=%s,Point0MeanRawQ16=%s,Error0RawQ16=%s,"
+        "ClosureErrorRawQ16=%s,ClosureErrorDeg=%s,ClosureLimitDeg=0.20000,ClosureValid=%d,"
+        "LegacyMinusCanonicalRMS=%s,LegacyMinusCanonicalA36=%s,"
+        "AttemptedPoints=%d,CapturedPoints=%d,Transactions=%lu,AcceptedSamples=%lu,"
+        "SpiFailures=%lu,JumpRejects=%lu,MetadataInvalid=%lu,FailedPoints=%lu,"
+        "SkippedSlots=%lu,TimingOverruns=%lu,MaxAbsTimingErrorCycles=%lu,"
+        "MaxConsecutiveFailuresObserved=%lu,FeatureComputeTimeMs=%lu\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
+        jigId, MOTOR_ID, NL_SHADOW_CONTRACT_ID, c->shadowCanonicalValid ? 1 : 0,
+        c->shadowAnalysisCount, shadowMeanBuf, shadowRmsBuf, shadowA36Buf, shadowP2PBuf,
+        shadowPoint0Q16Buf, shadowError0Q16Buf, shadowClosureQ16Buf, shadowClosureBuf,
+        c->shadowClosureValid ? 1 : 0, shadowRmsDeltaBuf, shadowA36DeltaBuf,
+        c->shadowAttemptedPointCount, c->shadowCapturedCount,
+        (unsigned long)c->shadowTransactionCount,
+        (unsigned long)c->shadowAcceptedSampleCount,
+        (unsigned long)c->shadowSpiFailureCount,
+        (unsigned long)c->shadowJumpRejectedCount,
+        (unsigned long)c->shadowMetadataInvalidCount,
+        (unsigned long)c->shadowFailedPointCount,
+        (unsigned long)c->shadowSkippedSlotCount,
+        (unsigned long)c->shadowTimingOverrunCount,
+        (unsigned long)c->shadowMaxAbsTimingErrorCycles,
+        (unsigned long)c->shadowMaxConsecutiveFailuresObserved,
+        (unsigned long)c->shadowFeatureComputeTimeMs);
+
+    PrintClosureProbeLog(c, jigId, dirStr);
+
+    LogLineLarge(
+        "SHADOW_END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Official=0,Started=%d,"
+        "AttemptedPoints=%d,CapturedPoints=%d,AcquisitionResult=%s,Status=%s\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
+        jigId, MOTOR_ID, c->shadowCanonicalStarted ? 1 : 0,
+        c->shadowAttemptedPointCount,
+        c->shadowCapturedCount, MA600_ResultName(c->shadowAcquisitionResult),
+        c->shadowCanonicalValid ? "VALID" : "INVALID");
+
+    bool emitLegacyResult = true;
+#if ENABLE_AUTO_BATCH_TEST
+    emitLegacyResult = c->eligibleForStatistics;
+#endif
+    if (c->direction == NL_SWEEP_CW && c->measurementValid && emitLegacyResult)
     {
         int runIndex = c->runIndex;
 
@@ -1623,12 +3135,26 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         FormatDeg2(0.0f, diffBuf, sizeof(diffBuf));
         LogLine("MA600 Filter-Raw Max Diff %d: %s degree\r\n", runIndex + 1, diffBuf);
     }
+    else if (c->direction == NL_SWEEP_CW && !c->measurementValid)
+    {
+        LogLine("Nonlinear %d INVALID: tracking=%d acquisition=%s settled=%d/%d\r\n",
+            c->runIndex + 1, c->trackingValid ? 1 : 0,
+            MA600_ResultName(c->acquisitionResult),
+            c->capturedCount - c->notSettledCount, c->capturedCount);
+    }
 
     LogLineLarge(
         "END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,Direction=%s,CapturedPoints=%d,"
-        "AnalysisPoints=%d,Status=%s\r\n",
+        "AnalysisPoints=%d,TrackingValid=%d,SettleStabilityValid=%d,"
+        "SettleTargetProximityValid=%d,SettleValid=%d,AcquisitionResult=%s,Status=%s\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
-        c->capturedCount, c->analysisCount, c->measurementValid ? "VALID" : "INVALID");
+        c->capturedCount, c->analysisCount, c->trackingValid ? 1 : 0,
+        (c->capturedCount > 0 && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0
+            && c->settleTargetProximityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0 && c->settleValidCount == c->capturedCount) ? 1 : 0,
+        MA600_ResultName(c->acquisitionResult),
+        c->measurementValid ? "VALID" : "INVALID");
 }
 
 #if ENABLE_NL_MATH_SELF_TEST
@@ -1747,28 +3273,131 @@ static void RunNlMathSelfTest(void)
 }
 #endif /* ENABLE_NL_MATH_SELF_TEST */
 
-/* The atomic "one test" unit -- unchanged in behavior/output from before the batch feature
- * existed. What changed is who calls it and how many times: previously called directly on
- * every button edge; now called by the batch state machine below (NonlinearBatch_Poll), once
- * per run, with per-run batch/cooldown context to log when ENABLE_AUTO_BATCH_TEST=1. With that
- * flag off, the signature and behavior are identical to before -- see
- * NonlinearBatch_OnButtonPress for the flag-off passthrough. */
+/* Phase-1 Policy-A locked gate. Both known jig UIDs independently reported
+ * the same read-only profile on 2026-07-13. A physical UID must now select an
+ * expected profile, and every audited field must match before motor enable. */
+static bool ReadLogAndGateConfiguration(const char *configContext)
+{
+    if (configContext == NULL)
+    {
+        configContext = "UNKNOWN";
+    }
+    bool jigKnown = false;
+    const char *jigId = ResolveJigId(&jigKnown);
+    const NlKnownJig_t *knownJig = FindKnownJigByUid();
+    const MA600_ExpectedConfig_t *expected = (knownJig != NULL)
+        ? &knownJig->expectedConfig
+        : NULL;
+    MA600_Config_t config;
+    MA600_Result_t readResult = MA600_ReadConfiguration(&config);
+    bool readValid = (readResult == MA600_RESULT_OK) && config.valid;
+    MA600_ConfigGateResult_t gateResult = readValid
+        ? MA600_ValidateConfigurationLockedGate(&config, expected)
+        : MA600_CONFIG_GATE_READ_INVALID;
+    const char *rejectReason = MA600_ConfigGateResultName(gateResult);
+    int errorCode = 0;
+    if (gateResult == MA600_CONFIG_GATE_READ_INVALID)
+    {
+        errorCode = 507;
+    }
+    else if (gateResult == MA600_CONFIG_GATE_STATUS_NOT_CLEAN)
+    {
+        errorCode = 509;
+    }
+    else if (gateResult == MA600_CONFIG_GATE_CORRECTION_TABLE_NOT_ZERO)
+    {
+        errorCode = 508;
+    }
+    else if (gateResult != MA600_CONFIG_GATE_OK)
+    {
+        errorCode = 510;
+    }
+
+    bool policyGatePassed = (errorCode == 0);
+    LogLineLarge(
+        "CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,"
+        "ConfigContext=%s,Firmware=%s,BuildID=%s,"
+        "MCU_UID=%08lX%08lX%08lX,JigID=%s,JigKnown=%d,"
+        "ConfigGateSelfTest=1,PointSamplerSelfTest=1,"
+        "ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=%d,ConfigValid=%d,PolicyAGatePassed=%d,"
+        "AuditFieldsLocked=1,ExpectedProfileFound=%d,RejectReason=%s,"
+        "ExpectedZero=0x%04X,ExpectedDir=0x%02X,ExpectedFilt=0x%02X,ExpectedStatus=0x%02X,"
+        "ExpectedPrt=0x%02X,ExpectedRmapId=0x%02X,ExpectedCorrCRC32=0x%08lX,"
+        "Zero=0x%04X,Dir=0x%02X,Filt=0x%02X,"
+        "Status=0x%02X,Prt=0x%02X,RmapId=0x%02X,CorrNonZeroCount=%u,CorrCRC32=0x%08lX\r\n",
+        configContext, FIRMWARE_VERSION, FIRMWARE_BUILD_ID,
+        (unsigned long)MCU_UID_WORD0, (unsigned long)MCU_UID_WORD1, (unsigned long)MCU_UID_WORD2,
+        jigId, jigKnown ? 1 : 0,
+        readValid ? 1 : 0, policyGatePassed ? 1 : 0, policyGatePassed ? 1 : 0,
+        expected != NULL ? 1 : 0, rejectReason,
+        expected != NULL ? (unsigned)expected->zero : 0U,
+        expected != NULL ? (unsigned)expected->dir : 0U,
+        expected != NULL ? (unsigned)expected->filt : 0U,
+        expected != NULL ? (unsigned)expected->status : 0U,
+        expected != NULL ? (unsigned)expected->prt : 0U,
+        expected != NULL ? (unsigned)expected->rmapId : 0U,
+        expected != NULL ? (unsigned long)expected->corrCrc32 : 0UL,
+        (unsigned)config.zero, (unsigned)config.dir, (unsigned)config.filt,
+        (unsigned)config.status, (unsigned)config.prt, (unsigned)config.rmapId,
+        (unsigned)config.corrNonZeroCount, (unsigned long)config.corrCrc32);
+
+    if (!policyGatePassed)
+    {
+        LogLine("Motor ERROR: E%d (MA600 config gate rejected: %s)!\r\n",
+            errorCode, rejectReason);
+    }
+    return policyGatePassed;
+}
+
+/* The atomic full-sweep unit. The batch state machine calls the same acquisition/motion path
+ * once as PRECONDITION and then ten times as OFFICIAL; only result eligibility differs. With
+ * ENABLE_AUTO_BATCH_TEST off, the signature and behavior remain the single-run passthrough. */
 #if ENABLE_AUTO_BATCH_TEST
-static void NonlinearTest_Run(uint32_t batchId, uint32_t runOrder, uint32_t batchRunCount,
-    bool firstRunInBatch, uint32_t cooldownTargetMs, uint32_t cooldownActualMs, bool cooldownValid)
+static bool NonlinearTest_Run(uint32_t batchId, uint32_t cycleOrder, uint32_t runOrder,
+    uint32_t batchRunCount, bool preconditionRun, bool preconditionValid,
+    bool firstRunInBatch, uint32_t cooldownTargetMs, uint32_t cooldownActualMs,
+    bool cooldownValid)
 #else
-static void NonlinearTest_Run(void)
+static bool NonlinearTest_Run(void)
 #endif
 {
     LogLine("Getting result!\r\n");
-    LogLine("MA600 diagnostic mode: LUT BYPASSED\r\n");
+
+    if (!ReadLogAndGateConfiguration(
+#if ENABLE_AUTO_BATCH_TEST
+            preconditionRun ? "PRECONDITION_PRE_MOTOR" : "BATCH_PRE_MOTOR"
+#else
+            "BATCH_PRE_MOTOR"
+#endif
+            ))
+    {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        return false;
+    }
 
 #if ENABLE_NL_MATH_SELF_TEST
     RunNlMathSelfTest();
-    return;
+    return true;
 #endif
 
     uint32_t testId = ++nlTestIdCounter;
+
+    /* The driver is still disabled here. Reset the software feedback/control
+     * state and clear the retained PWM compare command before enabling it;
+     * otherwise a later physical test can briefly replay the previous
+     * sweep's endpoint even though its PID variables were reset. */
+    Motor_Disable();
+    Motor_ControllerState_t controllerStateBeforeReset;
+    Motor_ControllerState_t controllerStateAfterReset;
+    Motor_GetControllerState(&controllerStateBeforeReset);
+    Motor_ResetControlSession();
+    Motor_GetControllerState(&controllerStateAfterReset);
+    if (!ControllerStateIsReset(&controllerStateAfterReset))
+    {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine("Motor ERROR: E507 (control-session reset verification failed)!\r\n");
+        return false;
+    }
 
     Motor_Enable();
 #if ENABLE_AUTO_BATCH_TEST
@@ -1781,42 +3410,61 @@ static void NonlinearTest_Run(void)
 
     float errorSum = 0.0f;
     NlZeroResult_t zeroResult = NL_ZERO_OK;
+    MA600_Result_t captureResult = MA600_RESULT_OK;
+    bool allMeasurementsValid = true;
     int captureCount = 0;
 
     for (int run = 0; run < NL_TEST_COUNT; run++)
     {
-        zeroResult = MoveToZeroAndCheckDirection();
+        NlZeroObservation_t homeObservation;
+        zeroResult = MoveToZeroAndCheckDirection(&homeObservation);
         if (zeroResult != NL_ZERO_OK)
         {
             break;
         }
 
         LockStartPosition();
-        MA600_ResetMultiTurn();
 
-        CaptureSweep(run, NL_SWEEP_CW, testId, &nlCaptures[captureCount]);
+        captureResult = CaptureSweep(run, NL_SWEEP_CW, testId, &nlCaptures[captureCount]);
+        RecordControllerObservation(&nlCaptures[captureCount],
+            &controllerStateBeforeReset, &controllerStateAfterReset,
+            &homeObservation);
+        allMeasurementsValid = allMeasurementsValid && nlCaptures[captureCount].measurementValid;
         /* Run 1 ("Nonlinear 1") is intentionally discarded -- same
          * SKIP_FIRST_COUNT convention as the reference firmware, which
          * gives no inline rationale beyond the constant name; the working
          * theory is it lets the open-loop dither/lock settle out backlash
          * before the run that actually counts. */
-        if (run >= NL_SKIP_FIRST_COUNT)
+        if (captureResult == MA600_RESULT_OK && nlCaptures[captureCount].measurementValid
+                && run >= NL_SKIP_FIRST_COUNT)
         {
             errorSum += nlCaptures[captureCount].legacyStats.robustPP;
         }
         captureCount++;
+        if (captureResult != MA600_RESULT_OK)
+        {
+            break;
+        }
 
 #if ENABLE_CCW_ENGINEERING_TEST
         LockStartPosition();
-        MA600_ResetMultiTurn();
-        CaptureSweep(run, NL_SWEEP_CCW, testId, &nlCaptures[captureCount]);
+        captureResult = CaptureSweep(run, NL_SWEEP_CCW, testId, &nlCaptures[captureCount]);
+        RecordControllerObservation(&nlCaptures[captureCount],
+            &controllerStateBeforeReset, &controllerStateAfterReset,
+            &homeObservation);
+        allMeasurementsValid = allMeasurementsValid && nlCaptures[captureCount].measurementValid;
         /* CCW is engineering-only: not folded into errorSum/finalAverage, which stays
          * CW-based to match unchanged production semantics. */
         captureCount++;
+        if (captureResult != MA600_RESULT_OK)
+        {
+            break;
+        }
 #endif
     }
 
     Motor_Disable();
+    SetEngineState(NL_ENGINE_REPORT);
 #if ENABLE_AUTO_BATCH_TEST
     /* The real "torque off" moment -- this is what a firmware-controlled cooldown must time
      * from, not whenever logging/feature computation (measured ~573ms, see FeatureComputeTimeMs)
@@ -1828,8 +3476,12 @@ static void NonlinearTest_Run(void)
     for (int i = 0; i < captureCount; i++)
     {
         nlCaptures[i].batchId = batchId;
+        nlCaptures[i].cycleOrder = cycleOrder;
         nlCaptures[i].runOrder = runOrder;
         nlCaptures[i].batchRunCount = batchRunCount;
+        nlCaptures[i].preconditionRun = preconditionRun;
+        nlCaptures[i].eligibleForStatistics = !preconditionRun;
+        nlCaptures[i].preconditionValid = preconditionValid;
         nlCaptures[i].firstRunInBatch = firstRunInBatch;
         nlCaptures[i].cooldownTargetMs = cooldownTargetMs;
         nlCaptures[i].cooldownActualMs = cooldownActualMs;
@@ -1849,15 +3501,48 @@ static void NonlinearTest_Run(void)
 
     if (zeroResult == NL_ZERO_DIRECTION_ERROR)
     {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
         LogLine("Motor ERROR: E502!\r\n");
-        return;
+        return false;
     }
     if (zeroResult == NL_ZERO_TIMEOUT)
     {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
         LogLine("Motor ERROR: E503 (move-to-zero did not converge within %ld ms)!\r\n",
             (long)NL_MOVE_ZERO_TIMEOUT_MS);
-        return;
+        return false;
     }
+    if (zeroResult == NL_ZERO_ACQUISITION_ERROR)
+    {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine("Motor ERROR: E504 (move-to-zero encoder acquisition failed)!\r\n");
+        return false;
+    }
+    if (captureResult != MA600_RESULT_OK)
+    {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine("Motor ERROR: E505 (sweep acquisition failed: %s)!\r\n",
+            MA600_ResultName(captureResult));
+        return false;
+    }
+    if (!allMeasurementsValid)
+    {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine("Motor ERROR: E506 (sweep acquisition invalid; inspect META/END)!\r\n");
+        return false;
+    }
+
+#if ENABLE_AUTO_BATCH_TEST
+    if (preconditionRun)
+    {
+        LogLineLarge(
+            "PRECONDITION_RESULT,SchemaVersion=%d,BatchID=%lu,CycleOrder=%lu,TestID=%lu,"
+            "Protocol=%s,RunRole=PRECONDITION,EligibleForStatistics=0,Status=VALID\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)batchId, (unsigned long)cycleOrder,
+            (unsigned long)testId, NL_PRECONDITION_PROTOCOL_ID);
+        return true;
+    }
+#endif
 
     float finalAverage = errorSum / (float)NL_USED_COUNT;
     char finalBuf[16];
@@ -1865,32 +3550,52 @@ static void NonlinearTest_Run(void)
     LogLine("Nonlinear Final Average: %s degree\r\n", finalBuf);
     LogLine("MA600 Raw Nonlinear Final Average: %s degree\r\n", finalBuf);
 
-    /* No pass/fail threshold gate (unlike the reference firmware's
-     * per-motor-product GREMSY_QC_PROFILES_NONLINEAR_ANGLE_MAX) -- per the
-     * user's decision, jigmotor just reports the number for comparison
-     * against the MA600A datasheet's 0.6 deg reference, per
-     * docs/end-of-shaft-mounting-test-plan.md's review rules. */
+    /* WHOLE_SYSTEM_REPORT_ONLY_V1 applies no nonlinear threshold. "OK" means
+     * the acquisition and protocol completed validly; it is not a sensor-INL
+     * or product-quality acceptance decision. */
     LogLine("Motor OK!\r\n");
+    return true;
 }
 
 #if ENABLE_AUTO_BATCH_TEST
-/* Runs one test with the current batch/cooldown context, then either finishes the batch or
- * arms the next cooldown -- called both to kick off run 1 (from
- * NonlinearBatch_OnButtonPress) and to kick off every subsequent run (from
- * NonlinearBatch_Poll, once its cooldown wait elapses). Motor_Disable() (and therefore
- * nlLastMotorOffTick) is already up to date by the time NonlinearTest_Run() returns -- see its
- * body. */
+/* Runs one physical cycle with the current batch/cooldown context, then either finishes or
+ * arms the next cooldown. Cycle 1 is precondition; cycles 2..11 are official RunOrder 1..10.
+ * Motor_Disable() (and therefore nlLastMotorOffTick) is already up to date when the call
+ * returns. */
 static void RunBatchSweep(void)
 {
-    NonlinearTest_Run(nlBatchId, nlCurrentRun, NL_BATCH_RUN_COUNT, nlFirstRunInBatch,
+    bool preconditionRun = (nlCurrentCycle <= NL_PRECONDITION_COUNT);
+    uint32_t officialRunOrder = preconditionRun ? 0U
+        : (nlCurrentCycle - NL_PRECONDITION_COUNT);
+    bool runValid = NonlinearTest_Run(nlBatchId, nlCurrentCycle, officialRunOrder,
+        NL_OFFICIAL_RUN_COUNT, preconditionRun, nlPreconditionValid, nlFirstRunInBatch,
         NL_COOLDOWN_TIME_MS, nlCooldownActualMs, nlCooldownValid);
     nlFirstRunInBatch = false;
 
-    if (nlCurrentRun >= NL_BATCH_RUN_COUNT)
+    if (!runValid)
     {
         nlBatchState = NL_BATCH_COMPLETE;
-        LogLine("BATCH,BatchID=%lu,Status=COMPLETE,RunCount=%lu\r\n",
-            (unsigned long)nlBatchId, (unsigned long)NL_BATCH_RUN_COUNT);
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine("BATCH,BatchID=%lu,Status=FAILED,CycleOrder=%lu,RunOrder=%lu,RunRole=%s\r\n",
+            (unsigned long)nlBatchId, (unsigned long)nlCurrentCycle,
+            (unsigned long)officialRunOrder, preconditionRun ? "PRECONDITION" : "OFFICIAL");
+        return;
+    }
+
+    if (preconditionRun)
+    {
+        nlPreconditionValid = true;
+    }
+
+    if (nlCurrentCycle >= NL_BATCH_TOTAL_CYCLE_COUNT)
+    {
+        nlBatchState = NL_BATCH_COMPLETE;
+        LogLine(
+            "BATCH,BatchID=%lu,Status=COMPLETE,PreconditionCount=%lu,"
+            "RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=1\r\n",
+            (unsigned long)nlBatchId, (unsigned long)NL_PRECONDITION_COUNT,
+            (unsigned long)NL_OFFICIAL_RUN_COUNT,
+            (unsigned long)NL_BATCH_TOTAL_CYCLE_COUNT);
         return;
     }
 
@@ -1898,25 +3603,45 @@ static void RunBatchSweep(void)
     nlCooldownActualMs = 0;
     nlCooldownValid = false;
     nlBatchState = NL_BATCH_COOLDOWN;
-    LogLine("BATCH,BatchID=%lu,Status=COOLDOWN_START,RunOrder=%lu,TargetMs=%lu,Protocol=%s\r\n",
-        (unsigned long)nlBatchId, (unsigned long)nlCurrentRun, (unsigned long)NL_COOLDOWN_TIME_MS,
-        NL_THERMAL_PROTOCOL_ID);
+    SetEngineState(NL_ENGINE_COOLDOWN);
+    LogLine(
+        "BATCH,BatchID=%lu,Status=COOLDOWN_START,CycleOrder=%lu,RunOrder=%lu,RunRole=%s,"
+        "TargetMs=%lu,Protocol=%s\r\n",
+        (unsigned long)nlBatchId, (unsigned long)nlCurrentCycle,
+        (unsigned long)officialRunOrder, preconditionRun ? "PRECONDITION" : "OFFICIAL",
+        (unsigned long)NL_COOLDOWN_TIME_MS, NL_THERMAL_PROTOCOL_ID);
 }
 #endif /* ENABLE_AUTO_BATCH_TEST */
 
 /* Call once on every detected button-press edge (see main.c's StartDefaultTask). With
  * ENABLE_AUTO_BATCH_TEST off, this is a direct passthrough to the original single-run
  * behavior -- nothing about a plain button press changes. With it on, a press starts a whole
- * NL_BATCH_RUN_COUNT-run batch with a firmware-timed cooldown between runs (see
- * NonlinearBatch_Poll); a press while a batch is already running or cooling down is ignored
- * outright -- it must not restart/extend the cooldown timer. */
-void NonlinearBatch_OnButtonPress(void)
+ * one precondition cycle plus ten official runs with a firmware-timed cooldown between every
+ * cycle (see NonlinearBatch_Poll). A press while running/cooling is ignored outright -- it
+ * must not restart or extend the cooldown timer. */
+static void NonlinearBatch_OnButtonPress(void)
 {
+    SetEngineState(NL_ENGINE_PRECHECK);
+    /* Batch-start STATUS precheck (plan Part 1b): a stale ERRCRC/ERRMEM/
+     * ERRPAR flag from before this button press must not silently ride
+     * along into every run's StatusFlagsClear check. Runs once per batch
+     * (not per run/per point) -- one attempt to clear, then refuse to
+     * start if it's still dirty rather than "trying anyway". */
+    MA600_Status_t nlPrecheckStatus;
+    if (!MA600_PrecheckAndClearStatus(&nlPrecheckStatus))
+    {
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine("MA600 STATUS precheck failed NVMB=%d CRC=%d MEM=%d PAR=%d; batch refused\r\n",
+                nlPrecheckStatus.nvmBusy, nlPrecheckStatus.errCrc,
+                nlPrecheckStatus.errMem, nlPrecheckStatus.errPar);
+        return;
+    }
+
 #if ENABLE_NL_MATH_SELF_TEST
 #if ENABLE_AUTO_BATCH_TEST
     /* Self-test bypasses the whole batch machine (and returns before touching any of these
      * arguments) -- values here are placeholders only, never read. */
-    NonlinearTest_Run(0, 1, 1, true, 0, 0, false);
+    NonlinearTest_Run(0, 1, 1, 1, false, true, true, 0, 0, false);
 #else
     NonlinearTest_Run();
 #endif
@@ -1927,11 +3652,18 @@ void NonlinearBatch_OnButtonPress(void)
         return;
     }
     nlBatchId = ++nlBatchIdCounter;
-    nlCurrentRun = 1;
+    nlCurrentCycle = 1;
+    nlPreconditionValid = false;
     nlFirstRunInBatch = true;
     nlCooldownActualMs = 0;
     nlCooldownValid = false;
     nlBatchState = NL_BATCH_RUNNING;
+    LogLine(
+        "BATCH,BatchID=%lu,Status=START,PreconditionProtocol=%s,PreconditionCount=%lu,"
+        "RunCount=%lu,TotalCycleCount=%lu,CooldownTargetMs=%lu\r\n",
+        (unsigned long)nlBatchId, NL_PRECONDITION_PROTOCOL_ID,
+        (unsigned long)NL_PRECONDITION_COUNT, (unsigned long)NL_OFFICIAL_RUN_COUNT,
+        (unsigned long)NL_BATCH_TOTAL_CYCLE_COUNT, (unsigned long)NL_COOLDOWN_TIME_MS);
     RunBatchSweep();
 #else
     NonlinearTest_Run();
@@ -1942,7 +3674,7 @@ void NonlinearBatch_OnButtonPress(void)
  * only compares tick counts, so the heartbeat LED / idle angle print / noise measurement all
  * keep running normally through a multi-minute cooldown. A no-op outside NL_BATCH_COOLDOWN or
  * when ENABLE_AUTO_BATCH_TEST is off. */
-void NonlinearBatch_Poll(void)
+static void NonlinearBatch_Poll(void)
 {
 #if ENABLE_AUTO_BATCH_TEST
     if (nlBatchState != NL_BATCH_COOLDOWN)
@@ -1959,8 +3691,144 @@ void NonlinearBatch_Poll(void)
     uint32_t cooldownErrorMs = nlCooldownActualMs - NL_COOLDOWN_TIME_MS;
     nlCooldownValid = (cooldownErrorMs <= NL_COOLDOWN_TOLERANCE_MS);
 
-    nlCurrentRun++;
+    if (!nlCooldownValid)
+    {
+        nlBatchState = NL_BATCH_COMPLETE;
+        SetEngineState(NL_ENGINE_SAFE_STOP);
+        LogLine(
+            "BATCH,BatchID=%lu,Status=FAILED,Reason=COOLDOWN_INVALID,"
+            "CompletedCycleOrder=%lu,NextCycleOrder=%lu,TargetMs=%lu,ActualMs=%lu,"
+            "ToleranceMs=%lu\r\n",
+            (unsigned long)nlBatchId, (unsigned long)nlCurrentCycle,
+            (unsigned long)(nlCurrentCycle + 1U), (unsigned long)NL_COOLDOWN_TIME_MS,
+            (unsigned long)nlCooldownActualMs, (unsigned long)NL_COOLDOWN_TOLERANCE_MS);
+        return;
+    }
+
+    nlCurrentCycle++;
     nlBatchState = NL_BATCH_RUNNING;
     RunBatchSweep();
 #endif
+}
+
+static void FinishEngineCommand(void)
+{
+    /* Defense in depth: NonlinearTest_Run() disables on every normal/error
+     * path after Motor_Enable(); repeat it at the task boundary so future
+     * sequencing edits cannot accidentally leave torque enabled. */
+    Motor_Disable();
+
+    UBaseType_t stackHighWaterWords = uxTaskGetStackHighWaterMark(NULL);
+    LogLine("RUNTIME,FreeHeap=%lu,MinEverFreeHeap=%lu,TestStackHighWaterWords=%lu\r\n",
+        (unsigned long)xPortGetFreeHeapSize(),
+        (unsigned long)xPortGetMinimumEverFreeHeapSize(),
+        (unsigned long)stackHighWaterWords);
+
+    nlEngineBusy = false;
+    SetEngineState(NL_ENGINE_IDLE);
+}
+
+static void NonlinearEngine_Task(void *argument)
+{
+    (void)argument;
+
+    /* Read-only boot smoke: proves the locked UID profile and every pure
+     * startup self-test before the operator presses the button. Busy remains
+     * true during this SPI access so StartDefaultTask cannot interleave an
+     * idle sensor transaction. No motor output is enabled here. */
+    Motor_Disable();
+    SetEngineState(NL_ENGINE_PRECHECK);
+    (void)ReadLogAndGateConfiguration("BOOT_SMOKE");
+    nlEngineBusy = false;
+    SetEngineState(NL_ENGINE_IDLE);
+
+    for (;;)
+    {
+        uint8_t command = 0;
+        osStatus_t queueStatus = osMessageQueueGet(nlEngineCommandQueue,
+            &command, NULL, 100U);
+
+        if (queueStatus == osOK && command == NL_ENGINE_COMMAND_START)
+        {
+            NonlinearBatch_OnButtonPress();
+        }
+
+        NonlinearBatch_Poll();
+
+#if ENABLE_AUTO_BATCH_TEST
+        if (nlBatchState == NL_BATCH_COMPLETE
+                || (queueStatus == osOK && nlBatchState == NL_BATCH_IDLE))
+        {
+            nlBatchState = NL_BATCH_IDLE;
+            FinishEngineCommand();
+        }
+#else
+        if (queueStatus == osOK)
+        {
+            FinishEngineCommand();
+        }
+#endif
+    }
+}
+
+bool NonlinearEngine_Init(void)
+{
+    if (nlEngineCommandQueue != NULL || nlEngineTaskHandle != NULL)
+    {
+        return false;
+    }
+
+    nlEngineCommandQueue = osMessageQueueNew(1U, sizeof(uint8_t), NULL);
+    if (nlEngineCommandQueue == NULL)
+    {
+        return false;
+    }
+
+    static const osThreadAttr_t testTaskAttributes = {
+        .name = "TestTask",
+        /* Worst static call chain is PrintSweepLog into LogLineLarge, plus
+         * engine/run frames. Keep explicit margin above compiler-reported use. */
+        .stack_size = 6656U,
+        .priority = (osPriority_t)osPriorityAboveNormal,
+    };
+    nlEngineTaskHandle = osThreadNew(NonlinearEngine_Task, NULL, &testTaskAttributes);
+    if (nlEngineTaskHandle == NULL)
+    {
+        osMessageQueueDelete(nlEngineCommandQueue);
+        nlEngineCommandQueue = NULL;
+        return false;
+    }
+
+    /* Keep idle diagnostics out of SPI1 until the test task has emitted its
+     * read-only BOOT_SMOKE CONFIG record. */
+    nlEngineBusy = true;
+    SetEngineState(NL_ENGINE_IDLE);
+    return true;
+}
+
+bool NonlinearEngine_RequestStart(void)
+{
+    if (nlEngineCommandQueue == NULL || nlEngineBusy)
+    {
+        return false;
+    }
+
+    nlEngineBusy = true;
+    uint8_t command = NL_ENGINE_COMMAND_START;
+    if (osMessageQueuePut(nlEngineCommandQueue, &command, 0U, 0U) != osOK)
+    {
+        nlEngineBusy = false;
+        return false;
+    }
+    return true;
+}
+
+bool NonlinearEngine_IsBusy(void)
+{
+    return nlEngineBusy;
+}
+
+NonlinearEngineState_t NonlinearEngine_GetState(void)
+{
+    return nlEngineState;
 }

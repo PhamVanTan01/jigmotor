@@ -1,0 +1,6 @@
+Getting result!
+Nonlinear 1 Angle: 1.25 degree
+MA600 Raw Nonlinear 1 Angle: 1.25 degree
+Nonlinear Final Average: 1.25 degree
+MA600 Raw Nonlinear Final Average: 1.25 degree
+Motor OK!

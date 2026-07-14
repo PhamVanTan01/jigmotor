@@ -153,6 +153,16 @@ SECTIONS
 
   _siccmram = LOADADDR(.ccmram);
 
+  /* CPU-only shadow acquisition workspace. It is cleared explicitly before
+   * every capture, so it must not consume an initialization payload. */
+  .ccmram_bss (NOLOAD) :
+  {
+    . = ALIGN(8);
+    *(.ccmram_bss)
+    *(.ccmram_bss*)
+    . = ALIGN(8);
+  } >CCMRAM
+
   /* CCM-RAM section
   *
   * IMPORTANT NOTE!

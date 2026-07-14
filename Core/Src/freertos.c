@@ -55,5 +55,19 @@
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 
+void vApplicationStackOverflowHook(TaskHandle_t task, char *taskName)
+{
+  (void)task;
+  (void)taskName;
+  HAL_GPIO_WritePin(MOTOR_ENA_GPIO_Port, MOTOR_ENA_Pin, GPIO_PIN_RESET);
+  Error_Handler();
+}
+
+void vApplicationMallocFailedHook(void)
+{
+  HAL_GPIO_WritePin(MOTOR_ENA_GPIO_Port, MOTOR_ENA_Pin, GPIO_PIN_RESET);
+  Error_Handler();
+}
+
 /* USER CODE END Application */
 

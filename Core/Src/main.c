@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ma600.h"
+#include "ma600_acquisition.h"
 #include "motor.h"
 #include "nonlinear_test.h"
 #include <stdio.h>
@@ -140,13 +141,19 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   MA600_Init();
-  /* Without this, MA600_UpdateMultiTurn()'s internal "last raw" tracker
-   * starts at 0 instead of the sensor's actual current reading, so the
-   * first call after boot sees a bogus ~65535-count jump (wraparound logic
-   * misreads "started at 0" as "wrapped almost a full turn") and reports a
-   * large bogus initial error to the motor position PID. */
-  MA600_ResetMultiTurn();
+  if (!MA600_ConfigurationGateSelfTest())
+  {
+    Error_Handler();
+  }
+  if (!MA600_PointSamplerSelfTest())
+  {
+    Error_Handler();
+  }
   Motor_Init();
+  if (!Motor_RunControllerSelfTest())
+  {
+    Error_Handler();
+  }
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -173,7 +180,10 @@ int main(void)
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+  if (!NonlinearEngine_Init())
+  {
+    Error_Handler();
+  }
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -790,6 +800,9 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+  MA600_AcquisitionContext_t idleAcquisition;
+  MA600_AcquisitionInit(&idleAcquisition);
+
   /* Infinite loop */
   for(;;)
   {
@@ -801,14 +814,9 @@ void StartDefaultTask(void *argument)
     bool btnPressed = (HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin) == GPIO_PIN_RESET);
     if (btnPressed && !btnWasPressed)
     {
-        NonlinearBatch_OnButtonPress();
+        NonlinearEngine_RequestStart();
     }
     btnWasPressed = btnPressed;
-
-    /* Non-blocking poll for the (optional, ENABLE_AUTO_BATCH_TEST-gated) auto-batch cooldown
-     * timer -- a no-op the rest of the time. Called every loop iteration so a multi-minute
-     * cooldown never delays the heartbeat/idle diagnostics below. */
-    NonlinearBatch_Poll();
 
     /* Heartbeat: proves the scheduler/task is actually looping, independent
      * of whether SPI/UART are wired up or answering. If this LED is not
@@ -816,15 +824,37 @@ void StartDefaultTask(void *argument)
      * which blinks LED_R instead). */
     HAL_GPIO_TogglePin(LED_G_GPIO_Port, LED_G_Pin);
 
-    uint16_t raw = MA600_ReadRawAngle();
+    /* TestTask has exclusive ownership of SPI1 and motor control while busy.
+     * Idle diagnostics must not interleave a sensor transaction with capture. */
+    if (NonlinearEngine_IsBusy())
+    {
+        osDelay(200);
+        continue;
+    }
+
+    MA600_Sample_t idleSample;
+    MA600_Result_t idleReadResult = MA600_AcquireSample(&idleAcquisition,
+        32768, 3U, &idleSample);
+    if (idleReadResult != MA600_RESULT_OK)
+    {
+        char line[96];
+        int len = snprintf(line, sizeof(line),
+            "MA600 idle acquisition failed result=%d attempts=%u flags=0x%02X\r\n",
+            (int)idleReadResult, (unsigned)idleSample.attempts, (unsigned)idleSample.flags);
+        if (len >= (int)sizeof(line)) len = (int)sizeof(line) - 1;
+        HAL_UART_Transmit(&huart3, (uint8_t *)line, (uint16_t)len, 50);
+        osDelay(200);
+        continue;
+    }
+    uint16_t raw = idleSample.raw;
     /* Printed as fixed-point (hundredths), not %f: this project links
      * --specs=nano.specs (newlib-nano), which strips floating-point support
      * out of printf/snprintf by default, so "%f"/"%.2f" would not print
      * correctly here without also adding "-u _printf_float" to the linker
      * flags. Avoiding float format specifiers sidesteps that entirely. */
     uint32_t angleHundredths = (uint32_t)(MA600_RawToDegrees(raw) * 100.0f + 0.5f);
-    MA600_Status_t status;
-    MA600_ReadStatus(&status);
+    MA600_Status_t status = {0};
+    bool statusValid = MA600_ReadStatus(&status);
 
     /* Printed only on an actual fault flag, not every ~200ms loop iteration -- the
      * unconditional version flooded the log (thousands of identical lines per
@@ -832,13 +862,15 @@ void StartDefaultTask(void *argument)
      * covers the normal-operation angle/SPI-alive check far more compactly. These
      * status bits are the only place hardware faults (CRC/memory/parity errors,
      * NVM busy) surface at all, so still log them -- just only when non-zero. */
-    if (status.nvmBusy || status.errCrc || status.errMem || status.errPar)
+    if (!statusValid || status.nvmBusy || status.errCrc || status.errMem || status.errPar)
     {
-        char line[96];
+        char line[128];
         int len = snprintf(line, sizeof(line),
-            "MA600 raw=%u angle=%lu.%02lu deg NVMB=%d ERRCRC=%d ERRMEM=%d ERRPAR=%d\r\n",
+            "MA600 raw=%u angle=%lu.%02lu deg StatusValid=%d NVMB=%d ERRCRC=%d ERRMEM=%d ERRPAR=%d\r\n",
             raw, (unsigned long)(angleHundredths / 100), (unsigned long)(angleHundredths % 100),
+            statusValid ? 1 : 0,
             status.nvmBusy, status.errCrc, status.errMem, status.errPar);
+        if (len >= (int)sizeof(line)) len = (int)sizeof(line) - 1;
         HAL_UART_Transmit(&huart3, (uint8_t *)line, (uint16_t)len, 50);
     }
 
