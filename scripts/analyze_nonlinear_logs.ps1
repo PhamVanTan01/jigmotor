@@ -176,7 +176,7 @@ foreach ($inputPath in $Path) {
                 @{}
             }
             $containsStructuredRecord = [regex]::IsMatch($block,
-                '^\s*(?:DATA,\d|ACQ,\d|MOTION(?:_RESULT)?,|RESULT,|DIAGNOSTIC_RESULT,|PRECONDITION_RESULT,|SHADOW_(?:META|DATA|ACQ|RESULT|END),|CLOSURE_PROBE(?:_RESULT)?,|END,SchemaVersion=)',
+                '^\s*(?:DATA,\d|ACQ,\d|MOTION(?:_RESULT)?,|RESULT,|DIAGNOSTIC_RESULT,|PRECONDITION_RESULT,|SHADOW_(?:META|DATA|ACQ|RESULT|END),|CLOSURE_PROBE(?:_RESULT)?,|APPROACH_RESULT,|END,SchemaVersion=)',
                 [System.Text.RegularExpressions.RegexOptions]::Multiline)
             if (-not $metaMatch.Success -and $containsStructuredRecord) {
                 # A UART attach/detach can leave a partial structured record block. It is not
@@ -223,6 +223,16 @@ foreach ($inputPath in $Path) {
             $shadowEndMatch = [regex]::Match($block, '^\s*SHADOW_END,(.+)$', [System.Text.RegularExpressions.RegexOptions]::Multiline)
             $shadowEnd = if ($shadowEndMatch.Success) {
                 ConvertFrom-LogKeyValueLine ("SHADOW_END," + $shadowEndMatch.Groups[1].Value)
+            } else {
+                @{}
+            }
+            # Phase-3B0-B equal-approach diagnostic record (Official=0). Parse +
+            # export only -- no validation/derivation logic here by design; the
+            # offline B0BEligible gate lives in the analysis scripts that consume
+            # this export, not in this parser.
+            $approachResultMatch = [regex]::Match($block, '^\s*APPROACH_RESULT,(.+)$', [System.Text.RegularExpressions.RegexOptions]::Multiline)
+            $approachResult = if ($approachResultMatch.Success) {
+                ConvertFrom-LogKeyValueLine ("APPROACH_RESULT," + $approachResultMatch.Groups[1].Value)
             } else {
                 @{}
             }
@@ -882,6 +892,20 @@ foreach ($inputPath in $Path) {
                 ClosureProbeHold200WindowP2PRaw = if ($closureProbeStages.ContainsKey('HOLD_200')) { $closureProbeStages['HOLD_200']['WindowP2PRaw'] } else { "" }
                 ClosureProbeInitialWindowDriftRaw = if ($closureProbeStages.ContainsKey('INITIAL')) { $closureProbeStages['INITIAL']['WindowDriftRaw'] } else { "" }
                 ClosureProbeHold200WindowDriftRaw = if ($closureProbeStages.ContainsKey('HOLD_200')) { $closureProbeStages['HOLD_200']['WindowDriftRaw'] } else { "" }
+                ApproachProtocol = if ($meta.ContainsKey('ApproachProtocol')) { $meta['ApproachProtocol'] } else { "" }
+                ApproachStructuralValid = if ($meta.ContainsKey('ApproachStructuralValid')) { $meta['ApproachStructuralValid'] } else { "" }
+                ApproachStatus = if ($approachResult.ContainsKey('Status')) { $approachResult['Status'] } else { "" }
+                ApproachComplete = if ($approachResult.ContainsKey('Complete')) { $approachResult['Complete'] } else { "" }
+                ApproachAcquisitionClean = if ($approachResult.ContainsKey('ApproachAcquisitionClean')) { $approachResult['ApproachAcquisitionClean'] } else { "" }
+                ApproachStepCountValid = if ($approachResult.ContainsKey('ApproachStepCountValid')) { $approachResult['ApproachStepCountValid'] } else { "" }
+                ApproachDirectionValid = if ($approachResult.ContainsKey('ApproachDirectionValid')) { $approachResult['ApproachDirectionValid'] } else { "" }
+                BackoffDirectionValid = if ($approachResult.ContainsKey('BackoffDirectionValid')) { $approachResult['BackoffDirectionValid'] } else { "" }
+                ApproachObservedDeltaRaw = if ($approachResult.ContainsKey('ApproachObservedDeltaRaw')) { $approachResult['ApproachObservedDeltaRaw'] } else { "" }
+                ApproachTargetErrorRaw = if ($approachResult.ContainsKey('ApproachTargetErrorRaw')) { $approachResult['ApproachTargetErrorRaw'] } else { "" }
+                ApproachReturnErrorRaw = if ($approachResult.ContainsKey('ApproachReturnErrorRaw')) { $approachResult['ApproachReturnErrorRaw'] } else { "" }
+                BackoffObservedDeltaRaw = if ($approachResult.ContainsKey('BackoffObservedDeltaRaw')) { $approachResult['BackoffObservedDeltaRaw'] } else { "" }
+                BackoffTargetErrorRaw = if ($approachResult.ContainsKey('BackoffTargetErrorRaw')) { $approachResult['BackoffTargetErrorRaw'] } else { "" }
+                ApproachMotionQualification = if ($approachResult.ContainsKey('ApproachMotionQualification')) { $approachResult['ApproachMotionQualification'] } else { "" }
                 OfficialMeasurementValid = $officialValid
                 OfficialInvalidReasonMask = if ($meta.ContainsKey('OfficialInvalidReasonMask')) { $meta['OfficialInvalidReasonMask'] } else { "" }
                 TrackingValid = if ($meta.ContainsKey('TrackingValid')) { $meta['TrackingValid'] } else { "" }
