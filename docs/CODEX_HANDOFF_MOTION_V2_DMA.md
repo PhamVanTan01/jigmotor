@@ -218,3 +218,24 @@ Acceptance gates ban đầu:
 Khi nhận log mới, ưu tiên kiểm tra transport/profile ID và validity trước khi
 phân tích RMS_AC hoặc NL. Một log thiếu đúng identity không được trộn vào dataset
 của branch này.
+
+## 9. Kiến trúc tiếp theo đã thống nhất
+
+Motor control và official measurement sẽ được tách thành hai firmware image,
+không chuyển mode trong cùng boot và không chia sẻ controller/acquisition state.
+Thiết kế tài nguyên STM32F405 và plan triển khai nằm tại:
+
+- `docs/stm32f405-dual-mode-system-design.md`
+- `docs/stm32f405-dual-mode-implementation-plan.md`
+
+P0 và P1 đã được triển khai ở mức source/build gate:
+
+- `JIG_APP_MODE` chọn đúng một policy tại compile time;
+- `scripts/build_dual_image.ps1` tạo hai ELF/HEX độc lập trong `Build/`;
+- mỗi firmware log mode, profile, source ID và profile fingerprint;
+- Control ELF không link nonlinear engine/buffer;
+- Measurement vẫn giữ Motion V2 + SPI DMA và measurement math hiện tại.
+
+Lưu ý an toàn: profile `CONTROL_SAFE_STUB_P1` luôn disable motor và chưa phải
+controller có thể test chuyển động. P2 memory/resource và C0 control loop vẫn là
+công việc tiếp theo; không được mô tả chúng như behavior đã có.

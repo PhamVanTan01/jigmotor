@@ -25,7 +25,7 @@
 #include "ma600.h"
 #include "ma600_acquisition.h"
 #include "motor.h"
-#include "nonlinear_test.h"
+#include "app_engine.h"
 #include <stdio.h>
 #include <math.h>
 /* USER CODE END Includes */
@@ -182,7 +182,7 @@ int main(void)
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  if (!NonlinearEngine_Init())
+  if (!AppEngine_Init())
   {
     Error_Handler();
   }
@@ -823,6 +823,20 @@ void StartDefaultTask(void *argument)
   HAL_UART_Transmit(&huart3, (uint8_t *)transportLine,
       (uint16_t)transportLen, 50);
 
+  char manifestLine[256];
+  int manifestLen = snprintf(manifestLine, sizeof(manifestLine),
+      "BUILD_MANIFEST,AppMode=%s,AppProfile=%s,MCU=STM32F405RGTx,"
+      "SourceId=%s,ProfileFingerprint=0x%08lX,SystemClockHz=%lu,Transport=%s\r\n",
+      AppEngine_ModeId(), AppEngine_ProfileId(), AppEngine_SourceId(),
+      AppEngine_ProfileFingerprint(),
+      (unsigned long)SystemCoreClock, MA600_AngleTransportName());
+  if (manifestLen >= (int)sizeof(manifestLine))
+  {
+    manifestLen = (int)sizeof(manifestLine) - 1;
+  }
+  HAL_UART_Transmit(&huart3, (uint8_t *)manifestLine,
+      (uint16_t)manifestLen, 50);
+
   /* Infinite loop */
   for(;;)
   {
@@ -834,7 +848,7 @@ void StartDefaultTask(void *argument)
     bool btnPressed = (HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin) == GPIO_PIN_RESET);
     if (btnPressed && !btnWasPressed)
     {
-        NonlinearEngine_RequestStart();
+        AppEngine_RequestStart();
     }
     btnWasPressed = btnPressed;
 
@@ -846,7 +860,7 @@ void StartDefaultTask(void *argument)
 
     /* TestTask has exclusive ownership of SPI1 and motor control while busy.
      * Idle diagnostics must not interleave a sensor transaction with capture. */
-    if (NonlinearEngine_IsBusy())
+    if (AppEngine_IsBusy())
     {
         osDelay(200);
         continue;

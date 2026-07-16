@@ -21,8 +21,15 @@ Once the project has been generated once (via CubeIDE, see above):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\preflight.ps1
-powershell -ExecutionPolicy Bypass -File scripts\build_cubeide.ps1
+powershell -ExecutionPolicy Bypass -File scripts\build_cubeide.ps1 -Configuration Release
+powershell -ExecutionPolicy Bypass -File scripts\build_dual_image.ps1 -Mode All
 ```
+
+The dual-image command writes independently compiled artifacts to
+`Build/Measurement` and `Build/Control`, including SHA-256 manifests. At P1,
+`jigmotor_measurement.hex` preserves the active Motion V2 + SPI DMA behavior;
+`jigmotor_control.hex` is deliberately motor-disabled (`CONTROL_SAFE_STUB_P1`)
+and must not be used as a functional motion controller yet.
 
 The active motor-motion profile and its hardware qualification procedure are
 documented in `docs/motion-control-v2-implementation-plan.md`. Run
@@ -33,6 +40,13 @@ For a new Codex session or a clone on another computer, read
 `docs/CODEX_HANDOFF_MOTION_V2_DMA.md` first. It records the effective branch,
 measurement invariants, implemented DMA/motion behavior, build commands,
 rollback switches, and remaining hardware-validation work.
+
+The P1 architecture now separates motor control and official measurement into
+two independently linked firmware images. The remaining resource and control
+phases are tracked in:
+
+- `docs/stm32f405-dual-mode-system-design.md`
+- `docs/stm32f405-dual-mode-implementation-plan.md`
 
 See `scripts\toolchain.ps1` for how the STM32CubeIDE/toolchain paths are
 resolved, and `docs\end-of-shaft-mounting-test-plan.md` for how to verify the

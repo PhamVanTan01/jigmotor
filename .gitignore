@@ -1,6 +1,9 @@
 # Build outputs
 Debug/
 Release/
+Control/
+Measurement/
+Build/
 
 # Claude Code working directory
 .claude/
