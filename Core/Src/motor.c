@@ -18,7 +18,11 @@ static const PositionControllerConfig_t POSITION_CONFIG = {
     .kd = 0.3f,
     .integralLimit = 5.0f,
     .outputLimit = 400.0f,
+    .derivativeAlpha = 0.25f,
+    .outputSlewLimit = 8.0f,
 };
+
+#define MOTOR_HOME_CONTROLLER_PROFILE_ID "WRAPPED_PID_SLEW_V2"
 
 static PositionController_t positionController;
 static MA600_AcquisitionContext_t pidAcquisition;
@@ -52,6 +56,8 @@ bool Motor_RunControllerSelfTest(void)
     return state.integralTerm == 0.0f
         && state.lastErrorDeg == 0.0f
         && state.commandedPositionRaw == 0.0f
+        && state.filteredDerivativeTerm == 0.0f
+        && state.lastOutputStepRaw == 0.0f
         && !state.feedbackTrackerInitialized
         && state.feedbackAcceptedSamples == 0U
         && state.outputElectricalPositionRaw == 0U
@@ -96,6 +102,8 @@ void Motor_GetControllerState(Motor_ControllerState_t *outState)
     outState->integralTerm = positionController.integral;
     outState->lastErrorDeg = positionController.lastError;
     outState->commandedPositionRaw = positionController.commandedPosition;
+    outState->filteredDerivativeTerm = positionController.filteredDerivative;
+    outState->lastOutputStepRaw = positionController.lastOutput;
     outState->feedbackTrackerInitialized = pidAcquisition.unwrap.initialized;
     outState->feedbackAcceptedSamples = pidAcquisition.acceptedSamples;
 
@@ -122,6 +130,11 @@ MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg)
     }
 
     float error = MA600_UnwrappedRawToDegrees(sample.unwrappedRaw) - targetDeg;
+    /* The encoder is periodic. Without wrapping, 352 deg to target 0 was
+     * treated as a 352-degree move instead of the equivalent -8-degree
+     * error, adding a full unnecessary revolution before every sweep. */
+    while (error > 180.0f) error -= 360.0f;
+    while (error < -180.0f) error += 360.0f;
     *outErrorDeg = error;
     float commandedPosition = PositionController_Update(&positionController, error);
 
@@ -149,4 +162,9 @@ uint16_t Motor_GetPoleCount(void)
 int32_t Motor_GetCommandedPos(void)
 {
     return (int32_t)PositionController_GetCommandedPosition(&positionController);
+}
+
+const char *Motor_GetHomeControllerProfileId(void)
+{
+    return MOTOR_HOME_CONTROLLER_PROFILE_ID;
 }

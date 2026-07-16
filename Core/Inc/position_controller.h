@@ -15,6 +15,12 @@ typedef struct
     float kd;
     float integralLimit;
     float outputLimit;
+    /* 0..1 one-pole smoothing applied to the derivative contribution.
+     * 1 keeps the legacy unfiltered derivative. */
+    float derivativeAlpha;
+    /* Maximum change of the incremental position command per controller
+     * update. This is an acceleration/slew guard, not an output clamp. */
+    float outputSlewLimit;
 } PositionControllerConfig_t;
 
 typedef struct
@@ -23,6 +29,8 @@ typedef struct
     float integral;
     float lastError;
     float commandedPosition;
+    float filteredDerivative;
+    float lastOutput;
 } PositionController_t;
 
 void PositionController_Init(PositionController_t *controller,

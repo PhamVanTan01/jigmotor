@@ -8,12 +8,26 @@ function Assert-True {
 $root = Split-Path -Parent $PSScriptRoot
 $source = Get-Content -Raw (Join-Path $root 'Core\Src\nonlinear_test.c')
 
+if ($source -match '#define\s+NL_MOTION_PROFILE\s+NL_MOTION_PROFILE_SCURVE_V2') {
+    Assert-True ($source -match '#ifndef\s+ENABLE_SWEEP_RAMP_STEP_DIAG\s*[\r\n]+#define\s+ENABLE_SWEEP_RAMP_STEP_DIAG\s+1') `
+        'Motion V2 must enable the first-three-ramp observation by default.'
+    Assert-True ($source -match '#define\s+NL_SWEEP_RAMP_DIAG_MAX_STEPS\s+NL_MOTION_COMMANDS_PER_DEG') `
+        'Motion V2 ramp diagnostic capacity must follow the selected profile.'
+    Assert-True ($source -match 'sweepRampStepUnwrapped\[NL_SWEEP_RAMP_DIAG_COUNT\]\[NL_SWEEP_RAMP_DIAG_MAX_STEPS\]') `
+        'Motion V2 per-command encoder trace storage is missing.'
+    Assert-True ($source -match 'SWEEP_RAMP_STEPS,SchemaVersion=' -and
+            $source -match 'char\s+rampStepsBuf\[1024\]') `
+        'Motion V2 ramp trace output or its bounded buffer is missing.'
+    Write-Host '[ OK ] Sweep-ramp Motion-V2 diagnostic contract passed.'
+    exit 0
+}
+
 try {
     # --- Default-off, independent of B0-B. ---
     Assert-True ($source -match '#ifndef\s+ENABLE_SWEEP_RAMP_STEP_DIAG\s*[\r\n]+#define\s+ENABLE_SWEEP_RAMP_STEP_DIAG\s+0') `
         'ENABLE_SWEEP_RAMP_STEP_DIAG must default to 0.'
-    Assert-True ($source -match '#define\s+NL_SWEEP_RAMP_DIAG_MAX_STEPS\s+\(NL_POS_INCREASE\s*/\s*NL_RAMP_STEP\)') `
-        'NL_SWEEP_RAMP_DIAG_MAX_STEPS must be NL_POS_INCREASE/NL_RAMP_STEP, matching the B0-B diag step cap.'
+    Assert-True ($source -match '(?s)#define\s+NL_SWEEP_RAMP_DIAG_MAX_STEPS\s+\\\s*\(\(NL_GRID_STEP_RAW_MAX\s*\+\s*NL_RAMP_STEP\s*-\s*1U\)\s*/\s*NL_RAMP_STEP\)') `
+        'NL_SWEEP_RAMP_DIAG_MAX_STEPS must hold the ceil(183/8) one-degree ramp.'
     Assert-True ($source -match '#define\s+NL_SWEEP_RAMP_DIAG_COUNT\s+3U') `
         'NL_SWEEP_RAMP_DIAG_COUNT must be 3 (ramps toward point 1, 2, 3).'
     Assert-True ($source -notmatch 'NL_SWEEP_RAMP_DIAG_MAX_STEPS\s*=\s*NL_B0B_APPROACH_DIAG_STEPS' -and

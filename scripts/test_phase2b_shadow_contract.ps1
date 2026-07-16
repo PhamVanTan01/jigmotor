@@ -18,8 +18,9 @@ try {
         'Phase-2B META no longer declares legacy as official.'
     Assert-True ($source -match 'MA600_ReadAveragedPoint\s*\(\s*&shadowUnwrap') `
         'Canonical point sampler is not wired to the independent shadow context.'
-    Assert-True ($source -match 'MA600_ComputeCanonicalErrorQ16') `
-        'Shadow error is not derived through the frozen canonical helper.'
+    Assert-True ($source -match 'MA600_ComputeCanonicalErrorAtTargetQ16' -and
+            $source -match 'NlTargetRawForPoint') `
+        'Shadow error is not derived from the rounded one-degree target through the canonical helper.'
     Assert-True ($source -match 'SHADOW_META' -and $source -match 'SHADOW_DATA' -and
             $source -match 'SHADOW_ACQ' -and $source -match 'SHADOW_RESULT' -and
             $source -match 'SHADOW_END') `

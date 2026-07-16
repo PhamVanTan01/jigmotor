@@ -135,6 +135,10 @@ bool MA600_ComputeCanonicalErrorQ16(int64_t pointMeanRawQ16,
                                     uint32_t pointIndex,
                                     uint32_t stepRaw,
                                     int64_t *outErrorRawQ16);
+bool MA600_ComputeCanonicalErrorAtTargetQ16(int64_t pointMeanRawQ16,
+                                            int64_t point0MeanRawQ16,
+                                            int64_t signedTargetRaw,
+                                            int64_t *outErrorRawQ16);
 
 MA600_Result_t MA600_ReadAveragedPointWithIo(
     MA600_UnwrapContext_t *sweepCtx,

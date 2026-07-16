@@ -19,6 +19,7 @@ typedef struct
 } MA600_Status_t;
 
 void            MA600_Init(void);
+const char     *MA600_AngleTransportName(void);
 float           MA600_RawToDegrees(uint16_t raw);
 bool            MA600_ReadStatus(MA600_Status_t *status);
 
@@ -47,9 +48,11 @@ typedef enum
 typedef struct
 {
     uint32_t csAssertCycle;
+    uint32_t transferCompleteCycle;
     uint16_t pwmCounterAtCs;
     bool     metaValid;       /* true once the pre-/CS snapshot is captured, even if the
                                 * following SPI transaction times out or is fault-injected. */
+    bool     dmaUsed;
 } MA600_ReadMeta_t;
 
 /* Pure read: no retry, no state, no unwrap policy. Never returns 0 to mean

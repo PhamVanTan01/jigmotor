@@ -11,6 +11,14 @@ extern TIM_HandleTypeDef htim1;
 #define ENABLE_MA600_FAULT_INJECTION 0
 #endif
 
+/* Phase-S1 transport switch. Keep the polling implementation in the same
+ * binary source as an engineering fallback while SPI DMA is validated. */
+#ifndef MA600_USE_SPI_DMA
+#define MA600_USE_SPI_DMA 1
+#endif
+
+#define MA600_DMA_TIMEOUT_US 10000U
+
 #define MA600_REG_ZERO0        0x00
 #define MA600_REG_ZERO1        0x01
 #define MA600_REG_DIR          0x09
@@ -38,10 +46,131 @@ static void MA600_Deselect(void)
     HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 }
 
+#if MA600_USE_SPI_DMA
+typedef enum
+{
+    MA600_DMA_IDLE = 0,
+    MA600_DMA_BUSY,
+    MA600_DMA_COMPLETE,
+    MA600_DMA_ERROR,
+    MA600_DMA_ABORTING,
+} MA600_DmaState_t;
+
+/* DMA2 cannot access CCM, so these transport-owned buffers deliberately live
+ * in ordinary .bss SRAM and remain valid for the whole transaction. Only one
+ * MA600 transaction is allowed in flight by the engine's SPI ownership rule. */
+static uint8_t ma600DmaTx[2];
+static uint8_t ma600DmaRx[2];
+static volatile MA600_DmaState_t ma600DmaState = MA600_DMA_IDLE;
+static volatile uint32_t ma600DmaCompleteCycle = 0U;
+
+static MA600_Result_t MA600_ReadRawDma(uint16_t *raw,
+                                       MA600_ReadMeta_t *meta)
+{
+    if (ma600DmaState != MA600_DMA_IDLE)
+    {
+        return MA600_RESULT_SPI_ERROR;
+    }
+
+    ma600DmaTx[0] = 0x00U;
+    ma600DmaTx[1] = 0x00U;
+    ma600DmaRx[0] = 0x00U;
+    ma600DmaRx[1] = 0x00U;
+    ma600DmaCompleteCycle = 0U;
+    ma600DmaState = MA600_DMA_BUSY;
+
+    /* Overwrite the outer fault-injection snapshot immediately before the
+     * real /CS edge. This preserves the original CS-adjacent timing contract
+     * despite the DMA buffer/setup work above. */
+    if (meta != NULL)
+    {
+        meta->csAssertCycle = DWT->CYCCNT;
+        meta->pwmCounterAtCs = (uint16_t)__HAL_TIM_GET_COUNTER(&htim1);
+        meta->metaValid = true;
+        meta->dmaUsed = true;
+    }
+    MA600_Select();
+    HAL_StatusTypeDef startResult = HAL_SPI_TransmitReceive_DMA(&hspi1,
+        ma600DmaTx, ma600DmaRx, sizeof(ma600DmaTx));
+    if (startResult != HAL_OK)
+    {
+        MA600_Deselect();
+        ma600DmaState = MA600_DMA_IDLE;
+        return (startResult == HAL_TIMEOUT) ? MA600_RESULT_SPI_TIMEOUT
+                                            : MA600_RESULT_SPI_ERROR;
+    }
+
+    /* Intentional bounded busy-wait for the first DMA trial. A 2-byte frame
+     * finishes in a few microseconds at 5.25 Mbit/s; blocking the task via the
+     * scheduler here would add a new timing variable to the 64-sample window. */
+    uint32_t waitStartCycle = DWT->CYCCNT;
+    uint32_t timeoutCycles = MA600_DwtUsToCycles(MA600_DMA_TIMEOUT_US);
+    while (ma600DmaState == MA600_DMA_BUSY)
+    {
+        if ((uint32_t)(DWT->CYCCNT - waitStartCycle) >= timeoutCycles)
+        {
+            ma600DmaState = MA600_DMA_ABORTING;
+            (void)HAL_SPI_Abort(&hspi1);
+            MA600_Deselect();
+            if (meta != NULL)
+            {
+                meta->transferCompleteCycle = DWT->CYCCNT;
+            }
+            ma600DmaState = MA600_DMA_IDLE;
+            return MA600_RESULT_SPI_TIMEOUT;
+        }
+    }
+
+    MA600_DmaState_t finalState = ma600DmaState;
+    if (meta != NULL)
+    {
+        meta->transferCompleteCycle = ma600DmaCompleteCycle;
+    }
+    ma600DmaState = MA600_DMA_IDLE;
+
+    if (finalState != MA600_DMA_COMPLETE)
+    {
+        return MA600_RESULT_SPI_ERROR;
+    }
+
+    *raw = ((uint16_t)ma600DmaRx[0] << 8) | (uint16_t)ma600DmaRx[1];
+    return MA600_RESULT_OK;
+}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi1 && ma600DmaState == MA600_DMA_BUSY)
+    {
+        ma600DmaCompleteCycle = DWT->CYCCNT;
+        MA600_Deselect();
+        ma600DmaState = MA600_DMA_COMPLETE;
+    }
+}
+
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi1 && ma600DmaState == MA600_DMA_BUSY)
+    {
+        ma600DmaCompleteCycle = DWT->CYCCNT;
+        MA600_Deselect();
+        ma600DmaState = MA600_DMA_ERROR;
+    }
+}
+#endif
+
 void MA600_Init(void)
 {
     MA600_Deselect();
     MA600_DwtInit();
+}
+
+const char *MA600_AngleTransportName(void)
+{
+#if MA600_USE_SPI_DMA
+    return "SPI_DMA_BLOCKING_WRAPPER_V1";
+#else
+    return "SPI_HAL_POLLING_V1";
+#endif
 }
 
 float MA600_RawToDegrees(uint16_t raw)
@@ -133,6 +262,11 @@ MA600_Result_t MA600_ReadRawChecked(uint16_t *raw, MA600_ReadMeta_t *meta)
     }
 #endif
 
+#if MA600_USE_SPI_DMA
+    (void)tx;
+    (void)rx;
+    return MA600_ReadRawDma(raw, meta);
+#else
     MA600_Select();
     HAL_StatusTypeDef st = HAL_SPI_TransmitReceive(&hspi1, tx, rx, sizeof(tx), 10);
     MA600_Deselect();
@@ -148,6 +282,7 @@ MA600_Result_t MA600_ReadRawChecked(uint16_t *raw, MA600_ReadMeta_t *meta)
 
     *raw = ((uint16_t)rx[0] << 8) | (uint16_t)rx[1];
     return MA600_RESULT_OK;
+#endif
 }
 
 MA600_Result_t MA600_ReadRegChecked(uint8_t addr, uint8_t *value)

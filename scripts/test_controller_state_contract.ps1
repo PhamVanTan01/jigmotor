@@ -128,13 +128,15 @@ Assert-True ($controllerSource -match 'controller->integral\s*\+=\s*controller->
         $controllerSource -match 'controller->integral\s*=\s*0\.0f' -and
         $controllerSource -match 'controller->commandedPosition\s*-=\s*output') `
     'Controller update math changed inside the isolated reset-state experiment.'
-Assert-True ($nonlinearSource -match '#define\s+NL_POS_INCREASE\s+256' -and
+Assert-True ($nonlinearSource -match '#define\s+NL_POINTS_PER_REV\s+360U' -and
+        $nonlinearSource -match '#define\s+NL_GRID_STEP_DEG\s+1\.0f' -and
+        $nonlinearSource -match 'NlTargetRawMagnitudeForPoint' -and
         $nonlinearSource -match '#define\s+NL_TEST_COUNT\s+1' -and
         $nonlinearSource -match '#define\s+NL_RAMP_STEP\s+8' -and
         $nonlinearSource -match '#define\s+NL_RAMP_STEP_DELAY_MS\s+1' -and
         $nonlinearSource -match '#define\s+NL_MOVE_ZERO_LOOP_DELAY_MS\s+2' -and
         $nonlinearSource -match '#define\s+NL_DITHER_START_POS\s+20' -and
         $nonlinearSource -match '#define\s+NL_DITHER_SETTLE_MS\s+200') `
-    'Sweep, ramp, home-loop, or dither settings changed inside the state-only experiment.'
+    'Approved one-degree sweep, ramp, home-loop, or dither contract changed unexpectedly.'
 
 Write-Host '[ OK ] Phase-3B0-R controller-state synchronization contract tests passed.'

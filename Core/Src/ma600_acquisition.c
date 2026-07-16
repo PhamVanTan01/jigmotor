@@ -177,6 +177,29 @@ bool MA600_ComputeCanonicalPointMeanQ16(int64_t pointAnchorUnwrapped,
     return true;
 }
 
+bool MA600_ComputeCanonicalErrorAtTargetQ16(int64_t pointMeanRawQ16,
+                                            int64_t point0MeanRawQ16,
+                                            int64_t signedTargetRaw,
+                                            int64_t *outErrorRawQ16)
+{
+    if (outErrorRawQ16 == NULL)
+    {
+        return false;
+    }
+
+    int64_t targetRawQ16 = 0;
+    int64_t measuredRelativeRawQ16 = 0;
+    if (!ScaleByQ16(signedTargetRaw, &targetRawQ16)
+            || !SafeSubI64(pointMeanRawQ16, point0MeanRawQ16,
+                &measuredRelativeRawQ16)
+            || !SafeSubI64(measuredRelativeRawQ16, targetRawQ16,
+                outErrorRawQ16))
+    {
+        return false;
+    }
+    return true;
+}
+
 bool MA600_ComputeCanonicalErrorQ16(int64_t pointMeanRawQ16,
                                     int64_t point0MeanRawQ16,
                                     int32_t directionSign,
@@ -184,12 +207,8 @@ bool MA600_ComputeCanonicalErrorQ16(int64_t pointMeanRawQ16,
                                     uint32_t stepRaw,
                                     int64_t *outErrorRawQ16)
 {
-    if (outErrorRawQ16 == NULL || (directionSign != 1 && directionSign != -1)
-            || stepRaw == 0U)
-    {
-        return false;
-    }
-    if ((uint64_t)pointIndex > (uint64_t)INT64_MAX / (uint64_t)stepRaw)
+    if ((directionSign != 1 && directionSign != -1) || stepRaw == 0U
+            || (uint64_t)pointIndex > (uint64_t)INT64_MAX / (uint64_t)stepRaw)
     {
         return false;
     }
@@ -199,18 +218,8 @@ bool MA600_ComputeCanonicalErrorQ16(int64_t pointMeanRawQ16,
     {
         targetRaw = -targetRaw;
     }
-
-    int64_t targetRawQ16 = 0;
-    int64_t measuredRelativeRawQ16 = 0;
-    if (!ScaleByQ16(targetRaw, &targetRawQ16)
-            || !SafeSubI64(pointMeanRawQ16, point0MeanRawQ16,
-                &measuredRelativeRawQ16)
-            || !SafeSubI64(measuredRelativeRawQ16, targetRawQ16,
-                outErrorRawQ16))
-    {
-        return false;
-    }
-    return true;
+    return MA600_ComputeCanonicalErrorAtTargetQ16(pointMeanRawQ16,
+        point0MeanRawQ16, targetRaw, outErrorRawQ16);
 }
 
 static bool CycleReached(uint32_t now, uint32_t target)

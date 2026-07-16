@@ -21,6 +21,8 @@ typedef struct
     float    integralTerm;
     float    lastErrorDeg;
     float    commandedPositionRaw;
+    float    filteredDerivativeTerm;
+    float    lastOutputStepRaw;
     bool     feedbackTrackerInitialized;
     uint32_t feedbackAcceptedSamples;
     uint16_t outputElectricalPositionRaw;
@@ -69,6 +71,10 @@ uint16_t Motor_GetPolePairs(void);
  * the PID is actually driving the commutation angle a meaningful amount, or
  * barely moving it, when the shaft itself isn't visibly rotating. */
 int32_t Motor_GetCommandedPos(void);
+
+/* Stable identifiers emitted by the nonlinear test so a hardware data set
+ * cannot silently mix different home-control behavior. */
+const char *Motor_GetHomeControllerProfileId(void);
 
 #ifdef __cplusplus
 }

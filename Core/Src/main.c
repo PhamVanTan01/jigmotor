@@ -54,6 +54,8 @@ I2C_HandleTypeDef hi2c2;
 DMA_HandleTypeDef hdma_i2c2_tx;
 
 SPI_HandleTypeDef hspi1;
+DMA_HandleTypeDef hdma_spi1_rx;
+DMA_HandleTypeDef hdma_spi1_tx;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
@@ -723,6 +725,12 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+  /* DMA2_Stream2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
+  /* DMA2_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
 
 }
 
@@ -802,6 +810,18 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN 5 */
   MA600_AcquisitionContext_t idleAcquisition;
   MA600_AcquisitionInit(&idleAcquisition);
+
+  /* Motor is disabled here. Emit the transport identity once so a captured
+   * hardware log proves whether the flashed image is polling or DMA. */
+  char transportLine[96];
+  int transportLen = snprintf(transportLine, sizeof(transportLine),
+      "MA600 angle transport=%s\r\n", MA600_AngleTransportName());
+  if (transportLen >= (int)sizeof(transportLine))
+  {
+    transportLen = (int)sizeof(transportLine) - 1;
+  }
+  HAL_UART_Transmit(&huart3, (uint8_t *)transportLine,
+      (uint16_t)transportLen, 50);
 
   /* Infinite loop */
   for(;;)

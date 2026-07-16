@@ -13,6 +13,26 @@ $baselineFixture = Join-Path $PSScriptRoot 'fixtures\schema-v5-phase3b0-closure-
 $csv = Join-Path ([System.IO.Path]::GetTempPath()) 'jigmotor-phase3b0-equal-approach.csv'
 $baselineCsv = Join-Path ([System.IO.Path]::GetTempPath()) 'jigmotor-phase3b0-equal-approach-baseline.csv'
 
+# Motion Control V2 promotes the formerly optional experiment to the compiled
+# default and replaces the 23-command staircase with a 40-command S-curve.
+# Keep the legacy fixture checks below for legacy-profile branches, while the
+# active V2 branch has its own source contract here.
+if ($source -match '#define\s+NL_MOTION_PROFILE\s+NL_MOTION_PROFILE_SCURVE_V2') {
+    Assert-True ($source -match '#ifndef\s+ENABLE_B0B_EQUAL_APPROACH\s*[\r\n]+#define\s+ENABLE_B0B_EQUAL_APPROACH\s+1') `
+        'Motion V2 must compile equal-approach as the default.'
+    Assert-True ($source -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2') `
+        'Motion V2 equal-approach protocol ID is missing.'
+    Assert-True ($source -match '#define\s+NL_B0B_APPROACH_DIAG_STEPS\s+NL_MOTION_COMMANDS_PER_DEG') `
+        'Motion V2 approach diagnostic capacity must follow the selected profile.'
+    Assert-True ($source -match 'forwardStepsExecuted\s*==\s*NL_B0B_APPROACH_DIAG_STEPS' -and
+            $source -match 'backoffStepsExecuted\s*==\s*NL_B0B_APPROACH_DIAG_STEPS') `
+        'Motion V2 must structurally validate both equal-approach legs.'
+    Assert-True ($source -match 'out->measurementValid\s*=\s*structuralValid\s*&&\s*out->trackingValid') `
+        'Equal-approach leaked into the frozen official validity gate.'
+    Write-Host '[ OK ] Phase-3B0 equal-approach promoted Motion-V2 contract passed.'
+    exit 0
+}
+
 try {
     # --- Default-off contract: protocol A must be the compiled default. ---
     Assert-True ($source -match '#ifndef\s+ENABLE_B0B_EQUAL_APPROACH\s*[\r\n]+#define\s+ENABLE_B0B_EQUAL_APPROACH\s+0') `
@@ -20,10 +40,10 @@ try {
     Assert-True ($source -match '#define\s+NL_B0B_APPROACH_PROTOCOL_ID\s+"DITHER_PLUS_CW_LOCAL_APPROACH_V1"' -and
             $source -match '#define\s+NL_B0B_APPROACH_PROTOCOL_ID\s+"DITHER_V1"') `
         'Both protocol IDs (DITHER_V1 default / DITHER_PLUS_CW_LOCAL_APPROACH_V1 flagged) must exist.'
-    Assert-True ($source -match '#define\s+NL_B0B_APPROACH_BACKOFF_RAW\s+NL_POS_INCREASE') `
-        'Backoff distance must equal NL_POS_INCREASE (256 raw = 32 NL_RAMP_STEP micro-steps), not an ad-hoc number.'
-    Assert-True ($source -match '#if\s+\(NL_POS_INCREASE\s*%\s*NL_RAMP_STEP\)\s*!=\s*0\s*[\r\n]+#error') `
-        'The integer micro-step divisibility #error guard is missing.'
+    Assert-True ($source -match '#define\s+NL_B0B_APPROACH_BACKOFF_RAW\s+NL_GRID_STEP_RAW_MIN') `
+        'Backoff distance must match the 182-raw point359-to-point360 closure step.'
+    Assert-True ($source -match '\*pos\s*=\s*targetPos;\s*/\*\s*không overshoot') `
+        'Ramp helper must clamp the final partial 6/7-raw micro-step to the exact target.'
     Assert-True ($source -match '(?s)#if\s+ENABLE_CCW_ENGINEERING_TEST\s*[\r\n]+#error "B0-B equal-approach') `
         'The CCW/B0-B mutual-exclusion #error guard is missing.'
 
@@ -55,8 +75,8 @@ try {
 
     # --- SF-pre-step diagnostic: per-microstep log fills only on an accepted
     # sample, and only after the error-return path (never logs a failed step). ---
-    Assert-True ($source -match '#define\s+NL_B0B_APPROACH_DIAG_STEPS\s+\(NL_POS_INCREASE\s*/\s*NL_RAMP_STEP\)') `
-        'NL_B0B_APPROACH_DIAG_STEPS must be unconditional (NL_POS_INCREASE/NL_RAMP_STEP), not gated by ENABLE_B0B_EQUAL_APPROACH.'
+    Assert-True ($source -match '(?s)#define\s+NL_B0B_APPROACH_DIAG_STEPS\s+\\\s*\(\(NL_GRID_STEP_RAW_MAX\s*\+\s*NL_RAMP_STEP\s*-\s*1U\)\s*/\s*NL_RAMP_STEP\)') `
+        'NL_B0B_APPROACH_DIAG_STEPS must hold ceil(183/8)=23 commands.'
     $rampFn = [regex]::Match($source,
         '(?s)static MA600_Result_t RampCommandToTarget\(.*?\n\}').Value
     Assert-True (-not [string]::IsNullOrWhiteSpace($rampFn)) `
@@ -142,9 +162,9 @@ try {
     # Structural gate composition.
     Assert-True ($approachBlock -match '(?s)out->approachStructuralValid\s*=\s*out->approachDirectionValid\s*&&\s*out->approachStepCountValid\s*&&\s*out->backoffDirectionValid\s*&&\s*out->approachAcquisitionClean') `
         'ApproachStructuralValid must gate direction + step count + backoff direction + acquisition-clean.'
-    Assert-True ($approachBlock -match 'forwardStepsExecuted\s*==\s*NL_B0B_APPROACH_BACKOFF_RAW\s*/\s*NL_RAMP_STEP' -and
-            $approachBlock -match 'backoffStepsExecuted\s*==\s*NL_B0B_APPROACH_BACKOFF_RAW\s*/\s*NL_RAMP_STEP') `
-        'Step-count validity must check both legs against the expected 32 steps.'
+    Assert-True ($approachBlock -match 'forwardStepsExecuted\s*==\s*NL_B0B_APPROACH_DIAG_STEPS' -and
+            $approachBlock -match 'backoffStepsExecuted\s*==\s*NL_B0B_APPROACH_DIAG_STEPS') `
+        'Step-count validity must check both legs against the expected 23 commands.'
     Assert-True ($approachBlock -match 'approachReturnErrorRaw\s*=\s*sweepOriginUnwrapped\s*-\s*initialAnchorUnwrapped') `
         'The closed-loop 0 -> -256 -> 0 return-error diagnostic is missing.'
 

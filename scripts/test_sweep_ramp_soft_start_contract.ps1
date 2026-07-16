@@ -8,6 +8,18 @@ function Assert-True {
 $root = Split-Path -Parent $PSScriptRoot
 $source = Get-Content -Raw (Join-Path $root 'Core\Src\nonlinear_test.c')
 
+if ($source -match '#define\s+NL_MOTION_PROFILE\s+NL_MOTION_PROFILE_SCURVE_V2') {
+    Assert-True ($source -match '#ifndef\s+ENABLE_SWEEP_RAMP_SOFT_START\s*[\r\n]+#define\s+ENABLE_SWEEP_RAMP_SOFT_START\s+0') `
+        'The obsolete point-1-only soft-start experiment must stay disabled under Motion V2.'
+    Assert-True ($source -match '#define\s+NL_SCURVE_SEGMENT_TICKS\s+40U' -and
+            $source -match 'SCURVE40_ABSOLUTE_TICK_V2') `
+        'Motion V2 must provide the all-segment S-curve replacement.'
+    Assert-True ($source -match 'osDelayUntil\(deadline\)') `
+        'Motion V2 must use absolute-deadline cadence.'
+    Write-Host '[ OK ] Sweep soft-start superseded-by-Motion-V2 contract passed.'
+    exit 0
+}
+
 try {
     # --- Default-off, independent of B0-B and of the step-diag flag. ---
     Assert-True ($source -match '#ifndef\s+ENABLE_SWEEP_RAMP_SOFT_START\s*[\r\n]+#define\s+ENABLE_SWEEP_RAMP_SOFT_START\s+0') `

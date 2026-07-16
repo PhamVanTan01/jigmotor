@@ -24,7 +24,25 @@ powershell -ExecutionPolicy Bypass -File scripts\preflight.ps1
 powershell -ExecutionPolicy Bypass -File scripts\build_cubeide.ps1
 ```
 
+The active motor-motion profile and its hardware qualification procedure are
+documented in `docs/motion-control-v2-implementation-plan.md`. Run
+`scripts/test_motion_control_v2_contract.ps1` whenever changing the home,
+alignment, or point-to-point trajectory code.
+
+For a new Codex session or a clone on another computer, read
+`docs/CODEX_HANDOFF_MOTION_V2_DMA.md` first. It records the effective branch,
+measurement invariants, implemented DMA/motion behavior, build commands,
+rollback switches, and remaining hardware-validation work.
+
 See `scripts\toolchain.ps1` for how the STM32CubeIDE/toolchain paths are
 resolved, and `docs\end-of-shaft-mounting-test-plan.md` for how to verify the
 MA600A end-of-shaft mounting meets the datasheet's accuracy spec before using
 a jig for QC.
+
+## Architecture
+
+- Current measurement data flow: `docs/system_measurement_architecture.md`
+- Target algorithm-preserving system design:
+  `docs/system-design-v2-algorithm-preserving.md`
+- SPI acquisition restructuring and controlled optimization plan:
+  `docs/spi-acquisition-optimization-plan.md`
