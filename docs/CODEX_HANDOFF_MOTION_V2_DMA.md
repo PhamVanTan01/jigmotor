@@ -236,6 +236,9 @@ P0 và P1 đã được triển khai ở mức source/build gate:
 - Control ELF không link nonlinear engine/buffer;
 - Measurement vẫn giữ Motion V2 + SPI DMA và measurement math hiện tại.
 
-Lưu ý an toàn: profile `CONTROL_SAFE_STUB_P1` luôn disable motor và chưa phải
-controller có thể test chuyển động. P2 memory/resource và C0 control loop vẫn là
-công việc tiếp theo; không được mô tả chúng như behavior đã có.
+Control đã chuyển từ safe stub sang profile
+`CONTROL_C0_OPEN_LOOP_1DEG_V1`. Profile này chỉ dùng để quan sát plant: home ở
+35% power, chạy S-curve open-loop 1° với `CorrectionRaw=0`, giữ 250 ms, disable
+motor rồi mới dump UART. Có travel/duration/deadline/acquisition guard và nhấn
+nút lần hai để abort. Hardware gate chưa chạy; tuyệt đối không mở 5°/10° hoặc
+tuning P/I/D trước khi review log theo `docs/control-c0-hardware-test.md`.

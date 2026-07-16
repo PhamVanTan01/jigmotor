@@ -27,9 +27,11 @@ powershell -ExecutionPolicy Bypass -File scripts\build_dual_image.ps1 -Mode All
 
 The dual-image command writes independently compiled artifacts to
 `Build/Measurement` and `Build/Control`, including SHA-256 manifests. At P1,
-`jigmotor_measurement.hex` preserves the active Motion V2 + SPI DMA behavior;
-`jigmotor_control.hex` is deliberately motor-disabled (`CONTROL_SAFE_STUB_P1`)
-and must not be used as a functional motion controller yet.
+`jigmotor_measurement.hex` preserves the active Motion V2 + SPI DMA behavior.
+`jigmotor_control.hex` now contains the bounded C0 plant-observation profile
+`CONTROL_C0_OPEN_LOOP_1DEG_V1`: it homes at 35% power, commands only one degree,
+records feedback at 1 kHz, then disables torque before UART output. Follow
+`docs/control-c0-hardware-test.md`; this is not yet a closed-loop tracking PID.
 
 The active motor-motion profile and its hardware qualification procedure are
 documented in `docs/motion-control-v2-implementation-plan.md`. Run

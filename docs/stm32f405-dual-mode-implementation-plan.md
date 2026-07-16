@@ -10,9 +10,11 @@ test và rollback độc lập.
   procedure đã lưu trong `docs/baselines/2026-07-16-motion-v2-dma/manifest.md`.
 - **P1 hoàn tất ở mức source/build gate:** `JIG_APP_MODE` là compile-time
   identity; hai image được clean-build độc lập; startup có mode, profile,
-  source ID và profile fingerprint; 15/15 test scripts PASS.
-- **Control hiện là safe stub:** mọi entry point đều gọi `Motor_Disable()`;
-  chưa triển khai control loop C0 và chưa được xem là firmware điều khiển motor.
+  source ID và profile fingerprint; 17/17 test scripts PASS.
+- **Control C0 đã triển khai source/build gate:** home dùng controller hiện tại
+  với power giới hạn 35%, sau đó chạy open-loop S-curve đúng 1° ở cadence 1 kHz,
+  giữ 250 ms và dump evidence khi motor đã off. Chưa đạt hardware gate nên chưa
+  được mở 5°/10° và chưa được xem là closed-loop tracking controller.
 - **Measurement giữ nguyên thuật toán:** vẫn dùng Motion V2, SPI DMA wrapper,
   lưới 1 độ và measurement math hiện tại.
 - **P2 trở đi chưa triển khai:** chỉ thay memory/RTOS budget sau khi có hardware
@@ -182,7 +184,7 @@ Default/UI task không gọi trực tiếp motor hoặc SPI khi owner khác `NON
 - UART không phát trong motor-enabled interval.
 - Existing Measurement contract vẫn PASS.
 
-## 7. Phase C0 — Control image quan sát plant, chưa đóng loop
+## 7. Phase C0 — Control image quan sát plant, chưa đóng loop (source/build gate hoàn tất)
 
 Mục tiêu là thu transfer behavior trước khi tuning.
 

@@ -3,6 +3,7 @@
  */
 
 #include "motor.h"
+#include "app_mode.h"
 #include "ma600_acquisition.h"
 #include "motor_pwm.h"
 #include "position_controller.h"
@@ -114,9 +115,11 @@ void Motor_GetControllerState(Motor_ControllerState_t *outState)
     outState->outputEnabled = outputState.enabled;
 }
 
-MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg)
+#if JIG_APP_MODE == JIG_APP_CONTROL
+MA600_Result_t Motor_MoveToAngleWithPower(float targetDeg, float power,
+                                          float *outErrorDeg)
 {
-    if (outErrorDeg == NULL)
+    if (outErrorDeg == NULL || !(power >= 0.0f && power <= 1.0f))
     {
         return MA600_RESULT_INVALID_ARG;
     }
@@ -140,9 +143,42 @@ MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg)
 
     /* Converting a negative float directly to uint16_t is undefined. The
      * signed intermediate makes the final integer wrap well-defined. */
+    MotorPwm_SetElectricalPos((uint16_t)(int32_t)commandedPosition, power);
+    return MA600_RESULT_OK;
+}
+
+MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg)
+{
+    return Motor_MoveToAngleWithPower(targetDeg, 1.0f, outErrorDeg);
+}
+#else
+MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg)
+{
+    if (outErrorDeg == NULL)
+    {
+        return MA600_RESULT_INVALID_ARG;
+    }
+
+    MA600_Sample_t sample;
+    MA600_Result_t result = MA600_AcquireSample(&pidAcquisition,
+        MOTOR_PID_MAX_JUMP_RAW, MOTOR_PID_READ_ATTEMPTS, &sample);
+    if (result != MA600_RESULT_OK)
+    {
+        return result;
+    }
+
+    float error = MA600_UnwrappedRawToDegrees(sample.unwrappedRaw) - targetDeg;
+    /* Preserve the qualified Measurement home operations and full-power
+     * command: the encoder is periodic, so use the shortest wrapped error. */
+    while (error > 180.0f) error -= 360.0f;
+    while (error < -180.0f) error += 360.0f;
+    *outErrorDeg = error;
+    float commandedPosition = PositionController_Update(&positionController, error);
+
     MotorPwm_SetElectricalPos((uint16_t)(int32_t)commandedPosition, 1.0f);
     return MA600_RESULT_OK;
 }
+#endif /* JIG_APP_MODE == JIG_APP_CONTROL */
 
 uint16_t Motor_ElectricalOffset(uint16_t rawCount)
 {

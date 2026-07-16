@@ -28,9 +28,11 @@ Assert-True ($main -match 'AppEngine_Init\(\)' -and
     $main -match 'AppEngine_IsBusy\(\)' -and
     $main -notmatch 'NonlinearEngine_(Init|RequestStart|IsBusy)') `
     'main.c bypasses the mode-neutral AppEngine boundary.'
-Assert-True ($controlEngine -match 'Motor_Disable\(\)' -and
-    $controlEngine -notmatch 'Motor_(Enable|SetElectricalPos|MoveToAngle)\(') `
-    'P1 Control safe stub can enable or command the motor.'
+Assert-True ($controlEngine -match 'CONTROL_C0_TARGET_DEG\s+1U' -and
+    $controlEngine -match 'CONTROL_C0_MAX_TRAVEL_RAW' -and
+    $controlEngine -match 'CONTROL_C0_MAX_ACTIVE_MS' -and
+    $controlEngine -match 'Motor_Disable\(\)') `
+    'Control C0 motion path is missing its fail-safe envelope.'
 Assert-True ($main -match 'BUILD_MANIFEST,AppMode=%s,AppProfile=%s') `
     'Startup build identity record is missing.'
 Assert-True ($main -match 'SourceId=%s,ProfileFingerprint=0x%08lX' -and
@@ -58,11 +60,11 @@ if ((Test-Path $controlElf) -and (Test-Path $measurementElf)) {
         'Control ELF still links the nonlinear measurement engine/state.'
     Assert-True ($measurementSymbols -match 'NonlinearEngine_Init') `
         'Measurement ELF is missing the nonlinear measurement engine.'
-    Assert-True ($controlStrings -match 'CONTROL_SAFE_STUB_P1' -and
+    Assert-True ($controlStrings -match 'CONTROL_C0_OPEN_LOOP_1DEG_V1' -and
         $controlStrings -notmatch 'MEASUREMENT_MOTION_V2_DMA_P1') `
         'Control ELF identity is mixed or missing.'
     Assert-True ($measurementStrings -match 'MEASUREMENT_MOTION_V2_DMA_P1' -and
-        $measurementStrings -notmatch 'CONTROL_SAFE_STUB_P1') `
+        $measurementStrings -notmatch 'CONTROL_C0_OPEN_LOOP_1DEG_V1') `
         'Measurement ELF identity is mixed or missing.'
     $controlHash = (Get-FileHash $controlElf -Algorithm SHA256).Hash
     $measurementHash = (Get-FileHash $measurementElf -Algorithm SHA256).Hash

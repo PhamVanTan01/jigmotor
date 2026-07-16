@@ -43,6 +43,13 @@ void  Motor_SetElectricalPos(uint16_t pos, float power);
  * feedback sample is invalid. */
 MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg);
 
+/* Control-image characterization variant. It uses the identical position
+ * controller and checked feedback path, but bounds winding power explicitly.
+ * The Measurement image continues to call Motor_MoveToAngle(), whose behavior
+ * remains the original full-power home command. */
+MA600_Result_t Motor_MoveToAngleWithPower(float targetDeg, float power,
+                                          float *outErrorDeg);
+
 /* Resets PID and feedback-tracker state. Call only while the test engine owns
  * the motor and before beginning a new closed-loop positioning sequence. */
 void Motor_ResetPositionController(void);
