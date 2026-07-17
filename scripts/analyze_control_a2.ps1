@@ -81,11 +81,15 @@ if ($inputFiles.Count -eq 0) { throw 'No A2 log files matched.' }
 $profileSpecifications = @{
     'CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1' = [pscustomobject]@{
         RampTicks = 500L; HoldTicks = 100L; ActiveDurationMs = 600L
-        EvidenceCount = 601L; ReadAttempts = 602L
+        EvidenceCount = 601L; ReadAttempts = 602L; TargetPowerPpm = 100000L
     }
     'CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1' = [pscustomobject]@{
         RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
-        EvidenceCount = 1001L; ReadAttempts = 1002L
+        EvidenceCount = 1001L; ReadAttempts = 1002L; TargetPowerPpm = 100000L
+    }
+    'CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1' = [pscustomobject]@{
+        RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
+        EvidenceCount = 1001L; ReadAttempts = 1002L; TargetPowerPpm = 60000L
     }
 }
 
@@ -211,9 +215,9 @@ foreach ($file in $inputFiles) {
             if ($sample.Seq -ne $i) { $gateReasons.Add("Seq@$i=$($sample.Seq)"); break }
             if ($null -ne $profileSpec) {
                 $expectedPower = if ($i -ge $profileSpec.RampTicks) {
-                    100000L
+                    $profileSpec.TargetPowerPpm
                 } else {
-                    [int64]$i * 100000L / $profileSpec.RampTicks
+                    [int64]$i * $profileSpec.TargetPowerPpm / $profileSpec.RampTicks
                 }
                 if ($sample.PowerPpm -ne $expectedPower) {
                     $gateReasons.Add("Power@$i=$($sample.PowerPpm)"); break

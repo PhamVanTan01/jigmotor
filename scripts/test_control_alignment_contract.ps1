@@ -12,13 +12,13 @@ $motor = Get-Content -Raw (Join-Path $root 'Core\Src\motor.c')
 $control = Get-Content -Raw (Join-Path $root 'Core\Src\control_engine.c')
 $app = Get-Content -Raw (Join-Path $root 'Core\Src\app_engine.c')
 
-Assert-True ($mode -match 'CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1') `
-    'Control A2B profile identity is missing.'
+Assert-True ($mode -match 'CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1') `
+    'Control A2C profile identity is missing.'
 Assert-True ($app -match '#if JIG_APP_MODE == JIG_APP_CONTROL' -and
     $app -match 'ControlEngine_RequestStart') `
     'Control image does not select the dedicated engine at compile time.'
 
-Assert-True ($control -match 'CONTROL_A2_TARGET_POWER_PPM\s+100000U' -and
+Assert-True ($control -match 'CONTROL_A2_TARGET_POWER_PPM\s+60000U' -and
     $control -match 'CONTROL_A2_RAMP_TICKS\s+500U' -and
     $control -match 'CONTROL_A2_HOLD_TICKS\s+500U' -and
     $control -match 'CONTROL_A2_PERIOD_MS\s+1U' -and
@@ -26,20 +26,20 @@ Assert-True ($control -match 'CONTROL_A2_TARGET_POWER_PPM\s+100000U' -and
     $control -match 'CONTROL_A2_MAX_SAMPLE_STEP_RAW\s+45' -and
     $control -match 'CONTROL_A2_MAX_ACTIVE_MS\s+1200U' -and
     $control -match 'CONTROL_A2_MAX_CONSECUTIVE_MISSES\s+3U') `
-    'A2B power/timing/safety envelope changed without a profile revision.'
+    'A2C power/timing/safety envelope changed without a profile revision.'
 
 $previous = -1
 for ($sequence = 0; $sequence -le 1000; $sequence++) {
     $powerPpm = if ($sequence -ge 500) {
-        100000
+        60000
     } else {
-        [math]::Floor($sequence * 100000 / 500)
+        [math]::Floor($sequence * 60000 / 500)
     }
-    Assert-True ($powerPpm -ge $previous -and $powerPpm -le 100000) `
-        "A2B power ramp is not monotonic at sequence $sequence."
+    Assert-True ($powerPpm -ge $previous -and $powerPpm -le 60000) `
+        "A2C power ramp is not monotonic at sequence $sequence."
     $previous = $powerPpm
 }
-Assert-True ($previous -eq 100000) 'A2B ramp does not close at exactly 10 percent.'
+Assert-True ($previous -eq 60000) 'A2C ramp does not close at exactly 6 percent.'
 
 Assert-True ($header -match '#if JIG_APP_MODE == JIG_APP_CONTROL[\s\S]*?Motor_PrimeControlSession') `
     'Control-only prime API declaration is missing.'
@@ -74,9 +74,9 @@ Assert-True ($align -match 'Motor_Enable\(\)' -and
     $align -match 'CONTROL_A2_TRAVEL_LIMIT' -and
     $align -match 'CONTROL_A2_DEADLINE_FAULT' -and
     $align -match 'CONTROL_A2_DURATION_LIMIT') `
-    'A2 alignment is missing zero-power enable, ramp, acquisition, or fail-safe gates.'
+    'A2C alignment is missing zero-power enable, ramp, acquisition, or fail-safe gates.'
 Assert-True ($align -notmatch 'ControlLog|HAL_UART_Transmit') `
-    'A2 emits UART while the motor can be enabled.'
+    'A2C emits UART while the motor can be enabled.'
 
 $resetIndex = $run.IndexOf('Motor_ResetControlSession()')
 $baselineIndex = $run.IndexOf('MA600_AcquireSample')
@@ -90,7 +90,7 @@ Assert-True ($resetIndex -ge 0 -and $resetIndex -lt $baselineIndex -and
     $baselineIndex -lt $primeIndex -and $primeIndex -lt $armedIndex -and
     $armedIndex -lt $activeIndex -and $activeIndex -lt $disableIndex -and
     $disableIndex -lt $clearIndex -and $clearIndex -lt $reportIndex) `
-    'A2 call order is not reset -> baseline -> prime -> armed -> active -> disable -> clear -> report.'
+    'A2C call order is not reset -> baseline -> prime -> armed -> active -> disable -> clear -> report.'
 
 Assert-True ($control -match 'section\("\.ccmram_bss"\)' -and
     $control -match 'memset\(controlEvidence,\s*0,\s*sizeof\(controlEvidence\)\)' -and
@@ -103,16 +103,16 @@ Assert-True ($control -match 'section\("\.ccmram_bss"\)' -and
     $control -match 'SpiLatencyCycles' -and
     $control -match 'PwmCounterAtCs' -and
     $control -match 'CorrectionRaw=0') `
-    'A2 deferred alignment evidence is incomplete.'
+    'A2C deferred alignment evidence is incomplete.'
 Assert-True ($control -notmatch '%lld' -and
     $control -match 'AccelerationRawPerSecond2=%ld' -and
     $control -match 'acceleration64\s*>\s*INT32_MAX' -and
     $control -match 'acceleration64\s*<\s*INT32_MIN' -and
     $control -match 'AccelerationSaturations=%lu') `
-    'A2 UART telemetry must avoid unsupported newlib-nano long-long printf and report saturation.'
+    'A2C UART telemetry must avoid unsupported newlib-nano long-long printf and report saturation.'
 Assert-True ($control -match 'xPortGetMinimumEverFreeHeapSize' -and
     $control -match 'uxTaskGetStackHighWaterMark' -and
     $control -match 'controlAbortRequested\s*=\s*true') `
-    'A2B resource telemetry or second-press abort is missing.'
+    'A2C resource telemetry or second-press abort is missing.'
 
-Write-Host '[ OK ] Control A2B fixed-phase alignment-only contract passed.'
+Write-Host '[ OK ] Control A2C fixed-phase power-envelope contract passed.'

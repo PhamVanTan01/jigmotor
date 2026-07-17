@@ -21,13 +21,13 @@ extern UART_HandleTypeDef huart3;
 
 #define CONTROL_ENGINE_COMMAND_START          1U
 
-/* A2B isolates driver enable and fixed-phase alignment. There is deliberately
+/* A2C maps the lower safe edge of fixed-phase alignment. There is deliberately
  * no HOME/PID update and no position trajectory in this image. It differs
- * from A2 only by extending the final 10-percent hold for diagnosis. */
-#define CONTROL_A2_PROFILE_ID                 "CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1"
+ * from A2B only by lowering the fixed-phase ceiling to 6 percent. */
+#define CONTROL_A2_PROFILE_ID                 "CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1"
 #define CONTROL_A2_COMMAND_PHASE_RAW          0U
-#define CONTROL_A2_TARGET_POWER_PPM           100000U
-#define CONTROL_A2_TARGET_POWER_MILLI         100U
+#define CONTROL_A2_TARGET_POWER_PPM           60000U
+#define CONTROL_A2_TARGET_POWER_MILLI         60U
 #define CONTROL_A2_PERIOD_MS                  1U
 #define CONTROL_A2_RAMP_TICKS                 500U
 #define CONTROL_A2_HOLD_TICKS                 500U
@@ -40,11 +40,11 @@ extern UART_HandleTypeDef huart3;
 #define CONTROL_A2_MAX_ACTIVE_MS              1200U
 #define CONTROL_A2_MAX_CONSECUTIVE_MISSES     3U
 
-#if CONTROL_A2_TARGET_POWER_PPM != 100000U
-#error "A2 pilot must remain locked to 10 percent power"
+#if CONTROL_A2_TARGET_POWER_PPM != 60000U
+#error "A2C pilot must remain locked to 6 percent power"
 #endif
 #if CONTROL_A2_RAMP_TICKS != 500U || CONTROL_A2_HOLD_TICKS != 500U
-#error "A2B pilot timing changed without a new profile identity"
+#error "A2C pilot timing changed without a new profile identity"
 #endif
 
 typedef enum

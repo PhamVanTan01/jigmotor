@@ -1,11 +1,12 @@
-# Control A2B — hardware test alignment-only, hold 500 ms
+# Control A2C — fixed-phase power-envelope, P06/H500
 
 ## Mục tiêu
 
-Firmware `CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1` chỉ kiểm tra trình tự
+Firmware `CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1` chỉ kiểm tra trình tự
 alignment/enable. Nó không chạy HOME, PID, trajectory 1° hoặc measurement.
-Đây là artifact chẩn đoán kế tiếp A2: phase, power, ramp và các guard không đổi;
-chỉ tăng thời gian giữ tại 10% từ 100 ms lên 500 ms.
+Đây là điểm bắt đầu của power-envelope sau A2B: phase, ramp, hold và các guard
+không đổi; chỉ hạ power đỉnh từ 10% xuống 6%. Không tăng/giảm power trong khi
+motor đang enable. Mỗi mức power là một artifact và các run độc lập.
 
 Trình tự active đã khóa:
 
@@ -14,8 +15,8 @@ motor off
 -> đọc baseline encoder
 -> prime phase 0 tại power 0
 -> enable tại power 0
--> ramp 0% đến 10% trong 500 ms
--> giữ phase 0 tại 10% trong 500 ms
+-> ramp 0% đến 6% trong 500 ms
+-> giữ phase 0 tại 6% trong 500 ms
 -> motor off và clear PWM
 -> dump UART
 ```
@@ -56,7 +57,7 @@ Sau reset phải thấy:
 
 ```text
 AppMode=MOTOR_CONTROL
-AppProfile=CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1
+AppProfile=CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1
 ```
 
 Nếu profile khác thì không chạy.
@@ -79,13 +80,13 @@ Nếu profile khác thì không chạy.
 Run hoàn thành safety envelope:
 
 ```text
-CONTROL_A2_SUMMARY,...Profile=CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1,...Result=OK,...EvidenceCount=1001,...
+CONTROL_A2_SUMMARY,...Profile=CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1,...Result=OK,...EvidenceCount=1001,...
 CONTROL_A2_SEQUENCE,PrimeStateValid=1,EnableStateValid=1,EnablePowerPpm=0
 CONTROL_A2_HEALTH,DeadlineMisses=0,...TransportErrors=0,JumpRejects=0,FailedSamples=0
 CONTROL_A2_DATA,Seq=0,Phase=ALIGN_RAMP,...PowerPpm=0,...CorrectionRaw=0
 ...
-CONTROL_A2_DATA,Seq=500,Phase=ALIGN_RAMP,...PowerPpm=100000,...CorrectionRaw=0
-CONTROL_A2_DATA,Seq=1000,Phase=ALIGN_HOLD,...PowerPpm=100000,...CorrectionRaw=0
+CONTROL_A2_DATA,Seq=500,Phase=ALIGN_RAMP,...PowerPpm=60000,...CorrectionRaw=0
+CONTROL_A2_DATA,Seq=1000,Phase=ALIGN_HOLD,...PowerPpm=60000,...CorrectionRaw=0
 CONTROL_A2_RUNTIME,...ControlStackHighWaterWords=...
 ```
 
@@ -117,11 +118,11 @@ Các result cần diễn giải:
 - 10/10 run có `PrimeStateValid=1`, `EnableStateValid=1`, `EnablePowerPpm=0`.
 - Không rung/giật quan sát được khi enable hoặc trong power ramp.
 - Zero SPI, deadline và evidence failure.
-- Power tăng đơn điệu từ 0 tới 100000 ppm.
+- Power tăng đơn điệu từ 0 tới 60000 ppm.
 - Vị trí dừng phải được so sánh theo `encoderRaw mod electricalCycle`, không
   theo raw encoder tuyệt đối; với motor 6 pole-pair, electrical cycle là 60°.
 - Chưa thay đổi PID, power hoặc safety limit trong tập dữ liệu này.
 
-Nếu motor không chuyển động ở 10% nhưng vẫn êm, ghi nhận là pilot chưa đủ torque;
-không gọi đó là alignment thành công. Profile P15 phải là artifact riêng sau khi
-review log P10.
+Nếu P06 an toàn nhưng không đạt offset, tạo artifact P07/H500 riêng. Chỉ tăng
+từng 1% sau khi mức trước an toàn; gặp `SAMPLE_STEP_LIMIT` hoặc
+`TRAVEL_LIMIT` thì dừng power-envelope, không chạy mức cao hơn.
