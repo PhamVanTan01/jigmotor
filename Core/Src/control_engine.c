@@ -11,6 +11,7 @@
 #include "cmsis_os.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -79,7 +80,7 @@ typedef struct
     int32_t travelRaw;
     int32_t deltaRaw;
     int32_t velocityRawPerSecond;
-    int64_t accelerationRawPerSecond2;
+    int32_t accelerationRawPerSecond2;
     uint16_t encoderRaw;
     uint16_t commandElectricalRaw;
     uint16_t pwmCounterAtCs;
@@ -97,6 +98,7 @@ typedef struct
     uint32_t maxAbsTravelRaw;
     uint32_t maxSampleStepRaw;
     uint32_t maxAbsVelocityRawPerSecond;
+    uint32_t accelerationSaturations;
     uint32_t enablePowerPpm;
     uint16_t baselineRaw;
     uint16_t finalRaw;
@@ -292,9 +294,23 @@ static ControlA2Result_t ControlRunAlignment(ControlA2Report_t *report,
         evidence->travelRaw = (int32_t)travel64;
         evidence->deltaRaw = evidence->travelRaw - previousTravelRaw;
         evidence->velocityRawPerSecond = evidence->deltaRaw * 1000;
-        evidence->accelerationRawPerSecond2 =
+        int64_t acceleration64 =
             ((int64_t)evidence->velocityRawPerSecond
                 - (int64_t)previousVelocity) * 1000LL;
+        if (acceleration64 > INT32_MAX)
+        {
+            evidence->accelerationRawPerSecond2 = INT32_MAX;
+            report->accelerationSaturations++;
+        }
+        else if (acceleration64 < INT32_MIN)
+        {
+            evidence->accelerationRawPerSecond2 = INT32_MIN;
+            report->accelerationSaturations++;
+        }
+        else
+        {
+            evidence->accelerationRawPerSecond2 = (int32_t)acceleration64;
+        }
         previousTravelRaw = evidence->travelRaw;
         previousVelocity = evidence->velocityRawPerSecond;
 
@@ -358,13 +374,15 @@ static void ControlReport(const ControlA2Report_t *report)
         (unsigned long)report->enablePowerPpm);
     ControlLog(
         "CONTROL_A2_HEALTH,DeadlineMisses=%lu,MaxLatenessTicks=%lu,"
-        "MaxLoopCycles=%lu,MaxAbsVelocityRawPerSecond=%lu,ReadAttempts=%lu,"
+        "MaxLoopCycles=%lu,MaxAbsVelocityRawPerSecond=%lu,"
+        "AccelerationSaturations=%lu,ReadAttempts=%lu,"
         "Accepted=%lu,Retries=%lu,TransportErrors=%lu,JumpRejects=%lu,"
         "FailedSamples=%lu\r\n",
         (unsigned long)report->deadlineMisses,
         (unsigned long)report->maxLatenessTicks,
         (unsigned long)report->maxLoopCycles,
         (unsigned long)report->maxAbsVelocityRawPerSecond,
+        (unsigned long)report->accelerationSaturations,
         (unsigned long)report->acquisition.readAttempts,
         (unsigned long)report->acquisition.acceptedSamples,
         (unsigned long)report->acquisition.retryCount,
@@ -378,7 +396,7 @@ static void ControlReport(const ControlA2Report_t *report)
         ControlLog(
             "CONTROL_A2_DATA,Seq=%lu,Phase=%s,EncoderRaw=%u,TravelMilliDeg=%ld,"
             "DeltaRaw=%ld,VelocityRawPerSecond=%ld,"
-            "AccelerationRawPerSecond2=%lld,CommandPhaseRaw=%u,PowerPpm=%lu,"
+            "AccelerationRawPerSecond2=%ld,CommandPhaseRaw=%u,PowerPpm=%lu,"
             "ScheduledTick=%lu,SampleTick=%lu,LatenessTicks=%lu,LoopCycles=%lu,"
             "SpiLatencyCycles=%lu,PwmCounterAtCs=%u,CorrectionRaw=0\r\n",
             (unsigned long)e->sequence, ControlPhaseName(e->phase),
@@ -386,7 +404,7 @@ static void ControlReport(const ControlA2Report_t *report)
             (long)RawToMilliDeg(e->travelRaw),
             (long)e->deltaRaw,
             (long)e->velocityRawPerSecond,
-            (long long)e->accelerationRawPerSecond2,
+            (long)e->accelerationRawPerSecond2,
             (unsigned int)e->commandElectricalRaw,
             (unsigned long)e->commandPowerPpm,
             (unsigned long)e->scheduledTick,

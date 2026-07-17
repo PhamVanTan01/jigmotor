@@ -87,6 +87,11 @@ CONTROL_A2_DATA,Seq=600,Phase=ALIGN_HOLD,...PowerPpm=100000,...CorrectionRaw=0
 CONTROL_A2_RUNTIME,...ControlStackHighWaterWords=...
 ```
 
+`AccelerationSaturations` trong `CONTROL_A2_HEALTH` phải bằng 0. Trường
+`AccelerationRawPerSecond2` được serialize bằng signed 32-bit tương thích
+`newlib-nano`; phép tính trung gian vẫn là 64-bit và được saturate có đếm nếu
+vượt miền biểu diễn.
+
 Các result cần diễn giải:
 
 - `OK`: chuỗi chạy đủ 600 ms; chưa có nghĩa motor đã đạt absolute zero.

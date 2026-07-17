@@ -104,6 +104,12 @@ Assert-True ($control -match 'section\("\.ccmram_bss"\)' -and
     $control -match 'PwmCounterAtCs' -and
     $control -match 'CorrectionRaw=0') `
     'A2 deferred alignment evidence is incomplete.'
+Assert-True ($control -notmatch '%lld' -and
+    $control -match 'AccelerationRawPerSecond2=%ld' -and
+    $control -match 'acceleration64\s*>\s*INT32_MAX' -and
+    $control -match 'acceleration64\s*<\s*INT32_MIN' -and
+    $control -match 'AccelerationSaturations=%lu') `
+    'A2 UART telemetry must avoid unsupported newlib-nano long-long printf and report saturation.'
 Assert-True ($control -match 'xPortGetMinimumEverFreeHeapSize' -and
     $control -match 'uxTaskGetStackHighWaterMark' -and
     $control -match 'controlAbortRequested\s*=\s*true') `
