@@ -92,6 +92,15 @@ CONTROL_A2_RUNTIME,...ControlStackHighWaterWords=...
 `newlib-nano`; phép tính trung gian vẫn là 64-bit và được saturate có đếm nếu
 vượt miền biểu diễn.
 
+Phân tích một hoặc nhiều file log bằng tool dùng chung:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\analyze_control_a2.ps1 `
+  -LogPath '.\A2 lần 2.txt', '.\A2 lần 3.txt' `
+  -SummaryCsv '.\a2-summary.csv'
+```
+
 Các result cần diễn giải:
 
 - `OK`: chuỗi chạy đủ 600 ms; chưa có nghĩa motor đã đạt absolute zero.
