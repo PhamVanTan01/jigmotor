@@ -60,11 +60,11 @@ if ((Test-Path $controlElf) -and (Test-Path $measurementElf)) {
         'Control ELF still links the nonlinear measurement engine/state.'
     Assert-True ($measurementSymbols -match 'NonlinearEngine_Init') `
         'Measurement ELF is missing the nonlinear measurement engine.'
-    Assert-True ($controlStrings -match 'CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1' -and
+    Assert-True ($controlStrings -match 'CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1' -and
         $controlStrings -notmatch 'MEASUREMENT_MOTION_V2_DMA_P1') `
         'Control ELF identity is mixed or missing.'
     Assert-True ($measurementStrings -match 'MEASUREMENT_MOTION_V2_DMA_P1' -and
-        $measurementStrings -notmatch 'CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1') `
+        $measurementStrings -notmatch 'CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1') `
         'Measurement ELF identity is mixed or missing.'
     $controlHash = (Get-FileHash $controlElf -Algorithm SHA256).Hash
     $measurementHash = (Get-FileHash $measurementElf -Algorithm SHA256).Hash

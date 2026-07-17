@@ -12,34 +12,34 @@ $motor = Get-Content -Raw (Join-Path $root 'Core\Src\motor.c')
 $control = Get-Content -Raw (Join-Path $root 'Core\Src\control_engine.c')
 $app = Get-Content -Raw (Join-Path $root 'Core\Src\app_engine.c')
 
-Assert-True ($mode -match 'CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1') `
-    'Control A2 profile identity is missing.'
+Assert-True ($mode -match 'CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1') `
+    'Control A2B profile identity is missing.'
 Assert-True ($app -match '#if JIG_APP_MODE == JIG_APP_CONTROL' -and
     $app -match 'ControlEngine_RequestStart') `
     'Control image does not select the dedicated engine at compile time.'
 
 Assert-True ($control -match 'CONTROL_A2_TARGET_POWER_PPM\s+100000U' -and
     $control -match 'CONTROL_A2_RAMP_TICKS\s+500U' -and
-    $control -match 'CONTROL_A2_HOLD_TICKS\s+100U' -and
+    $control -match 'CONTROL_A2_HOLD_TICKS\s+500U' -and
     $control -match 'CONTROL_A2_PERIOD_MS\s+1U' -and
     $control -match 'CONTROL_A2_MAX_TRAVEL_RAW\s+910' -and
     $control -match 'CONTROL_A2_MAX_SAMPLE_STEP_RAW\s+45' -and
-    $control -match 'CONTROL_A2_MAX_ACTIVE_MS\s+750U' -and
+    $control -match 'CONTROL_A2_MAX_ACTIVE_MS\s+1200U' -and
     $control -match 'CONTROL_A2_MAX_CONSECUTIVE_MISSES\s+3U') `
-    'A2 power/timing/safety envelope changed without a profile revision.'
+    'A2B power/timing/safety envelope changed without a profile revision.'
 
 $previous = -1
-for ($sequence = 0; $sequence -le 600; $sequence++) {
+for ($sequence = 0; $sequence -le 1000; $sequence++) {
     $powerPpm = if ($sequence -ge 500) {
         100000
     } else {
         [math]::Floor($sequence * 100000 / 500)
     }
     Assert-True ($powerPpm -ge $previous -and $powerPpm -le 100000) `
-        "A2 power ramp is not monotonic at sequence $sequence."
+        "A2B power ramp is not monotonic at sequence $sequence."
     $previous = $powerPpm
 }
-Assert-True ($previous -eq 100000) 'A2 ramp does not close at exactly 10 percent.'
+Assert-True ($previous -eq 100000) 'A2B ramp does not close at exactly 10 percent.'
 
 Assert-True ($header -match '#if JIG_APP_MODE == JIG_APP_CONTROL[\s\S]*?Motor_PrimeControlSession') `
     'Control-only prime API declaration is missing.'
@@ -113,6 +113,6 @@ Assert-True ($control -notmatch '%lld' -and
 Assert-True ($control -match 'xPortGetMinimumEverFreeHeapSize' -and
     $control -match 'uxTaskGetStackHighWaterMark' -and
     $control -match 'controlAbortRequested\s*=\s*true') `
-    'A2 resource telemetry or second-press abort is missing.'
+    'A2B resource telemetry or second-press abort is missing.'
 
-Write-Host '[ OK ] Control A2 fixed-phase alignment-only contract passed.'
+Write-Host '[ OK ] Control A2B fixed-phase alignment-only contract passed.'

@@ -1,9 +1,11 @@
-# Control A2 — hardware test alignment-only
+# Control A2B — hardware test alignment-only, hold 500 ms
 
 ## Mục tiêu
 
-Firmware `CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1` chỉ kiểm tra trình tự
+Firmware `CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1` chỉ kiểm tra trình tự
 alignment/enable. Nó không chạy HOME, PID, trajectory 1° hoặc measurement.
+Đây là artifact chẩn đoán kế tiếp A2: phase, power, ramp và các guard không đổi;
+chỉ tăng thời gian giữ tại 10% từ 100 ms lên 500 ms.
 
 Trình tự active đã khóa:
 
@@ -13,7 +15,7 @@ motor off
 -> prime phase 0 tại power 0
 -> enable tại power 0
 -> ramp 0% đến 10% trong 500 ms
--> giữ phase 0 tại 10% trong 100 ms
+-> giữ phase 0 tại 10% trong 500 ms
 -> motor off và clear PWM
 -> dump UART
 ```
@@ -23,10 +25,10 @@ motor off
 | Thuộc tính | Giá trị |
 | --- | ---: |
 | Cadence | 1 kHz |
-| Evidence khi hoàn thành | 601 mẫu |
+| Evidence khi hoàn thành | 1001 mẫu |
 | Max travel | 910 raw, xấp xỉ 5° |
 | Max step giữa hai mẫu | 45 raw, xấp xỉ 0,247°/ms |
-| Max active duration | 750 ms |
+| Max active duration | 1200 ms (chuỗi danh định 1000 ms) |
 | Deadline miss liên tiếp | lần thứ 3 safe-stop |
 | SPI attempts mỗi tick | tối đa 3 |
 | PID/HOME/correction | không chạy / 0 |
@@ -54,7 +56,7 @@ Sau reset phải thấy:
 
 ```text
 AppMode=MOTOR_CONTROL
-AppProfile=CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1
+AppProfile=CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1
 ```
 
 Nếu profile khác thì không chạy.
@@ -77,13 +79,13 @@ Nếu profile khác thì không chạy.
 Run hoàn thành safety envelope:
 
 ```text
-CONTROL_A2_SUMMARY,...Result=OK,...EvidenceCount=601,...
+CONTROL_A2_SUMMARY,...Profile=CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1,...Result=OK,...EvidenceCount=1001,...
 CONTROL_A2_SEQUENCE,PrimeStateValid=1,EnableStateValid=1,EnablePowerPpm=0
 CONTROL_A2_HEALTH,DeadlineMisses=0,...TransportErrors=0,JumpRejects=0,FailedSamples=0
 CONTROL_A2_DATA,Seq=0,Phase=ALIGN_RAMP,...PowerPpm=0,...CorrectionRaw=0
 ...
 CONTROL_A2_DATA,Seq=500,Phase=ALIGN_RAMP,...PowerPpm=100000,...CorrectionRaw=0
-CONTROL_A2_DATA,Seq=600,Phase=ALIGN_HOLD,...PowerPpm=100000,...CorrectionRaw=0
+CONTROL_A2_DATA,Seq=1000,Phase=ALIGN_HOLD,...PowerPpm=100000,...CorrectionRaw=0
 CONTROL_A2_RUNTIME,...ControlStackHighWaterWords=...
 ```
 
@@ -103,7 +105,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 Các result cần diễn giải:
 
-- `OK`: chuỗi chạy đủ 600 ms; chưa có nghĩa motor đã đạt absolute zero.
+- `OK`: chuỗi chạy đủ 1000 ms; chưa có nghĩa motor đã đạt absolute zero.
 - `SAMPLE_STEP_LIMIT`: rotor vẫn tạo bước lớn hơn khoảng 0,247° trong 1 ms.
 - `TRAVEL_LIMIT`: fixed phase cần hành trình lớn hơn pilot 5°.
 - `ACQUISITION_FAULT`: kiểm tra SPI/jump counter trước khi kết luận cơ khí.
@@ -116,6 +118,8 @@ Các result cần diễn giải:
 - Không rung/giật quan sát được khi enable hoặc trong power ramp.
 - Zero SPI, deadline và evidence failure.
 - Power tăng đơn điệu từ 0 tới 100000 ppm.
+- Vị trí dừng phải được so sánh theo `encoderRaw mod electricalCycle`, không
+  theo raw encoder tuyệt đối; với motor 6 pole-pair, electrical cycle là 60°.
 - Chưa thay đổi PID, power hoặc safety limit trong tập dữ liệu này.
 
 Nếu motor không chuyển động ở 10% nhưng vẫn êm, ghi nhận là pilot chưa đủ torque;

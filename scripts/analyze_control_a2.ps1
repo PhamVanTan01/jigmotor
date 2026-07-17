@@ -76,6 +76,19 @@ function Resolve-InputFiles {
 $inputFiles = @(Resolve-InputFiles $LogPath)
 if ($inputFiles.Count -eq 0) { throw 'No A2 log files matched.' }
 
+# Keep A2 and A2B evidence comparable while enforcing each immutable profile's
+# own timing envelope. A2B changes only the final hold duration.
+$profileSpecifications = @{
+    'CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1' = [pscustomobject]@{
+        RampTicks = 500L; HoldTicks = 100L; ActiveDurationMs = 600L
+        EvidenceCount = 601L; ReadAttempts = 602L
+    }
+    'CONTROL_A2B_FIXED_PHASE_ALIGN_P10_H500_V1' = [pscustomobject]@{
+        RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
+        EvidenceCount = 1001L; ReadAttempts = 1002L
+    }
+}
+
 if ($EvidenceCsvDirectory) {
     New-Item -ItemType Directory -Path $EvidenceCsvDirectory -Force | Out-Null
 }
@@ -164,12 +177,13 @@ foreach ($file in $inputFiles) {
     $resultName = if ($null -ne $summary) { Get-RequiredField $summary 'Result' } else { 'MISSING' }
     $baselineRaw = if ($null -ne $summary) { Get-I64 $summary 'BaselineRaw' } else { 0L }
     $finalRaw = if ($null -ne $summary) { Get-I64 $summary 'FinalRaw' } else { 0L }
+    $profileSpec = $profileSpecifications[$profile]
 
-    if ($profile -ne 'CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1') { $gateReasons.Add("Profile=$profile") }
+    if ($null -eq $profileSpec) { $gateReasons.Add("Profile=$profile") }
     if ($resultName -ne 'OK') { $gateReasons.Add("Result=$resultName") }
-    if ($null -ne $summary) {
-        if ((Get-I64 $summary 'ActiveDurationMs') -ne 600L) { $gateReasons.Add('ActiveDuration') }
-        if ((Get-I64 $summary 'EvidenceCount') -ne 601L) { $gateReasons.Add('SummaryEvidenceCount') }
+    if ($null -ne $summary -and $null -ne $profileSpec) {
+        if ((Get-I64 $summary 'ActiveDurationMs') -ne $profileSpec.ActiveDurationMs) { $gateReasons.Add('ActiveDuration') }
+        if ((Get-I64 $summary 'EvidenceCount') -ne $profileSpec.EvidenceCount) { $gateReasons.Add('SummaryEvidenceCount') }
     }
     if ($null -ne $sequence) {
         if ((Get-I64 $sequence 'PrimeStateValid') -ne 1L) { $gateReasons.Add('PrimeState') }
@@ -181,23 +195,29 @@ foreach ($file in $inputFiles) {
                 'TransportErrors', 'JumpRejects', 'FailedSamples')) {
             if ((Get-I64 $health $field) -ne 0L) { $gateReasons.Add("$field=$(Get-I64 $health $field)") }
         }
-        if ((Get-I64 $health 'ReadAttempts') -ne 602L) { $gateReasons.Add('ReadAttempts') }
-        if ((Get-I64 $health 'Accepted') -ne 602L) { $gateReasons.Add('Accepted') }
+        if ($null -ne $profileSpec -and (Get-I64 $health 'ReadAttempts') -ne $profileSpec.ReadAttempts) { $gateReasons.Add('ReadAttempts') }
+        if ($null -ne $profileSpec -and (Get-I64 $health 'Accepted') -ne $profileSpec.ReadAttempts) { $gateReasons.Add('Accepted') }
     }
 
     if ($telemetryValid -and $samples.Count -gt 0) {
-        if ($samples.Count -ne 601) { $gateReasons.Add("DataCount=$($samples.Count)") }
+        if ($null -ne $profileSpec -and $samples.Count -ne $profileSpec.EvidenceCount) { $gateReasons.Add("DataCount=$($samples.Count)") }
         $rampCount = @($samples | Where-Object Phase -eq 'ALIGN_RAMP').Count
         $holdCount = @($samples | Where-Object Phase -eq 'ALIGN_HOLD').Count
-        if ($rampCount -ne 501 -or $holdCount -ne 100) {
+        if ($null -ne $profileSpec -and ($rampCount -ne ($profileSpec.RampTicks + 1L) -or $holdCount -ne $profileSpec.HoldTicks)) {
             $gateReasons.Add("Phases=$rampCount/$holdCount")
         }
         for ($i = 0; $i -lt $samples.Count; $i++) {
             $sample = $samples[$i]
             if ($sample.Seq -ne $i) { $gateReasons.Add("Seq@$i=$($sample.Seq)"); break }
-            $expectedPower = if ($i -ge 500) { 100000L } else { [int64]$i * 200L }
-            if ($sample.PowerPpm -ne $expectedPower) {
-                $gateReasons.Add("Power@$i=$($sample.PowerPpm)"); break
+            if ($null -ne $profileSpec) {
+                $expectedPower = if ($i -ge $profileSpec.RampTicks) {
+                    100000L
+                } else {
+                    [int64]$i * 100000L / $profileSpec.RampTicks
+                }
+                if ($sample.PowerPpm -ne $expectedPower) {
+                    $gateReasons.Add("Power@$i=$($sample.PowerPpm)"); break
+                }
             }
             if ($sample.CommandPhaseRaw -ne 0L -or $sample.CorrectionRaw -ne 0L) {
                 $gateReasons.Add("CommandOrCorrection@$i"); break
@@ -233,7 +253,11 @@ foreach ($file in $inputFiles) {
         $gateReasons.Add('TravelLimit')
     }
 
-    $hold = @($exactSamples | Where-Object { $_.Seq -gt 500 })
+    $hold = if ($null -ne $profileSpec) {
+        @($exactSamples | Where-Object { $_.Seq -gt $profileSpec.RampTicks })
+    } else {
+        @()
+    }
     $holdTail20 = @($hold | Select-Object -Last 20)
     $maxStep = $exactSamples | Sort-Object { [math]::Abs($_.DeltaRaw) } -Descending |
         Select-Object -First 1
