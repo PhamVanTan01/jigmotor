@@ -11,6 +11,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "app_mode.h"
 #include "ma600.h"
 
 /* Snapshot of every persistent controller/acquisition/output-command element
@@ -58,6 +59,15 @@ void Motor_ResetPositionController(void);
  * disabled: controller, feedback acquisition, and retained PWM command are
  * all reset together. */
 void Motor_ResetControlSession(void);
+
+#if JIG_APP_MODE == JIG_APP_CONTROL
+/* Establishes a zero-torque Control-image boundary for alignment. This API
+ * is fail-closed: it is valid only while the output is disabled and with
+ * initialPower exactly zero. It resets controller/acquisition history, seeds
+ * both the controller and PWM phase, and never enables the motor. */
+bool Motor_PrimeControlSession(int32_t commandedPositionRaw,
+                               float initialPower);
+#endif
 
 /* Read-only controller/acquisition state for run-boundary audit logging. */
 void Motor_GetControllerState(Motor_ControllerState_t *outState);

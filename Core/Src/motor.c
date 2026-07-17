@@ -54,7 +54,7 @@ bool Motor_RunControllerSelfTest(void)
 
     Motor_ControllerState_t state;
     Motor_GetControllerState(&state);
-    return state.integralTerm == 0.0f
+    bool resetValid = state.integralTerm == 0.0f
         && state.lastErrorDeg == 0.0f
         && state.commandedPositionRaw == 0.0f
         && state.filteredDerivativeTerm == 0.0f
@@ -64,6 +64,26 @@ bool Motor_RunControllerSelfTest(void)
         && state.outputElectricalPositionRaw == 0U
         && state.outputPower == 0.0f
         && !state.outputEnabled;
+
+#if JIG_APP_MODE == JIG_APP_CONTROL
+    bool primeValid = Motor_PrimeControlSession(321, 0.0f);
+    Motor_GetControllerState(&state);
+    primeValid = primeValid
+        && state.integralTerm == 0.0f
+        && state.lastErrorDeg == 0.0f
+        && state.commandedPositionRaw == 321.0f
+        && state.filteredDerivativeTerm == 0.0f
+        && state.lastOutputStepRaw == 0.0f
+        && !state.feedbackTrackerInitialized
+        && state.feedbackAcceptedSamples == 0U
+        && state.outputElectricalPositionRaw == 321U
+        && state.outputPower == 0.0f
+        && !state.outputEnabled;
+    Motor_ResetControlSession();
+    return resetValid && primeValid;
+#else
+    return resetValid;
+#endif
 }
 
 void Motor_Enable(void)
@@ -146,6 +166,25 @@ MA600_Result_t Motor_MoveToAngleWithPower(float targetDeg, float power,
     MotorPwm_SetElectricalPos((uint16_t)(int32_t)commandedPosition, power);
     return MA600_RESULT_OK;
 }
+
+#if JIG_APP_MODE == JIG_APP_CONTROL
+bool Motor_PrimeControlSession(int32_t commandedPositionRaw,
+                               float initialPower)
+{
+    MotorPwm_CommandState_t outputState;
+    MotorPwm_GetCommandState(&outputState);
+    if (outputState.enabled || initialPower != 0.0f)
+    {
+        Motor_Disable();
+        return false;
+    }
+
+    Motor_ResetPositionController();
+    positionController.commandedPosition = (float)commandedPositionRaw;
+    MotorPwm_SetElectricalPos((uint16_t)commandedPositionRaw, 0.0f);
+    return true;
+}
+#endif
 
 MA600_Result_t Motor_MoveToAngle(float targetDeg, float *outErrorDeg)
 {

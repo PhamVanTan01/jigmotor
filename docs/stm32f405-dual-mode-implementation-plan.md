@@ -188,6 +188,12 @@ Default/UI task không gọi trực tiếp motor hoặc SPI khi owner khác `NON
 
 Mục tiêu là thu transfer behavior trước khi tuning.
 
+Hardware gate đầu tiên đã phát hiện rung/giật trong HOME trước khi trajectory 1°
+chạy: 5/10 `HOME_WRONG_WAY`, 5/10 `HOME_TIMEOUT`, mọi run
+`EvidenceCount=0`. Kế hoạch sửa alignment/enable và các gate A0..A5 nằm tại
+`docs/control-c0-alignment-enable-fix-plan.md`. Không triển khai C1/C2 hoặc mở
+5°/10° trước khi plan này đạt Definition of Done.
+
 ### Workflow
 
 1. Home bằng controller hiện tại.
