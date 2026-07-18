@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
     [string[]]$LogPath,
     [string]$SummaryCsv,
-    [string]$EvidenceCsvDirectory
+    [string]$EvidenceCsvDirectory,
+    [string]$CircularSummaryCsv
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,6 +59,43 @@ function Normalize-Modulo {
     $normalized
 }
 
+function Get-CircularStats {
+    # Values wrap at Modulo (e.g. SettledModuloRaw wraps at electricalCycle).
+    # A plain min/max range is misleading near the wrap boundary: two values
+    # a few raw counts apart on either side of 0/Modulo look maximally far
+    # apart in linear terms while being circularly adjacent. Mean-resultant
+    # vector (R) and largest-gap range are the correct circular analogues of
+    # arithmetic mean/std-dev/range.
+    param([double[]]$Values, [double]$Modulo)
+    $angles = $Values | ForEach-Object { $_ / $Modulo * 2.0 * [math]::PI }
+    $sinMean = ($angles | ForEach-Object { [math]::Sin($_) } | Measure-Object -Average).Average
+    $cosMean = ($angles | ForEach-Object { [math]::Cos($_) } | Measure-Object -Average).Average
+    $resultantLength = [math]::Sqrt($sinMean * $sinMean + $cosMean * $cosMean)
+    $meanAngle = [math]::Atan2($sinMean, $cosMean)
+    if ($meanAngle -lt 0.0) { $meanAngle += 2.0 * [math]::PI }
+    $circularMean = $meanAngle / (2.0 * [math]::PI) * $Modulo
+    $circularStdDev = if ($resultantLength -gt 0.0) {
+        [math]::Sqrt(-2.0 * [math]::Log($resultantLength)) * $Modulo / (2.0 * [math]::PI)
+    } else { [double]::NaN }
+
+    $sorted = @($Values | Sort-Object)
+    $maxGap = 0.0
+    for ($i = 0; $i -lt $sorted.Count; $i++) {
+        $next = if ($i + 1 -lt $sorted.Count) { $sorted[$i + 1] } else { $sorted[0] + $Modulo }
+        $gap = $next - $sorted[$i]
+        if ($gap -gt $maxGap) { $maxGap = $gap }
+    }
+    $circularRange = $Modulo - $maxGap
+
+    [pscustomobject]@{
+        Count = $Values.Count
+        CircularMeanRaw = [math]::Round($circularMean, 3)
+        CircularStdDevRaw = [math]::Round($circularStdDev, 3)
+        CircularRangeRaw = [math]::Round($circularRange, 3)
+        ResultantLength = [math]::Round($resultantLength, 4)
+    }
+}
+
 function Resolve-InputFiles {
     param([string[]]$Paths)
     $files = @()
@@ -90,6 +128,18 @@ $profileSpecifications = @{
     'CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1' = [pscustomobject]@{
         RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
         EvidenceCount = 1001L; ReadAttempts = 1002L; TargetPowerPpm = 60000L
+    }
+    'CONTROL_A2D_FIXED_PHASE_ALIGN_P07_H500_V1' = [pscustomobject]@{
+        RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
+        EvidenceCount = 1001L; ReadAttempts = 1002L; TargetPowerPpm = 70000L
+    }
+    'CONTROL_A2E_FIXED_PHASE_ALIGN_P08_H500_V1' = [pscustomobject]@{
+        RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
+        EvidenceCount = 1001L; ReadAttempts = 1002L; TargetPowerPpm = 80000L
+    }
+    'CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1' = [pscustomobject]@{
+        RampTicks = 500L; HoldTicks = 500L; ActiveDurationMs = 1000L
+        EvidenceCount = 1001L; ReadAttempts = 1002L; TargetPowerPpm = 90000L
     }
 }
 
@@ -257,11 +307,9 @@ foreach ($file in $inputFiles) {
         $gateReasons.Add('TravelLimit')
     }
 
-    $hold = if ($null -ne $profileSpec) {
-        @($exactSamples | Where-Object { $_.Seq -gt $profileSpec.RampTicks })
-    } else {
-        @()
-    }
+    $hold = @(if ($null -ne $profileSpec) {
+        $exactSamples | Where-Object { $_.Seq -gt $profileSpec.RampTicks }
+    })
     $holdTail20 = @($hold | Select-Object -Last 20)
     $maxStep = $exactSamples | Sort-Object { [math]::Abs($_.DeltaRaw) } -Descending |
         Select-Object -First 1
@@ -349,6 +397,29 @@ foreach ($file in $inputFiles) {
 
 if ($SummaryCsv) {
     $results | Export-Csv -LiteralPath $SummaryCsv -NoTypeInformation -Encoding utf8
+}
+
+$electricalCycleRaw = 10923.0
+$circularSummaries = @()
+foreach ($group in ($results | Group-Object Profile)) {
+    $moduloValues = @($group.Group | ForEach-Object { $_.SettledModuloRaw } |
+        Where-Object { $_ -is [double] -and -not [double]::IsNaN($_) })
+    if ($moduloValues.Count -lt 2) { continue }
+    $stats = Get-CircularStats -Values $moduloValues -Modulo $electricalCycleRaw
+    $circularSummary = [pscustomobject][ordered]@{
+        Profile = $group.Name
+        RunCount = $stats.Count
+        CircularMeanRaw = $stats.CircularMeanRaw
+        CircularStdDevRaw = $stats.CircularStdDevRaw
+        CircularRangeRaw = $stats.CircularRangeRaw
+        ResultantLength = $stats.ResultantLength
+    }
+    $circularSummaries += $circularSummary
+    Write-Host ("[INFO] {0}: SettledModuloRaw circular mean={1} raw, circular range={2} raw, R={3} (n={4})" -f
+        $group.Name, $stats.CircularMeanRaw, $stats.CircularRangeRaw, $stats.ResultantLength, $stats.Count)
+}
+if ($CircularSummaryCsv -and $circularSummaries.Count) {
+    $circularSummaries | Export-Csv -LiteralPath $CircularSummaryCsv -NoTypeInformation -Encoding utf8
 }
 
 $results
