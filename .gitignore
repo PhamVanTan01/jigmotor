@@ -5,5 +5,8 @@ Control/
 Measurement/
 Build/
 
+# Generated offline analysis artifacts (source remains tracked).
+analysis/output/
+
 # Claude Code working directory
 .claude/
