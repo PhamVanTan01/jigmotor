@@ -195,15 +195,56 @@ Evidence:
 
 ## A5.5 — Hardware pilot
 
-- [ ] Keep the same motor/mount; no removal during the batch.
-- [ ] Capture five files with two physical runs each.
-- [ ] Cover four electrical start quadrants.
-- [ ] Include one first run after at least 15 minutes powered off.
-- [ ] Confirm exact A5 manifest/config on every independent boot.
-- [ ] Achieve 10/10 hard structural validity.
-- [ ] Review statistical investigation bands without filtering raw evidence.
+- [~] Keep the same motor/mount; no removal during the batch (round 1: not
+  disturbed per operator; endpoint spread of 82 raw is consistent with this
+  but does not itself prove it).
+- [x] Capture five files with two physical runs each (round 1 complete).
+- [ ] Cover four electrical start quadrants — **Q1 (0-90 deg elec) missing**,
+  round 1 only hit Q2/Q3/Q4 (see table below). Round 2 needed.
+- [ ] Include one first run after at least 15 minutes powered off — not yet
+  explicitly confirmed for any of the 10 round-1 runs.
+- [x] Confirm exact A5 manifest/config on every independent boot.
+- [x] Achieve 10/10 hard structural validity.
+- [x] Review statistical investigation bands without filtering raw evidence.
 
-A5.5 gate: **PENDING**.
+A5.5 gate: **PARTIAL — structural/statistical bands PASS 10/10; quadrant and
+cold-start coverage still open.**
+
+Evidence (round 1, `A5 test 1.txt` .. `A5 test 5.txt`, built from
+`29856e6dc8e1-dirty`, functionally identical to the `ef0025af801b-dirty`
+rebuild archived at `builds/control-a5-offset7971-n2048-20260720/`):
+
+- `scripts/analyze_control_a5.ps1`: 10/10 blocks `MeasurementValid=1`,
+  2048/2048 accepted every run, 0 retry/transport/jump-reject/failed-sample.
+- P2P 11-16 raw (band <=32), population SD 1.63-2.06 raw (band <=5),
+  first-to-last drift -2..+6 raw (band <=16) — all comfortably inside the
+  pilot investigation bands from the plan.
+- Max schedule error 74 cycles (~0.44 us); SPI latency constant 1338 cycles
+  every single run — timing is essentially noise-free.
+- `ElectricalOffsetRaw` (the A4 alignment endpoint, a different quantity from
+  A5's own within-window noise) spans 7914-7996, range 82 raw = 0.45 deg
+  electrical. This is A4 drag-alignment repeatability, not A5 sensor noise;
+  flagged separately from the RawAngle stability question this phase is
+  about. If a tighter absolute-alignment tolerance is ever wanted, that is
+  future A4 work, not an A5 gate.
+- Re-derived electrical start quadrant from `BaselineRaw mod 10923` in each
+  `CONTROL_A4_SUMMARY` (not the endpoint, which A4 is designed to converge
+  regardless of start): 7 of 10 runs land in Q3 (~260 deg), 2 in Q4, 1 in Q2,
+  **0 in Q1**. Every run-2-of-a-file lands near Q3 by construction (it starts
+  where run-1's own A5 hold left the rotor); true start diversity comes only
+  from the operator's manual rotation between files. Round 2 must place at
+  least one run's baseline in Q1 (`BaselineRaw mod 10923` roughly 0-2730)
+  before starting.
+- Fixed a cosmetic `Write-Host "{0}"`-format precedence bug in
+  `scripts/analyze_control_a5.ps1`'s console diagnostics (string
+  concatenation split across lines was defeating `-f` substitution on the
+  first half); confirmed it only affected the human-readable console text,
+  not any computed/exported value, and the contract test still passes.
+
+Round 2 plan: same motor/mount, do not remove; at least one run seeded to
+land in Q1; explicitly log/confirm a cold start after >=15 minutes powered
+off; explicitly confirm no remount occurred across the combined round-1 +
+round-2 batch before closing this gate.
 
 ## A5.6 — Confirmation and lock
 

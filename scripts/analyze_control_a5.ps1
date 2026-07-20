@@ -737,24 +737,19 @@ try {
     if (-not $Quiet) {
         foreach ($result in $results) {
             $tag = if ($result.Valid) { 'PASS' } else { 'FAIL' }
-            Write-Host ("[{0}] {1}: N={2}, P2P={3} raw, SD={4:N4} raw, " +
-                "drift={5} raw, detrended SD={6:N4} raw, reasons={7}" -f
-                $tag, $result.Source, $result.Accepted, $result.P2PRaw,
-                $result.PopulationSdRaw, $result.DriftRaw,
-                $result.DetrendedSdRaw, $result.Reasons)
+            $message = ("[{0}] {1}: N={2}, P2P={3} raw, SD={4:N4} raw, drift={5} raw, detrended SD={6:N4} raw, reasons={7}" -f $tag, $result.Source, $result.Accepted, $result.P2PRaw, $result.PopulationSdRaw, $result.DriftRaw, $result.DetrendedSdRaw, $result.Reasons)
+            Write-Host $message
         }
         $validResults = @($results | Where-Object Valid)
         if ($validResults.Count -gt 0) {
             foreach ($group in @($validResults | Group-Object File)) {
                 $ordered = @($group.Group | Sort-Object RunInFile)
                 [double]$batchMean = ($ordered | Measure-Object MeanRelRaw -Average).Average
-                Write-Host ("[DIAG] {0}: batch mean={1:N5} raw over {2} run(s)." -f
-                    (Split-Path -Leaf $group.Name), $batchMean, $ordered.Count)
+                $message = ("[DIAG] {0}: batch mean={1:N5} raw over {2} run(s)." -f (Split-Path -Leaf $group.Name), $batchMean, $ordered.Count)
+                Write-Host $message
                 if ($ordered.Count -ge 2) {
-                    Write-Host ("[DIAG] {0}: first-minus-second mean={1:N5} raw. " +
-                        "First-in-file is only a cold-candidate proxy." -f
-                        (Split-Path -Leaf $group.Name),
-                        ($ordered[0].MeanRelRaw - $ordered[1].MeanRelRaw))
+                    $message = ("[DIAG] {0}: first-minus-second mean={1:N5} raw. First-in-file is only a cold-candidate proxy." -f (Split-Path -Leaf $group.Name), ($ordered[0].MeanRelRaw - $ordered[1].MeanRelRaw))
+                    Write-Host $message
                 }
             }
         }
