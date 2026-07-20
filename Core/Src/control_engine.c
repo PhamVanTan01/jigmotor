@@ -7,6 +7,7 @@
 #include "motor_config.h"
 #include "ma600.h"
 #include "ma600_acquisition.h"
+#include "control_a5_capture.h"
 #include "main.h"
 #include "cmsis_os.h"
 #include "FreeRTOS.h"
@@ -33,13 +34,16 @@ extern UART_HandleTypeDef huart3;
  * below the 9-10 percent static friction). The drag then runs only in the
  * positive direction A3 validated, over a span that ends at the phase-0
  * equivalent. Single variable vs A3: the phase start is seeded, not fixed.
+ * A4B keeps that motion envelope unchanged and updates only the mount-specific
+ * electrical offset to the circular mean measured by the A4 hardware batch.
  * Design record: docs/control-a3-result.md section 6. */
-#define CONTROL_A4_PROFILE_ID                 "CONTROL_A4_ENCODER_SEEDED_DRAG_P35_V1"
+#define CONTROL_A4_PROFILE_ID                 "CONTROL_A4B_ENCODER_SEEDED_DRAG_P35_OFFSET7971_V1"
 
-/* Encoder<->electrical calibration constant for THIS motor+mount, measured
- * by A3 (mean of 8 completed runs). Remounting the motor invalidates it:
- * re-measure with one A3-style run from equilibrium before trusting A4. */
-#define CONTROL_A4_ELECTRICAL_OFFSET_RAW      6742U
+/* Encoder<->electrical calibration constant for THIS motor+mount. A4B uses
+ * the rounded circular mean (7971 raw) from the valid A4 hardware runs after
+ * the latest remount. Remounting the motor invalidates it: re-measure the
+ * settled electrical offset before trusting this profile. */
+#define CONTROL_A4_ELECTRICAL_OFFSET_RAW      7971U
 
 /* Power: 35 percent, unchanged from A3. */
 #define CONTROL_A4_TARGET_POWER_PPM           350000U
@@ -104,8 +108,8 @@ extern UART_HandleTypeDef huart3;
     || CONTROL_A4_HOLD_TICKS != 500U
 #error "A4 pilot timing changed without a new profile identity"
 #endif
-#if CONTROL_A4_ELECTRICAL_OFFSET_RAW != 6742U
-#error "A4 electrical offset changed: re-measure per mount and revise the profile identity"
+#if CONTROL_A4_ELECTRICAL_OFFSET_RAW != 7971U
+#error "A4B electrical offset changed: re-measure per mount and revise the profile identity"
 #endif
 #if CONTROL_A4_ELECTRICAL_OFFSET_RAW >= MOTOR_COUNT_PER_ELECTRICAL_CYCLE
 #error "A4 electrical offset must lie inside one electrical cycle"
@@ -200,6 +204,8 @@ static osThreadId_t controlTaskHandle;
 static volatile bool controlEngineInitialized;
 static volatile bool controlEngineBusy;
 static volatile bool controlAbortRequested;
+
+static bool ControlA5AbortRequested(void);
 
 /* CCM is CPU-only and appropriate for deferred UART evidence, not DMA
  * buffers. NOLOAD data is explicitly cleared before every run. */
@@ -311,6 +317,52 @@ static const char *ControlResultName(ControlA4Result_t result)
         case CONTROL_A4_DRAG_SLIP:                  return "DRAG_SLIP";
         default:                                    return "UNKNOWN";
     }
+}
+
+static const char *ControlA5ResultName(ControlA5Result_t result)
+{
+    switch (result)
+    {
+        case CONTROL_A5_NOT_RUN:                return "NOT_RUN";
+        case CONTROL_A5_OK:                     return "OK";
+        case CONTROL_A5_INVALID_ARGUMENT:       return "INVALID_ARGUMENT";
+        case CONTROL_A5_MATH_OVERFLOW:          return "MATH_OVERFLOW";
+        case CONTROL_A5_BUFFER_FAULT:           return "BUFFER_FAULT";
+        case CONTROL_A5_CONFIG_FAULT:           return "CONFIG_FAULT";
+        case CONTROL_A5_PARENT_ALIGNMENT_FAULT: return "PARENT_ALIGNMENT_FAULT";
+        case CONTROL_A5_HOLD_STATE_FAULT:       return "HOLD_STATE_FAULT";
+        case CONTROL_A5_ACQUISITION_FAULT:      return "ACQUISITION_FAULT";
+        case CONTROL_A5_TIMING_FAULT:           return "TIMING_FAULT";
+        case CONTROL_A5_SAMPLE_STEP_LIMIT:      return "SAMPLE_STEP_LIMIT";
+        case CONTROL_A5_STATIC_TRAVEL_LIMIT:    return "STATIC_TRAVEL_LIMIT";
+        case CONTROL_A5_RECORD_OVERFLOW:        return "RECORD_OVERFLOW";
+        case CONTROL_A5_OPERATOR_ABORT:         return "OPERATOR_ABORT";
+        case CONTROL_A5_SAFE_STOP_FAULT:        return "SAFE_STOP_FAULT";
+        default:                                return "UNKNOWN";
+    }
+}
+
+static const char *ControlA5CalibrationStateName(MA600_CalState_t state)
+{
+    switch (state)
+    {
+        case MA600_CAL_ZERO_TABLE:   return "ZERO_TABLE";
+        case MA600_CAL_ACTIVE_TABLE: return "ACTIVE_TABLE";
+        default:                     return "UNKNOWN";
+    }
+}
+
+static uint32_t ControlA5PowerToPpm(float power)
+{
+    if (power <= 0.0f)
+    {
+        return 0U;
+    }
+    if (power >= 1.0f)
+    {
+        return 1000000U;
+    }
+    return (uint32_t)(power * 1000000.0f + 0.5f);
 }
 
 static const char *ControlPhaseName(uint8_t phase)
@@ -664,6 +716,179 @@ static void ControlReport(const ControlA4Report_t *report)
         (unsigned long)stackHighWaterWords);
 }
 
+/* A5 records are intentionally generated only by ControlRunA5's converged
+ * safe-stop path. The capture module remains UART-free, and every accepted
+ * raw word plus its timing metadata is retained without averaging. */
+static void ControlReportA5(const ControlA5CaptureReport_t *report)
+{
+    if (report == NULL)
+    {
+        return;
+    }
+
+    const ControlA5Summary_t *summary = &report->measurement.rawAngle;
+    const ControlA5Sample_t *evidence = ControlA5_GetEvidenceBuffer();
+    const char *resultName = ControlA5ResultName(report->measurement.result);
+    const char *invalidReason = report->measurement.measurementValid
+        ? "NONE" : resultName;
+
+    ControlLog(
+        "CONTROL_A5_ARMED,RecordVersion=1,Profile=%s,ParentProfile=%s,"
+        "Metric=MA600_ANGLE_WORD_RAW16,"
+        "SampleCount=%u,SampleRateHz=%u,CaptureMs=%u,CommandPhaseRaw=%u,"
+        "PowerPpm=%u,OffsetRaw=%u,Transport=SPI_DMA_BLOCKING_WRAPPER_V1,"
+        "Filt=0x05\r\n",
+        CONTROL_A5_PROFILE_ID, CONTROL_A5_PARENT_PROFILE_ID,
+        (unsigned int)CONTROL_A5_SAMPLE_COUNT,
+        (unsigned int)CONTROL_A5_SAMPLE_RATE_HZ,
+        (unsigned int)CONTROL_A5_CAPTURE_MS,
+        (unsigned int)CONTROL_A5_COMMAND_PHASE_RAW,
+        (unsigned int)CONTROL_A5_COMMAND_POWER_PPM,
+        (unsigned int)CONTROL_A5_ELECTRICAL_OFFSET_RAW);
+    ControlLog(
+        "CONTROL_A5_IDENTITY,RecordVersion=1,Profile=%s,ParentProfile=%s,"
+        "AppProfile=%s,BuildSourceId=%s\r\n",
+        CONTROL_A5_PROFILE_ID, CONTROL_A5_PARENT_PROFILE_ID,
+        JIG_APP_PROFILE_ID, JIG_BUILD_SOURCE_ID);
+    ControlLog(
+        "CONTROL_A5_CLOCK,RecordVersion=1,Profile=%s,SystemClockHz=%lu,"
+        "PeriodCycles=%lu,PwmPeriodCounts=%lu\r\n",
+        CONTROL_A5_PROFILE_ID,
+        (unsigned long)report->systemClockHz,
+        (unsigned long)report->periodCycles,
+        (unsigned long)report->pwmPeriodCounts);
+    ControlLog(
+        "CONTROL_A5_CONFIG,RecordVersion=1,Profile=%s,"
+        "GatePolicy=POLICY_A_AUDIT_V1,ExpectedCalibrationState=ZERO_TABLE,"
+        "CalibrationState=%s,ConfigReadValid=%u,ConfigValid=%u,"
+        "RejectReason=%s,Zero=0x%04X,Dir=0x%02X,Filt=0x%02X,"
+        "Status=0x%02X,Prt=0x%02X,RmapId=0x%02X,"
+        "CorrNonZeroCount=%u,CorrCRC32=0x%08lX\r\n",
+        CONTROL_A5_PROFILE_ID,
+        ControlA5CalibrationStateName(report->config.calState),
+        report->configReadValid ? 1U : 0U,
+        report->configValid ? 1U : 0U,
+        MA600_ConfigGateResultName(report->configGateResult),
+        (unsigned int)report->config.zero,
+        (unsigned int)report->config.dir,
+        (unsigned int)report->config.filt,
+        (unsigned int)report->config.status,
+        (unsigned int)report->config.prt,
+        (unsigned int)report->config.rmapId,
+        (unsigned int)report->config.corrNonZeroCount,
+        (unsigned long)report->config.corrCrc32);
+    ControlLog(
+        "CONTROL_A5_SUMMARY,RecordVersion=1,Profile=%s,Result=%s,"
+        "MeasurementValid=%u,InvalidReason=%s,InvalidReasonMask=0x%08lX,"
+        "Accepted=%lu,FirstRaw=%u,LastRaw=%u,MinRelRaw=%ld,MaxRelRaw=%ld,"
+        "P2PRaw=%ld,DriftRaw=%ld,MaxAbsStepRaw=%lu,MeanRelRawQ16=%ld,"
+        "RawCRC32=0x%08lX\r\n",
+        CONTROL_A5_PROFILE_ID, resultName,
+        report->measurement.measurementValid ? 1U : 0U,
+        invalidReason,
+        (unsigned long)report->measurement.invalidReasonMask,
+        (unsigned long)summary->acceptedSamples,
+        (unsigned int)summary->firstRaw,
+        (unsigned int)summary->lastRaw,
+        (long)summary->minRelRaw,
+        (long)summary->maxRelRaw,
+        (long)summary->peakToPeakRaw,
+        (long)summary->driftRaw,
+        (unsigned long)summary->maxAbsStepRaw,
+        (long)summary->meanRelRawQ16,
+        (unsigned long)summary->rawCrc32);
+    ControlLog(
+        "CONTROL_A5_TIMING,RecordVersion=1,Profile=%s,SlotsReached=%lu,"
+        "SkippedSlots=%lu,Overruns=%lu,CaptureDurationMs=%lu,"
+        "IntervalMinCycles=%lu,IntervalMaxCycles=%lu,"
+        "MaxAbsScheduleErrorCycles=%lu,SpiLatencyMinCycles=%lu,"
+        "SpiLatencyMaxCycles=%lu,SpiLatencyMeanCycles=%lu,"
+        "PwmPhaseBinMask=0x%08lX\r\n",
+        CONTROL_A5_PROFILE_ID,
+        (unsigned long)report->slotsReached,
+        (unsigned long)report->skippedSlots,
+        (unsigned long)report->timingOverruns,
+        (unsigned long)report->captureDurationMs,
+        (unsigned long)report->intervalMinCycles,
+        (unsigned long)report->intervalMaxCycles,
+        (unsigned long)report->maxAbsScheduleErrorCycles,
+        (unsigned long)report->spiLatencyMinCycles,
+        (unsigned long)report->spiLatencyMaxCycles,
+        (unsigned long)report->spiLatencyMeanCycles,
+        (unsigned long)report->pwmPhaseBinMask);
+    ControlLog(
+        "CONTROL_A5_HEALTH,RecordVersion=1,Profile=%s,ReadAttempts=%lu,"
+        "Accepted=%lu,Retries=%lu,TransportErrors=%lu,JumpRejects=%lu,"
+        "FailedSamples=%lu,AcquisitionValid=%u,TimingValid=%u,"
+        "StaticWindowValid=%u,RecordIntegrityValid=%u\r\n",
+        CONTROL_A5_PROFILE_ID,
+        (unsigned long)report->acquisition.readAttempts,
+        (unsigned long)report->acquisition.acceptedSamples,
+        (unsigned long)report->acquisition.retryCount,
+        (unsigned long)report->acquisition.transportErrorCount,
+        (unsigned long)report->acquisition.jumpRejectCount,
+        (unsigned long)report->acquisition.failedSampleCount,
+        report->acquisitionValid ? 1U : 0U,
+        report->timingValid ? 1U : 0U,
+        report->staticWindowValid ? 1U : 0U,
+        report->recordIntegrityValid ? 1U : 0U);
+
+    UBaseType_t stackHighWaterWords = uxTaskGetStackHighWaterMark(NULL);
+    ControlLog(
+        "CONTROL_A5_STATE,RecordVersion=1,Profile=%s,ResourcesValid=%u,"
+        "ParentAlignmentValid=%u,PreStateValid=%u,PostStateValid=%u,"
+        "CommandChanged=%u,PreEnabled=%u,PrePhaseRaw=%u,PrePowerPpm=%lu,"
+        "PostEnabled=%u,PostPhaseRaw=%u,PostPowerPpm=%lu,SafeStopValid=%u,"
+        "SafeStopEnabled=%u,SafeStopPhaseRaw=%u,SafeStopPowerPpm=%lu\r\n",
+        CONTROL_A5_PROFILE_ID,
+        report->resourcesValid ? 1U : 0U,
+        report->parentAlignmentValid ? 1U : 0U,
+        report->preStateValid ? 1U : 0U,
+        report->postStateValid ? 1U : 0U,
+        report->commandChanged ? 1U : 0U,
+        report->preState.outputEnabled ? 1U : 0U,
+        (unsigned int)report->preState.outputElectricalPositionRaw,
+        (unsigned long)ControlA5PowerToPpm(report->preState.outputPower),
+        report->postState.outputEnabled ? 1U : 0U,
+        (unsigned int)report->postState.outputElectricalPositionRaw,
+        (unsigned long)ControlA5PowerToPpm(report->postState.outputPower),
+        report->safeStopValid ? 1U : 0U,
+        report->safeStopState.outputEnabled ? 1U : 0U,
+        (unsigned int)report->safeStopState.outputElectricalPositionRaw,
+        (unsigned long)ControlA5PowerToPpm(report->safeStopState.outputPower));
+    ControlLog(
+        "CONTROL_A5_RUNTIME,RecordVersion=1,Profile=%s,"
+        "FreeHeapBeforeAllocation=%lu,FreeHeapAfterAllocation=%lu,"
+        "FreeHeapNow=%lu,MinEverFreeHeap=%lu,ControlStackHighWaterWords=%lu\r\n",
+        CONTROL_A5_PROFILE_ID,
+        (unsigned long)report->freeHeapBeforeAllocation,
+        (unsigned long)report->freeHeapAfterAllocation,
+        (unsigned long)xPortGetFreeHeapSize(),
+        (unsigned long)report->minEverFreeHeapAfterAllocation,
+        (unsigned long)stackHighWaterWords);
+
+    if (evidence == NULL)
+    {
+        return;
+    }
+    for (uint32_t index = 0U; index < report->evidenceCount; index++)
+    {
+        const ControlA5Sample_t *sample = &evidence[index];
+        ControlLog(
+            "CONTROL_A5_DATA,RecordVersion=1,Profile=%s,Index=%lu,Raw=%u,"
+            "CsAssertCycle=%lu,PwmCounterAtCs=%u,SpiLatencyCycles=%u,"
+            "Attempts=%u,Flags=0x%02X\r\n",
+            CONTROL_A5_PROFILE_ID,
+            (unsigned long)index,
+            (unsigned int)sample->angleRaw,
+            (unsigned long)sample->csAssertCycle,
+            (unsigned int)sample->pwmCounterAtCs,
+            (unsigned int)sample->spiLatencyCycles,
+            (unsigned int)sample->attempts,
+            (unsigned int)sample->flags);
+    }
+}
+
 static void ControlRunA4(void)
 {
     ControlA4Report_t report;
@@ -774,6 +999,134 @@ static void ControlRunA4(void)
     ControlReport(&report);
 }
 
+/* Dormant A5.2 orchestration. It deliberately duplicates only the A4B setup
+ * shell while calling the exact same ControlRunAlignment() motion function.
+ * This avoids refactoring or changing the qualified A4B execution path.
+ * CONTROL_A5_CAPTURE_INTEGRATION_ENABLED remains 0 until A5.4 changes the
+ * app profile identity; A5.3 supplies only the dormant post-stop schema. */
+static void ControlRunA5(void)
+{
+    ControlA4Report_t report;
+    ControlA5CaptureReport_t a5Report;
+    bool activeStarted = false;
+    uint32_t activeStartTick = 0U;
+
+    memset(&report, 0, sizeof(report));
+    memset(controlEvidence, 0, sizeof(controlEvidence));
+    memset(controlCaptureTravelRing, 0, sizeof(controlCaptureTravelRing));
+    memset(controlCaptureFieldRing, 0, sizeof(controlCaptureFieldRing));
+    report.result = CONTROL_A4_STATUS_FAULT;
+    report.captureSeq = UINT32_MAX;
+
+    Motor_Disable();
+    Motor_ResetControlSession();
+    ControlA5_CaptureReportInit(&a5Report);
+    if (!a5Report.resourcesValid
+            || !ControlA5_ReadAndGateConfiguration(&a5Report))
+    {
+        goto safe_stop;
+    }
+
+    /* The locked A5 config snapshot above already proves STATUS=0. Unlike
+     * legacy A4B, A5 never sends a clear-status command before alignment. */
+    MA600_AcquisitionInit(&report.acquisition);
+    MA600_Sample_t baseline;
+    if (MA600_AcquireSample(&report.acquisition, CONTROL_A4_MAX_JUMP_RAW,
+            CONTROL_A4_READ_ATTEMPTS, &baseline) != MA600_RESULT_OK)
+    {
+        report.result = CONTROL_A4_BASELINE_ACQUISITION_FAULT;
+        ControlA5_SetParentAlignmentValid(&a5Report, false);
+        goto safe_stop;
+    }
+    report.baselineRaw = baseline.raw;
+    report.finalRaw = baseline.raw;
+
+    /* Frozen A4B geometry -- kept textually identical to ControlRunA4. */
+    uint32_t baselineMod = (uint32_t)baseline.raw
+        % MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
+    report.seedPhaseRaw = (baselineMod + MOTOR_COUNT_PER_ELECTRICAL_CYCLE
+        - CONTROL_A4_ELECTRICAL_OFFSET_RAW) % MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
+    report.sweepSpanRaw = (MOTOR_COUNT_PER_ELECTRICAL_CYCLE
+        - report.seedPhaseRaw) % MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
+    report.alreadyAligned =
+        (report.sweepSpanRaw <= CONTROL_A4_ALREADY_ALIGNED_SPAN_RAW);
+    report.captureRequired =
+        (report.sweepSpanRaw >= CONTROL_A4_CAPTURE_REQUIRED_MIN_SPAN_RAW);
+    if (report.sweepSpanRaw == 0U)
+    {
+        report.sweepTicksUsed = 0U;
+    }
+    else
+    {
+        uint32_t proportional = (uint32_t)(((uint64_t)CONTROL_A4_FULL_SWEEP_TICKS
+            * report.sweepSpanRaw + (MOTOR_COUNT_PER_ELECTRICAL_CYCLE / 2U))
+            / MOTOR_COUNT_PER_ELECTRICAL_CYCLE);
+        report.sweepTicksUsed = (proportional < CONTROL_A4_MIN_SWEEP_TICKS)
+            ? CONTROL_A4_MIN_SWEEP_TICKS : proportional;
+    }
+
+    if (!Motor_PrimeControlSession((int32_t)report.seedPhaseRaw, 0.0f))
+    {
+        report.result = CONTROL_A4_PRIME_FAULT;
+        ControlA5_SetParentAlignmentValid(&a5Report, false);
+        goto safe_stop;
+    }
+    Motor_ControllerState_t primeState;
+    Motor_GetControllerState(&primeState);
+    report.primeStateValid = !primeState.outputEnabled
+        && primeState.outputPower == 0.0f
+        && primeState.outputElectricalPositionRaw
+            == (uint16_t)report.seedPhaseRaw
+        && primeState.commandedPositionRaw
+            == (float)report.seedPhaseRaw;
+    if (!report.primeStateValid)
+    {
+        report.result = CONTROL_A4_PRIME_FAULT;
+        ControlA5_SetParentAlignmentValid(&a5Report, false);
+        goto safe_stop;
+    }
+
+    activeStartTick = HAL_GetTick();
+    activeStarted = true;
+    report.result = ControlRunAlignment(&report, &baseline, activeStartTick);
+    ControlA5_SetParentAlignmentValid(&a5Report,
+        report.result == CONTROL_A4_OK);
+    if (report.result != CONTROL_A4_OK)
+    {
+        goto safe_stop;
+    }
+
+    if (!ControlA5_RecordPreCaptureState(&a5Report))
+    {
+        goto safe_stop;
+    }
+    (void)ControlA5_CaptureStaticWindow(&a5Report,
+        ControlA5AbortRequested);
+    (void)ControlA5_RecordPostCaptureState(&a5Report);
+
+safe_stop:
+    /* Every A5 path converges here. Torque is removed and the retained PWM
+     * command is cleared before state verification, math finalization, A4
+     * reporting, or the A5.3 deferred UART records. */
+    Motor_Disable();
+    Motor_SetElectricalPos((uint16_t)CONTROL_A5_COMMAND_PHASE_RAW, 0.0f);
+    if (activeStarted)
+    {
+        report.activeDurationMs = HAL_GetTick() - activeStartTick;
+    }
+    report.electricalOffsetRaw = (uint16_t)(report.finalRaw
+        % MOTOR_COUNT_PER_ELECTRICAL_CYCLE);
+    (void)ControlA5_RecordSafeStopState(&a5Report);
+    (void)ControlA5_FinalizeAfterSafeStop(&a5Report);
+    ControlReport(&report);
+    ControlReportA5(&a5Report);
+}
+
+static bool ControlA5AbortRequested(void)
+{
+    return controlAbortRequested;
+}
+
 static void ControlEngineTask(void *argument)
 {
     (void)argument;
@@ -790,7 +1143,14 @@ static void ControlEngineTask(void *argument)
         }
         if (command == CONTROL_ENGINE_COMMAND_START)
         {
-            ControlRunA4();
+            if (CONTROL_A5_CAPTURE_INTEGRATION_ENABLED != 0U)
+            {
+                ControlRunA5();
+            }
+            else
+            {
+                ControlRunA4();
+            }
         }
         Motor_Disable();
         controlEngineBusy = false;
@@ -806,9 +1166,18 @@ bool ControlEngine_Init(void)
     {
         return false;
     }
+    if (CONTROL_A5_CAPTURE_INTEGRATION_ENABLED != 0U
+            && !ControlA5_CaptureResourcesInit())
+    {
+        return false;
+    }
     controlCommandQueue = osMessageQueueNew(1U, sizeof(uint8_t), NULL);
     if (controlCommandQueue == NULL)
     {
+        if (CONTROL_A5_CAPTURE_INTEGRATION_ENABLED != 0U)
+        {
+            ControlA5_CaptureResourcesReleaseForInitFailure();
+        }
         return false;
     }
     static const osThreadAttr_t attributes = {
@@ -821,6 +1190,10 @@ bool ControlEngine_Init(void)
     {
         osMessageQueueDelete(controlCommandQueue);
         controlCommandQueue = NULL;
+        if (CONTROL_A5_CAPTURE_INTEGRATION_ENABLED != 0U)
+        {
+            ControlA5_CaptureResourcesReleaseForInitFailure();
+        }
         return false;
     }
     controlEngineBusy = false;

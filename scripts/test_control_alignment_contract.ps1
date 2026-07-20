@@ -12,14 +12,18 @@ $motor = Get-Content -Raw (Join-Path $root 'Core\Src\motor.c')
 $control = Get-Content -Raw (Join-Path $root 'Core\Src\control_engine.c')
 $app = Get-Content -Raw (Join-Path $root 'Core\Src\app_engine.c')
 
-Assert-True ($mode -match 'CONTROL_A4_ENCODER_SEEDED_DRAG_P35_V1') `
-    'Control A4 profile identity is missing.'
+Assert-True ($mode -match 'CONTROL_A5_MA600_RAW_HOLD_P35_OFFSET7971_N2048_1KHZ_V1') `
+    'Control A5 profile identity is missing.'
+# A5 is a static-capture phase layered on top of the frozen A4B trajectory:
+# ControlRunA5() calls the exact same ControlRunAlignment() as ControlRunA4().
+# The whole A4 envelope below must therefore stay byte-for-byte locked even
+# though A4B is no longer the top-level app profile.
 Assert-True ($app -match '#if JIG_APP_MODE == JIG_APP_CONTROL' -and
     $app -match 'ControlEngine_RequestStart') `
     'Control image does not select the dedicated engine at compile time.'
 
 # --- Locked profile envelope: any change requires a new profile identity. ---
-Assert-True ($control -match 'CONTROL_A4_ELECTRICAL_OFFSET_RAW\s+6742U' -and
+Assert-True ($control -match 'CONTROL_A4_ELECTRICAL_OFFSET_RAW\s+7971U' -and
     $control -match 'CONTROL_A4_TARGET_POWER_PPM\s+350000U' -and
     $control -match 'CONTROL_A4_POWER_RAMP_TICKS\s+300U' -and
     $control -match 'CONTROL_A4_FULL_SWEEP_TICKS\s+2400U' -and
@@ -39,7 +43,7 @@ Assert-True ($control -match 'CONTROL_A4_ELECTRICAL_OFFSET_RAW\s+6742U' -and
     'A4 envelope changed without a profile revision.'
 Assert-True ($control -match '#error "A4 pilot must remain locked to 35 percent power"' -and
     $control -match '#error "A4 pilot timing changed without a new profile identity"' -and
-    $control -match '#error "A4 electrical offset changed: re-measure per mount and revise the profile identity"') `
+    $control -match '#error "A4B electrical offset changed: re-measure per mount and revise the profile identity"') `
     'A4 compile-time identity locks are missing.'
 
 # --- Power ramp: monotonic, closes at exactly 35 percent. ---
@@ -59,8 +63,8 @@ Assert-True ($previous -eq 350000) 'A4 ramp does not close at exactly 35 percent
 # --- Seeded geometry: host-side re-derivation. Seed puts the field at the
 # rotor's electrical angle; span is forward-only and ends at phase 0. ---
 $cycle = 10923
-$offset = 6742
-foreach ($baseline in @(0, 1, 6741, 6742, 6743, 6851, 10922, 17747, 35203, 65535)) {
+$offset = 7971
+foreach ($baseline in @(0, 1, 7970, 7971, 7972, 8080, 10922, 18976, 36432, 65535)) {
     $baselineMod = $baseline % $cycle
     $seed = ($baselineMod + $cycle - $offset) % $cycle
     $span = ($cycle - $seed) % $cycle

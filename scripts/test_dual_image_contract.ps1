@@ -60,12 +60,21 @@ if ((Test-Path $controlElf) -and (Test-Path $measurementElf)) {
         'Control ELF still links the nonlinear measurement engine/state.'
     Assert-True ($measurementSymbols -match 'NonlinearEngine_Init') `
         'Measurement ELF is missing the nonlinear measurement engine.'
-    Assert-True ($controlStrings -match 'CONTROL_A4_ENCODER_SEEDED_DRAG_P35_V1' -and
+    Assert-True ($controlStrings -match 'CONTROL_A5_MA600_RAW_HOLD_P35_OFFSET7971_N2048_1KHZ_V1' -and
         $controlStrings -notmatch 'MEASUREMENT_MOTION_V2_DMA_P1') `
         'Control ELF identity is mixed or missing.'
+    # The parent-profile record (ParentProfile=CONTROL_A4B_...) is emitted by
+    # every A5 ARMED/IDENTITY line by design, so A4B's string legitimately
+    # remains in the Control ELF -- only the Measurement ELF must never see
+    # either Control identity.
     Assert-True ($measurementStrings -match 'MEASUREMENT_MOTION_V2_DMA_P1' -and
-        $measurementStrings -notmatch 'CONTROL_A4_ENCODER_SEEDED_DRAG_P35_V1') `
+        $measurementStrings -notmatch 'CONTROL_A5_MA600_RAW_HOLD_P35_OFFSET7971_N2048_1KHZ_V1' -and
+        $measurementStrings -notmatch 'CONTROL_A4B_ENCODER_SEEDED_DRAG_P35_OFFSET7971_V1') `
         'Measurement ELF identity is mixed or missing.'
+    Assert-True ($controlSymbols -match 'ControlA5_CaptureStaticWindow') `
+        'Control ELF is missing the active A5 capture symbol.'
+    Assert-True ($measurementSymbols -notmatch 'ControlA5_') `
+        'Measurement ELF must not link any A5 capture/math symbol.'
     $controlHash = (Get-FileHash $controlElf -Algorithm SHA256).Hash
     $measurementHash = (Get-FileHash $measurementElf -Algorithm SHA256).Hash
     Assert-True ($controlHash -ne $measurementHash) `
