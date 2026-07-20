@@ -134,8 +134,20 @@ static void SetEngineState(NonlinearEngineState_t state)
  * motor.c). With that fixed and Ki raised so the integral term breaks
  * through stiction faster (see motor.c's PidKi comment), tightened back to
  * 0.10 deg per the user's request; NL_MOVE_ZERO_TIMEOUT_MS below stays at
- * 20s as headroom in case a run still needs the extra margin. */
-#define NL_MOVE_ZERO_ERROR_DEG      0.10f
+ * 20s as headroom in case a run still needs the extra margin.
+ *
+ * Tightened again to 0.05 deg: a real 10-official-run batch
+ * (codex/motion-control-v2-dma, "test 14") showed the canonical Closure
+ * gate failing on every run (mean 0.346 deg vs the 0.20 deg target), and
+ * regressing ClosureErrorDeg against the run's own Point0MeanRawQ16 gives
+ * slope -1.076 -- i.e. Closure is almost entirely just this 0.10 deg
+ * accept-band's own run-to-run scatter (the point-360 physical endpoint is
+ * comparatively stable) rather than a real tracking defect. 0.05 deg
+ * matches NL_POINT_SETTLE_ERROR_RAW (9 raw = 0.0494 deg), the tolerance
+ * the *other* 371 points in the same sweep already hit successfully every
+ * run -- so the system has already demonstrated this precision is
+ * reachable; only this move-to-zero step was accepting a looser band. */
+#define NL_MOVE_ZERO_ERROR_DEG      0.05f
 #define NL_MOVE_ZERO_SETTLE_TICKS   500
 #define NL_MOVE_ZERO_TIMEOUT_MS     20000
 #define NL_MOVE_ZERO_DIAG_INTERVAL_MS 500
@@ -481,6 +493,42 @@ static const char *ResolveJigId(bool *outKnown)
 #define NL_SWEEP_RAMP_SOFT_START_PROTOCOL_ID   "SOFT_START_V1"
 #else
 #define NL_SWEEP_RAMP_SOFT_START_PROTOCOL_ID   "NONE"
+#endif
+
+/* B0-B soft-start experiment: Phase A (scripts/analyze_b0b_transient.py
+ * against 63 real backoff/forward legs mined from p03 jig test14-17 logs,
+ * see docs/b0b-soft-start-phase-a-result.md) measured BACKOFF plateauing
+ * near 57% of its commanded 182 raw by tick 40 (lag stops growing around
+ * tick 30 -- it has caught up to a constant offset), while FORWARD is still
+ * actively accumulating lag at tick 40 (only ~38% tracked, worse and not
+ * yet stabilized -- likely a direction-reversal/backlash effect on top of
+ * the shared transient). Both legs run open-loop at full power with zero
+ * initial phase lag, the same underlying phenomenon as the sweep's own
+ * first-ramp-toward-point-1 (ENABLE_SWEEP_RAMP_SOFT_START above) -- just
+ * too short (40 ticks) to reach the recovery a full sweep segment shows.
+ * This flag slows BOTH legs' per-tick cadence uniformly (one variable,
+ * matching the A2B..A2F/ENABLE_SWEEP_RAMP_SOFT_START discipline: a single
+ * shared multiplier first: if FORWARD alone still falls short, a later
+ * revision can split backoff/forward into two independent constants, not
+ * this one). 4x is a reasoned first estimate from the measured lag curve
+ * (FORWARD had not plateaued at 1x by tick 40), not a guess. Default OFF;
+ * changes REAL motion for both approach legs only when explicitly enabled
+ * -- test A-then-B-then-A like every other motion experiment in this
+ * file. No new META field: META has only ~39 bytes of headroom left
+ * against LogLineLarge's 1900-byte buffer (measured from a real log), so
+ * the soft-start indicator and the corrected delay value are carried on
+ * the already-existing, already-B0B-scoped APPROACH_RESULT record instead
+ * (its own headroom measured at over 1100 bytes). */
+#ifndef ENABLE_B0B_APPROACH_SOFT_START
+#define ENABLE_B0B_APPROACH_SOFT_START   0
+#endif
+#if ENABLE_B0B_APPROACH_SOFT_START
+#define NL_B0B_APPROACH_SOFT_START_DELAY_MS      4U
+#define NL_B0B_APPROACH_SOFT_START_PROTOCOL_ID   "SOFT_START_V1"
+#define NL_B0B_APPROACH_ACTIVE_DELAY_MS          NL_B0B_APPROACH_SOFT_START_DELAY_MS
+#else
+#define NL_B0B_APPROACH_SOFT_START_PROTOCOL_ID   "NONE"
+#define NL_B0B_APPROACH_ACTIVE_DELAY_MS          NL_RAMP_STEP_DELAY_MS
 #endif
 
 #ifndef ENABLE_NL_MATH_SELF_TEST
@@ -1758,6 +1806,20 @@ typedef struct
     uint8_t  rampAcceptedSamples[NL_MAX_SWEEP_POINTS];
 } NlShadowPointStorage_t;
 
+/* MAD (median absolute deviation) outlier-filtering diagnostic, point-0 and
+ * point-NL_CLOSURE_POINT_INDEX only. Diagnostic-only: never read by
+ * ComputeShadowMetrics or the ClosureErrorDeg computation, which still use
+ * the plain shadowPoints->pointMeanRawQ16[]/shadowPoint0MeanRawQ16 fields,
+ * unchanged. */
+typedef struct
+{
+    bool     computed;
+    uint32_t candidateCount;
+    uint32_t rejectedCount;
+    uint32_t robustCount;
+    int64_t  madFilteredMeanRawQ16;
+} NlShadowMadDiag_t;
+
 typedef struct
 {
     bool     attempted;
@@ -1936,6 +1998,11 @@ typedef struct
     float    shadowLegacyMinusCanonicalA36;
     NlShadowPointStorage_t *shadowPoints;
 
+    /* MAD outlier-filtering diagnostic, point-0/point-360 only -- see
+     * NlShadowMadDiag_t. */
+    NlShadowMadDiag_t shadowPoint0Mad;
+    NlShadowMadDiag_t shadowPoint360Mad;
+
     /* Phase-3B0-A diagnostic only. A numeric closure value here never
      * participates in measurementValid/Motor OK/batch disposition. A read
      * failure is still a safety/acquisition failure and stops the sweep. */
@@ -2023,6 +2090,10 @@ static NlSweepCapture_t nlCaptures[NL_MAX_SWEEPS_PER_TEST];
 static NlShadowPointStorage_t nlShadowPointStorage[NL_MAX_SWEEPS_PER_TEST]
     __attribute__((section(".ccmram_bss")));
 static float nlSortScratch[NL_MAX_SWEEP_POINTS];
+/* MAD-filter sample scratch, point-0 and point-360 only: reused
+ * sequentially (single-threaded test task, never concurrent) rather than
+ * stored per-point/per-sweep, matching nlSortScratch's precedent. */
+static int64_t nlMadSampleScratch[MA600_MAD_MAX_SAMPLES];
 static uint32_t nlTestIdCounter = 0;
 static uint32_t nlSweepIdCounter = 0;
 
@@ -2133,6 +2204,23 @@ static void RecordShadowPoint(NlSweepCapture_t *out, int pointIndex,
             out->shadowPoint0MeanRawQ16 = point->pointMeanRawQ16;
         }
         out->shadowCapturedCount++;
+
+        /* Diagnostic-only MAD copy, point-0/point-360 only, never read by
+         * the official Closure computation above. */
+        if (point->madFilteringEnabled)
+        {
+            NlShadowMadDiag_t *madDst = (pointIndex == 0) ? &out->shadowPoint0Mad
+                : (pointIndex == (int)NL_CLOSURE_POINT_INDEX) ? &out->shadowPoint360Mad
+                : NULL;
+            if (madDst != NULL)
+            {
+                madDst->computed = true;
+                madDst->candidateCount = point->madCandidateCount;
+                madDst->rejectedCount = point->madRejectedCount;
+                madDst->robustCount = point->robustSampleCount;
+                madDst->madFilteredMeanRawQ16 = point->madFilteredMeanRawQ16;
+            }
+        }
     }
     else
     {
@@ -2248,7 +2336,7 @@ static MA600_Result_t CaptureClosureHoldProbe(NlSweepCapture_t *out,
         uint32_t captureStartElapsedMs = (uint32_t)(HAL_GetTick() - probeStartTick);
         MA600_PointSample_t point;
         result = MA600_ReadAveragedPoint(shadowUnwrap, pointAnchorUnwrapped,
-            config, &point);
+            config, NULL, 0U, 0, &point);
         uint32_t captureEndElapsedMs = (uint32_t)(HAL_GetTick() - probeStartTick);
         result = RecordClosureProbeStage(out, stageIndex, &point, result,
             nominalHoldMs[stageIndex], captureStartElapsedMs,
@@ -2582,7 +2670,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     MA600_Result_t approachAcqResult = RampCommandToTarget(&sweepAcquisition,
         &commandPos, backoffCommand, &backoffStepsExecuted,
         out->approachBackoffStepUnwrapped, NL_B0B_APPROACH_DIAG_STEPS,
-        NL_RAMP_STEP_DELAY_MS, &out->motionDiagnostics);
+        NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->motionDiagnostics);
     AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
         &out->approachBackoffRampAcquisition);
     out->approachBackoffStepsExecuted = backoffStepsExecuted;
@@ -2638,7 +2726,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     approachAcqResult = RampCommandToTarget(&sweepAcquisition, &commandPos, 0,
         &forwardStepsExecuted,
         out->approachForwardStepUnwrapped, NL_B0B_APPROACH_DIAG_STEPS,
-        NL_RAMP_STEP_DELAY_MS, &out->motionDiagnostics);
+        NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->motionDiagnostics);
     AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
         &out->approachForwardRampAcquisition);
     out->approachForwardStepsExecuted = forwardStepsExecuted;
@@ -2913,8 +3001,19 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         if (shadowActive)
         {
             MA600_PointSample_t shadowPoint;
+            /* MAD diagnostic only for the 2 points that drive Closure.
+             * Every other point (369 of 371) is byte-for-byte unchanged:
+             * NULL/0/0 -- see NlShadowMadDiag_t. */
+            bool wantMadForThisPoint = (pointIndex == 0)
+                || (pointIndex == (int)NL_CLOSURE_POINT_INDEX);
+            int64_t *madBuf = wantMadForThisPoint ? nlMadSampleScratch : NULL;
+            uint32_t madBufCapacity = wantMadForThisPoint
+                ? MA600_MAD_MAX_SAMPLES : 0U;
+            int64_t madFloor = wantMadForThisPoint
+                ? (int64_t)NL_POINT_SETTLE_ERROR_RAW : 0;
             MA600_Result_t shadowResult = MA600_ReadAveragedPoint(&shadowUnwrap,
-                pointAnchorUnwrapped, &shadowPointConfig, &shadowPoint);
+                pointAnchorUnwrapped, &shadowPointConfig, madBuf, madBufCapacity,
+                madFloor, &shadowPoint);
             RecordShadowPoint(out, pointIndex, &shadowPoint, shadowResult);
             if (shadowResult == MA600_RESULT_OK && out->closureProbeEnabled
                     && pointIndex == (int)NL_CLOSURE_POINT_INDEX)
@@ -3232,6 +3331,63 @@ capture_complete:
  * represent a CCW sweep. Printing them for CCW too (when the engineering flag is on) could
  * duplicate a run-numbered field the parser keys by number, silently shadowing the real CW
  * value -- so CCW captures only ever get the new schema-v2 (META/DATA/RESULT/END) lines. */
+/* MAD outlier-filtering diagnostic, point-0/point-360 only -- Official=0,
+ * never read back by the official ClosureErrorDeg computation. Lets the
+ * effect of MAD filtering be recomputed offline from the log (Delta =
+ * MadFilteredMeanRawQ16 - PointMeanRawQ16 at each point) without this
+ * change having touched the official result at all. */
+static void PrintShadowMadLog(const NlSweepCapture_t *c, const char *jigId,
+                              const char *direction)
+{
+    if (c->shadowPoints == NULL)
+    {
+        return;
+    }
+
+    const int pointIndices[2] = { 0, (int)NL_CLOSURE_POINT_INDEX };
+    for (size_t r = 0U; r < 2U; r++)
+    {
+        int pointIndex = pointIndices[r];
+        if (pointIndex >= c->shadowCapturedCount)
+        {
+            continue;
+        }
+
+        const NlShadowMadDiag_t *mad = (pointIndex == 0)
+            ? &c->shadowPoint0Mad : &c->shadowPoint360Mad;
+        int64_t plainMeanRawQ16 = c->shadowPoints->pointMeanRawQ16[pointIndex];
+
+        char pointMeanBuf[24], madMeanBuf[24], deltaBuf[24];
+        FormatI64(plainMeanRawQ16, pointMeanBuf, sizeof(pointMeanBuf));
+        if (mad->computed)
+        {
+            FormatI64(mad->madFilteredMeanRawQ16, madMeanBuf, sizeof(madMeanBuf));
+            FormatI64(mad->madFilteredMeanRawQ16 - plainMeanRawQ16,
+                deltaBuf, sizeof(deltaBuf));
+        }
+        else
+        {
+            snprintf(madMeanBuf, sizeof(madMeanBuf), "NA");
+            snprintf(deltaBuf, sizeof(deltaBuf), "NA");
+        }
+
+        LogLineLarge(
+            "SHADOW_MAD,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+            "Direction=%s,Official=0,PointIndex=%d,Computed=%d,"
+            "CandidateCount=%lu,RejectedCount=%lu,RobustCount=%lu,"
+            "RejectFloorRelRaw=%ld,PointMeanRawQ16=%s,MadFilteredMeanRawQ16=%s,"
+            "DeltaRawQ16=%s\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+            (unsigned long)c->sweepId, jigId, MOTOR_ID, direction,
+            pointIndex, mad->computed ? 1 : 0,
+            (unsigned long)mad->candidateCount,
+            (unsigned long)mad->rejectedCount,
+            (unsigned long)mad->robustCount,
+            (long)NL_POINT_SETTLE_ERROR_RAW,
+            pointMeanBuf, madMeanBuf, deltaBuf);
+    }
+}
+
 static void PrintClosureProbeLog(const NlSweepCapture_t *c, const char *jigId,
                                  const char *direction)
 {
@@ -3874,6 +4030,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (unsigned long)c->shadowFeatureComputeTimeMs,
         NL_B0B_APPROACH_PROTOCOL_ID, approachStructuralValidText);
 
+    PrintShadowMadLog(c, jigId, dirStr);
     PrintClosureProbeLog(c, jigId, dirStr);
 
 #if ENABLE_B0B_EQUAL_APPROACH
@@ -3896,6 +4053,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             "APPROACH_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
             "Direction=%s,Official=0,Protocol=%s,Started=1,Complete=%d,Status=%s,"
             "ApproachBackoffRaw=%ld,ApproachRampStepRaw=%d,ApproachRampDelayMs=%d,"
+            "B0BSoftStartProtocol=%s,"
             "ApproachExpectedSteps=%d,"
             "ApproachInitialSettleResult=%s,ApproachBackoffSettleResult=%s,"
             "ApproachPoint0SettleResult=%s,"
@@ -3912,7 +4070,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             NL_B0B_APPROACH_PROTOCOL_ID, approachComplete ? 1 : 0,
             NlApproachResultName(c->approachResult),
             (long)NL_B0B_APPROACH_BACKOFF_RAW, (int)NL_RAMP_STEP,
-            (int)NL_RAMP_STEP_DELAY_MS,
+            (int)NL_B0B_APPROACH_ACTIVE_DELAY_MS,
+            NL_B0B_APPROACH_SOFT_START_PROTOCOL_ID,
             (int)NL_B0B_APPROACH_DIAG_STEPS,
             c->approachInitialAttempted
                 ? SettleResultName(c->approachInitialSettleResult) : "NA",
