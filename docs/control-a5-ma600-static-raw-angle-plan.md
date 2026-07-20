@@ -1,6 +1,6 @@
 # Plan A5 — MA600 static RawAngle stability
 
-Status: **A5.4 COMPLETE — A5.5 NOT STARTED**  
+Status: **A5.6 COMPLETE — RawAngle stability locked**  
 Parent control baseline: `CONTROL_A4B_ENCODER_SEEDED_DRAG_P35_OFFSET7971_V1`  
 Approved profile: `CONTROL_A5_MA600_RAW_HOLD_P35_OFFSET7971_N2048_1KHZ_V1`
 

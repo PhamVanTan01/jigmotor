@@ -1,6 +1,6 @@
 # A5 implementation and validation checklist
 
-Overall status: **A5.4 COMPLETE — A5.5 NOT STARTED**  
+Overall status: **A5.6 COMPLETE — RawAngle stability locked**  
 Approved profile: `CONTROL_A5_MA600_RAW_HOLD_P35_OFFSET7971_N2048_1KHZ_V1`  
 Parent baseline: `CONTROL_A4B_ENCODER_SEEDED_DRAG_P35_OFFSET7971_V1`
 
@@ -195,20 +195,25 @@ Evidence:
 
 ## A5.5 — Hardware pilot
 
-- [~] Keep the same motor/mount; no removal during the batch (round 1: not
-  disturbed per operator; endpoint spread of 82 raw is consistent with this
-  but does not itself prove it).
-- [x] Capture five files with two physical runs each (round 1 complete).
-- [ ] Cover four electrical start quadrants — **Q1 (0-90 deg elec) missing**,
-  round 1 only hit Q2/Q3/Q4 (see table below). Round 2 needed.
-- [ ] Include one first run after at least 15 minutes powered off — not yet
-  explicitly confirmed for any of the 10 round-1 runs.
+- [x] Keep the same motor/mount; no removal during the batch. Operator
+  confirmed the mount was never disturbed across round 1 + round 2.
+- [x] Capture five files with two physical runs each (round 1) plus a second
+  five-file/10-run batch (round 2) per the merge decision below.
+- [x] Cover four electrical start quadrants. Round 2 placed run-1 starts at
+  25.3 deg (`test6`) and 19.7 deg (`test8`), closing the Q1 gap round 1 left
+  open; combined with round 1's Q2/Q3/Q4 coverage, all four quadrants are
+  represented across the 20-run batch.
+- [x] Include one first run after at least 15 minutes powered off. Operator
+  confirmed a full, genuine power-off (not just an idle/powered gap while
+  saving a log file) of >15 minutes between `test6` and `test7`; `test7 run1`
+  is the true cold-start run.
 - [x] Confirm exact A5 manifest/config on every independent boot.
-- [x] Achieve 10/10 hard structural validity.
+- [x] Achieve 10/10 hard structural validity (round 1) — **20/20** combined
+  with round 2.
 - [x] Review statistical investigation bands without filtering raw evidence.
 
-A5.5 gate: **PARTIAL — structural/statistical bands PASS 10/10; quadrant and
-cold-start coverage still open.**
+A5.5 gate: **PASS (2026-07-20).** All items closed via the round 1 + round 2
+merge; see A5.6 below for the combined 20-run evidence and analysis.
 
 Evidence (round 1, `A5 test 1.txt` .. `A5 test 5.txt`, built from
 `29856e6dc8e1-dirty`, functionally identical to the `ef0025af801b-dirty`
@@ -242,42 +247,99 @@ rebuild archived at `builds/control-a5-offset7971-n2048-20260720/`):
   not any computed/exported value, and the contract test still passes.
 
 **Merge decision (2026-07-20):** rather than running a dedicated A5.5-only
-round 2 and then a separate A5.6 batch, the next 10-run batch (files 6-10)
-serves both: it closes A5.5's three open items (Q1 coverage, cold start,
-explicit same-mount confirmation) AND is A5.6's own required "second
-independent 10-run batch, including cold start." A5.5's gate closes
-retroactively once that batch lands clean; A5.6 then compares it against
-round 1 as its 20-run confirmation. This is a scheduling merge, not a
-criteria relaxation — every item either gate originally required is still
-produced by round 2, just in one hardware session instead of two.
-
-Round 2 requirements (files `A5 test 6.txt` .. `A5 test 10.txt`):
-
-- Same motor/mount as round 1; confirm explicitly whether it was disturbed
-  at any point between round 1 and round 2 (if disturbed, offset 7971 needs
-  re-measurement before this round is comparable, and the batch is a new
-  mount identity rather than a continuation).
-- File 6, run 1 must be a genuine cold start: >=15 minutes powered off
-  immediately before pressing start.
-- At least one run's baseline seeded into Q1: rotate the rotor by hand so
-  `BaselineRaw mod 10923` lands roughly in 0-2730 raw before that run.
-- Flash `builds/control-a5-offset7971-n2048-20260720/jigmotor_control.hex`
-  (SHA-256 `D5EE4DAFCFC63832421EB230973DDA5BED4BDA3CB503292FAA0F633A26F81C79`,
-  identical source to round 1, re-tagged to commit `5bfd8ce`).
+round 2 and then a separate A5.6 batch, one 10-run batch (files 6-10) served
+both: it closed A5.5's three open items (Q1 coverage, cold start, explicit
+same-mount confirmation) AND was A5.6's own required "second independent
+10-run batch, including cold start." Confirmed a scheduling merge, not a
+criteria relaxation — every item either gate originally required was still
+produced, just in one hardware session instead of two.
 
 ## A5.6 — Confirmation and lock
 
-Per the A5.5 merge decision above, this batch is files `A5 test 6.txt` ..
-`A5 test 10.txt` — the same hardware session closes A5.5 and produces A5.6's
-required second batch.
+Round 2 (`A5 test 6.txt` .. `A5 test 10.txt`), same motor/mount as round 1,
+no removal at any point (operator-confirmed):
 
-- [ ] Capture a second independent 10-run batch including cold start.
-- [ ] Compare cold/warm, first/second and between-batch means.
-- [ ] Document within-window and across-run RawAngle limits from 20 valid runs.
-- [ ] Explain any PWM-phase, drift or distribution dependency.
-- [ ] Lock RawAngle stability and retain only a small health monitor later.
+- [x] Capture a second independent 10-run batch including cold start.
+  `test7 run1` followed a genuine, fully powered-off gap of >15 minutes
+  between `test6` and `test7` (operator-confirmed: full power removal, not
+  an idle/powered gap while saving the log).
+- [x] Compare cold/warm, first/second and between-batch means.
+- [x] Document within-window and across-run RawAngle limits from 20 valid runs.
+- [x] Explain any PWM-phase, drift or distribution dependency.
+- [x] Lock RawAngle stability and retain only a small health monitor later.
 
-A5.6 gate: **PENDING** — awaiting round 2.
+A5.6 gate: **PASS (2026-07-20).**
+
+### Combined 20-run evidence
+
+All 20 runs (`test1`..`test10`, 2 runs/file): `MeasurementValid=1`,
+2048/2048 accepted, 0 retry/transport/jump-reject/failed-sample, 0 skipped
+slot/timing overrun. Electrical start quadrant coverage across the combined
+batch: Q1 (`test6r1`=25.3 deg, `test8r1`=19.7 deg), Q2 (`test4r1`=141.8 deg,
+`test7r1`=148.2 deg), Q3 (majority — every run-2-of-a-file lands here by
+construction, starting where run-1's own A5 hold parked the rotor), Q4
+(`test2r1`, `test3r1`, `test9r1`=332.4 deg, `test10r1`=327.3 deg).
+
+| Metric | Round 1 (5 files) | Round 2 (5 files) | Combined (20 runs) | Investigation band |
+| --- | ---: | ---: | ---: | ---: |
+| P2P (raw) | 11-16 | 12-15 | 11-16 (0.060-0.088 deg) | <=32 |
+| Population SD (raw) | 1.63-2.06 | 1.82-2.16 | 1.63-2.16 (0.009-0.012 deg) | <=5 |
+| Mean SD (raw) | 1.878 | 1.957 | 1.918 | — |
+| First-to-last drift (raw) | -2..+6 | -4..+6 | -4..+6 (-0.022..+0.033 deg) | <=16 |
+| SPI latency (cycles) | constant 1338 | constant 1338 | constant 1338 | — |
+| Max schedule error (cycles) | 74 | 74 | 74 (~0.44 us) | — |
+
+Round1-vs-round2 mean-SD delta is 4.2% (1.878 vs 1.957 raw) — well inside
+normal run-to-run scatter, no evidence of a systematic between-batch shift.
+
+**Cold vs warm:** the cold run (`test7 run1`, SD=2.1599 raw, P2P=15 raw) is
+16.6% higher SD than its own immediate warm follow-up (`test7 run2`,
+SD=1.8529 raw). This is the single highest SD in the whole 20-run batch
+(second-highest: `test8 run1`=2.1153, also chronologically close to the cold
+gap) — a mild, plausible warm-up signature consistent with the rest of the
+project's observed thermal drift pattern, but based on **n=1 genuine cold
+sample**, confounded with `test7 run1` also being one of only two Q2 samples.
+Reported as an observation, not a locked cold-start derating: the difference
+is small (both values remain far inside the P2P/SD bands) and cannot be
+statistically separated from ordinary run-to-run and quadrant scatter with
+this sample size.
+
+**PWM-phase dependency:** every one of the 20 runs covered all 32/32 PWM
+phase bins (`PwmPhaseBinMask=0xFFFFFFFF`), so the diagnostic had full
+resolution to detect a correlation. `PwmFirstHarmonicP2PRaw` is 0.075-0.16
+raw across all 20 runs — under 1.5% of the total P2P budget. **No meaningful
+PWM-phase dependency found.** This also closes out the conditional trigger
+for a separate A5B (alternate sample-rate/phase) experiment from the plan's
+section 3.2: nothing in this data calls for it.
+
+**Distribution/drift:** delta histograms are unimodal and roughly symmetric
+in every run (no bimodal/stepped pattern -> no cogging-slip or mounting-
+movement signature). Allan deviation decreases monotonically from ~1 ms to
+~128 ms in every run (e.g. `test10 run1`: 1.84 -> 1.33 -> 0.94 -> 0.68 ->
+0.47 -> 0.39 -> 0.23 -> 0.19 raw), consistent with ordinary averaging of a
+white-ish noise process, not a flicker/1-over-f floor or runaway drift.
+
+### Locked conclusion
+
+RawAngle stability is locked as **observed engineering envelope from 20
+valid hardware runs** (deliberately not promoted to a product/ISO pass-fail
+limit, per the plan's explicit non-goal): P2P 11-16 raw, population SD
+1.63-2.16 raw, first-to-last drift -4..+6 raw, over a 2048-sample/2.048 s
+static window at phase 0 / 35% power. All values sit far inside the pilot
+investigation bands (roughly half of the P2P budget, under half of the SD
+budget, under half of the drift budget) with no PWM-phase, distribution, or
+long-tau drift dependency found. Per A5.6's own closing instruction, later
+phases should retain only the existing structural gates (retry/transport/
+step/travel/safe-stop, already enforced in firmware) as an ongoing health
+check, not re-run this full statistical characterization.
+
+Error-budget context carried into the next-phase decision: A5's per-sample
+SD (~1.92 raw) implies per-measurement-point noise (64-sample average) of
+~1.92/8 =~ 0.24 raw =~ 0.0013 deg, and propagated Closure noise of
+~sqrt(2) x 0.0013 =~ 0.0018 deg -- roughly 10x smaller than the ~0.016-0.022
+deg Closure SD observed in real production batches (test16/test17). MA600
+sensor noise, now precisely characterized, is not the dominant remaining
+contributor to production measurement variance.
 
 ## Phase-level exit rule
 
