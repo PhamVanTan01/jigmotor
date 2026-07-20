@@ -28,11 +28,11 @@ Assert-True ($main -match 'AppEngine_Init\(\)' -and
     $main -match 'AppEngine_IsBusy\(\)' -and
     $main -notmatch 'NonlinearEngine_(Init|RequestStart|IsBusy)') `
     'main.c bypasses the mode-neutral AppEngine boundary.'
-Assert-True ($controlEngine -match 'CONTROL_A2_TARGET_POWER_PPM\s+90000U' -and
-    $controlEngine -match 'CONTROL_A2_MAX_TRAVEL_RAW' -and
-    $controlEngine -match 'CONTROL_A2_MAX_ACTIVE_MS' -and
+Assert-True ($controlEngine -match 'CONTROL_A3_TARGET_POWER_PPM\s+350000U' -and
+    $controlEngine -match 'CONTROL_A3_MAX_TRAVEL_RAW' -and
+    $controlEngine -match 'CONTROL_A3_MAX_ACTIVE_MS' -and
     $controlEngine -match 'Motor_Disable\(\)') `
-    'Control A2F alignment path is missing its fail-safe envelope.'
+    'Control A3 alignment path is missing its fail-safe envelope.'
 Assert-True ($main -match 'BUILD_MANIFEST,AppMode=%s,AppProfile=%s') `
     'Startup build identity record is missing.'
 Assert-True ($main -match 'SourceId=%s,ProfileFingerprint=0x%08lX' -and
@@ -60,11 +60,11 @@ if ((Test-Path $controlElf) -and (Test-Path $measurementElf)) {
         'Control ELF still links the nonlinear measurement engine/state.'
     Assert-True ($measurementSymbols -match 'NonlinearEngine_Init') `
         'Measurement ELF is missing the nonlinear measurement engine.'
-    Assert-True ($controlStrings -match 'CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1' -and
+    Assert-True ($controlStrings -match 'CONTROL_A3_ROTATING_CAPTURE_P35_V1' -and
         $controlStrings -notmatch 'MEASUREMENT_MOTION_V2_DMA_P1') `
         'Control ELF identity is mixed or missing.'
     Assert-True ($measurementStrings -match 'MEASUREMENT_MOTION_V2_DMA_P1' -and
-        $measurementStrings -notmatch 'CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1') `
+        $measurementStrings -notmatch 'CONTROL_A3_ROTATING_CAPTURE_P35_V1') `
         'Measurement ELF identity is mixed or missing.'
     $controlHash = (Get-FileHash $controlElf -Algorithm SHA256).Hash
     $measurementHash = (Get-FileHash $measurementElf -Algorithm SHA256).Hash
