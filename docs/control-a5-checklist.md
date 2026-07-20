@@ -241,12 +241,35 @@ rebuild archived at `builds/control-a5-offset7971-n2048-20260720/`):
   first half); confirmed it only affected the human-readable console text,
   not any computed/exported value, and the contract test still passes.
 
-Round 2 plan: same motor/mount, do not remove; at least one run seeded to
-land in Q1; explicitly log/confirm a cold start after >=15 minutes powered
-off; explicitly confirm no remount occurred across the combined round-1 +
-round-2 batch before closing this gate.
+**Merge decision (2026-07-20):** rather than running a dedicated A5.5-only
+round 2 and then a separate A5.6 batch, the next 10-run batch (files 6-10)
+serves both: it closes A5.5's three open items (Q1 coverage, cold start,
+explicit same-mount confirmation) AND is A5.6's own required "second
+independent 10-run batch, including cold start." A5.5's gate closes
+retroactively once that batch lands clean; A5.6 then compares it against
+round 1 as its 20-run confirmation. This is a scheduling merge, not a
+criteria relaxation — every item either gate originally required is still
+produced by round 2, just in one hardware session instead of two.
+
+Round 2 requirements (files `A5 test 6.txt` .. `A5 test 10.txt`):
+
+- Same motor/mount as round 1; confirm explicitly whether it was disturbed
+  at any point between round 1 and round 2 (if disturbed, offset 7971 needs
+  re-measurement before this round is comparable, and the batch is a new
+  mount identity rather than a continuation).
+- File 6, run 1 must be a genuine cold start: >=15 minutes powered off
+  immediately before pressing start.
+- At least one run's baseline seeded into Q1: rotate the rotor by hand so
+  `BaselineRaw mod 10923` lands roughly in 0-2730 raw before that run.
+- Flash `builds/control-a5-offset7971-n2048-20260720/jigmotor_control.hex`
+  (SHA-256 `D5EE4DAFCFC63832421EB230973DDA5BED4BDA3CB503292FAA0F633A26F81C79`,
+  identical source to round 1, re-tagged to commit `5bfd8ce`).
 
 ## A5.6 — Confirmation and lock
+
+Per the A5.5 merge decision above, this batch is files `A5 test 6.txt` ..
+`A5 test 10.txt` — the same hardware session closes A5.5 and produces A5.6's
+required second batch.
 
 - [ ] Capture a second independent 10-run batch including cold start.
 - [ ] Compare cold/warm, first/second and between-batch means.
@@ -254,7 +277,7 @@ round-2 batch before closing this gate.
 - [ ] Explain any PWM-phase, drift or distribution dependency.
 - [ ] Lock RawAngle stability and retain only a small health monitor later.
 
-A5.6 gate: **PENDING**.
+A5.6 gate: **PENDING** — awaiting round 2.
 
 ## Phase-level exit rule
 
