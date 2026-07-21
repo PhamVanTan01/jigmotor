@@ -531,6 +531,49 @@ static const char *ResolveJigId(bool *outKnown)
 #define NL_B0B_APPROACH_ACTIVE_DELAY_MS          NL_RAMP_STEP_DELAY_MS
 #endif
 
+/* B0-B endpoint creep: the soft-start experiment above (cadence change,
+ * same open-loop 40-tick ramp) was tried and rejected (test 18/18B/18A on
+ * real hardware: A tracks BETTER than B -- backoff 51.5% vs 45.8%, forward
+ * 34.8% vs 30.4% of the 182-raw target -- and B's slightly lower Closure
+ * mean is not attributable to better control). WaitForPointSettle only
+ * confirms the rotor STOPPED and is roughly in the right neighborhood
+ * (NL_SETTLE_TARGET_TOLERANCE_RAW = 910 raw ~= 5 deg, very loose) -- it
+ * never confirms the ~182-raw target was actually reached, which is why
+ * 30-52% under-travel has never tripped any existing gate.
+ *
+ * This flag adds a NEW stage, run only AFTER the existing settle already
+ * confirmed the rotor stopped: if the settled position is still short of
+ * the exact target, issue small additional single-step corrections
+ * (encoder feedback, not open-loop) in the same direction until within a
+ * deadband, or until a safety budget/iteration cap is hit. It never
+ * touches RampCommandToTarget or the 40-tick quintic -- this is a
+ * distinct, later stage. It never reverses direction hunting for the
+ * target; it only continues the same approach. Default OFF. */
+#ifndef ENABLE_B0B_APPROACH_CREEP
+#define ENABLE_B0B_APPROACH_CREEP   0
+#endif
+#if ENABLE_B0B_APPROACH_CREEP
+/* Pilot/uncalibrated first estimates:
+ * - step = NL_RAMP_STEP (8 raw), the same per-command magnitude the
+ *   existing ramp already uses -- a step size already proven not to
+ *   destabilize this motor.
+ * - deadband = 16 raw, about 2x NL_POINT_SETTLE_ERROR_RAW (9 raw), looser
+ *   than the pure position-noise floor so creep does not chase noise.
+ * - max total correction = 150 raw, comfortably above the largest
+ *   shortfall observed so far (~90-120 raw) with margin, while still far
+ *   below NL_B0B_APPROACH_BACKOFF_RAW (182) so a runaway cannot be
+ *   mistaken for a normal correction.
+ * - max iterations = 30: at 8 raw/step this reaches the 150-raw budget in
+ *   ~19 steps: 30 leaves headroom without an effectively unbounded loop. */
+#define NL_B0B_CREEP_STEP_RAW           8
+#define NL_B0B_CREEP_DEADBAND_RAW       16LL
+#define NL_B0B_CREEP_MAX_TOTAL_RAW      150LL
+#define NL_B0B_CREEP_MAX_ITERATIONS     30U
+#define NL_B0B_CREEP_PROTOCOL_ID        "ENCODER_CREEP_V1"
+#else
+#define NL_B0B_CREEP_PROTOCOL_ID        "NONE"
+#endif
+
 #ifndef ENABLE_NL_MATH_SELF_TEST
 /* When 1, NonlinearTest_Run() skips the motor entirely and instead runs synthetic curves
  * with known closed-form answers through the real feature-computation functions (see
@@ -1386,6 +1429,26 @@ typedef struct
     bool valid;
 } NlSettleObservation_t;
 
+/* B0-B endpoint creep diagnostics -- see ENABLE_B0B_APPROACH_CREEP. Always
+ * declared (both branches compile) so protocol-A builds still compile;
+ * CreepToUnwrappedTarget() itself is only compiled/called under the flag. */
+typedef enum
+{
+    NL_CREEP_NOT_RUN = 0,      /* flag disabled, or leg never reached this stage */
+    NL_CREEP_OK,               /* reached the deadband */
+    NL_CREEP_TIMEOUT,          /* NL_B0B_CREEP_MAX_ITERATIONS exhausted */
+    NL_CREEP_BUDGET_EXCEEDED,  /* total |correction| exceeded NL_B0B_CREEP_MAX_TOTAL_RAW */
+    NL_CREEP_ACQUISITION_ERROR,
+} NlCreepResult_t;
+
+typedef struct
+{
+    NlCreepResult_t result;
+    uint32_t iterations;
+    int64_t totalCorrectionRaw;  /* sum of |step| actually issued, always >= 0 */
+    int64_t finalGapRaw;         /* target - final position, signed */
+} NlCreepDiagnostics_t;
+
 typedef struct
 {
     uint32_t readAttempts;
@@ -1625,6 +1688,22 @@ static const char *NlApproachResultName(NlApproachResult_t result)
 }
 #endif
 
+/* Unconditional (not flag-guarded): NlCreepDiagnostics_t/NlCreepResult_t are
+ * always declared regardless of ENABLE_B0B_APPROACH_CREEP, so this stays
+ * usable from the always-compiled APPROACH_RESULT print site too. */
+static const char *NlCreepResultName(NlCreepResult_t result)
+{
+    switch (result)
+    {
+        case NL_CREEP_NOT_RUN:            return "NOT_RUN";
+        case NL_CREEP_OK:                  return "OK";
+        case NL_CREEP_TIMEOUT:             return "TIMEOUT";
+        case NL_CREEP_BUDGET_EXCEEDED:      return "BUDGET_EXCEEDED";
+        case NL_CREEP_ACQUISITION_ERROR:    return "ACQUISITION_ERROR";
+        default:                            return "UNKNOWN";
+    }
+}
+
 /* SF-pre-step diagnostic helper: builds a "|"-delimited list of int64
  * values (same convention as LegacyOrders=1|2|3|... elsewhere in this
  * file), each formatted via FormatI64 (never %ld -- STM32 long is 32-bit).
@@ -1763,6 +1842,78 @@ static NlSettleResult_t WaitForPointSettle(
         }
     }
 }
+
+#if ENABLE_B0B_APPROACH_CREEP
+/* Runs only AFTER the caller's own WaitForPointSettle already confirmed the
+ * rotor stopped (this function never replaces or races with that check).
+ * Moves *commandPos in small NL_B0B_CREEP_STEP_RAW steps toward
+ * targetUnwrapped, re-measuring the ACTUAL encoder position after each step
+ * (never assuming the commanded step was fully achieved -- that assumption
+ * is exactly what caused the original under-travel). Each step is followed
+ * by a short stability-only settle (targetRequired=false: creep does not
+ * know in advance how many steps remain, so there is no "near target"
+ * region to check yet -- only "has it stopped moving"). Never reverses
+ * direction relative to the sign of (targetUnwrapped - currentAnchorUnwrapped)
+ * at entry -- a target on the wrong side would mean the caller measured the
+ * gap wrong, not something to search around for. */
+static MA600_Result_t CreepToUnwrappedTarget(
+    MA600_AcquisitionContext_t *sweepAcquisition,
+    int32_t *commandPos, int64_t targetUnwrapped,
+    MA600_Sample_t *anchorSample, NlCreepDiagnostics_t *diag)
+{
+    memset(diag, 0, sizeof(*diag));
+    int64_t anchor = anchorSample->unwrappedRaw;
+    int64_t gap = targetUnwrapped - anchor;
+    int direction = (gap > 0) ? 1 : -1;
+
+    for (;;)
+    {
+        if (AbsI64ToU64(gap) <= (uint64_t)NL_B0B_CREEP_DEADBAND_RAW)
+        {
+            diag->result = NL_CREEP_OK;
+            break;
+        }
+        if (diag->iterations >= NL_B0B_CREEP_MAX_ITERATIONS)
+        {
+            diag->result = NL_CREEP_TIMEOUT;
+            break;
+        }
+        if (diag->totalCorrectionRaw >= NL_B0B_CREEP_MAX_TOTAL_RAW)
+        {
+            diag->result = NL_CREEP_BUDGET_EXCEEDED;
+            break;
+        }
+
+        int64_t stepMagnitude = (AbsI64ToU64(gap) > (uint64_t)NL_B0B_CREEP_STEP_RAW)
+            ? (int64_t)NL_B0B_CREEP_STEP_RAW : (int64_t)AbsI64ToU64(gap);
+        int32_t step = (int32_t)(direction * stepMagnitude);
+        *commandPos += step;
+        Motor_SetElectricalPos((uint16_t)*commandPos, 1.0f);
+
+        NlSettleObservation_t microSettle;
+        NlSettleResult_t microResult = WaitForPointSettle(sweepAcquisition,
+            anchor + step, false, &microSettle);
+        diag->iterations++;
+        diag->totalCorrectionRaw += stepMagnitude;
+        /* Even on a bare settle TIMEOUT the last poll's sample is still a
+         * real encoder reading (WaitForPointSettle always records
+         * finalSample before returning) -- propagate it to the caller's
+         * anchor either way, so partial progress is never discarded. */
+        *anchorSample = microSettle.finalSample;
+        if (microResult == NL_SETTLE_ACQUISITION_ERROR)
+        {
+            diag->result = NL_CREEP_ACQUISITION_ERROR;
+            diag->finalGapRaw = gap;
+            return microSettle.acquisitionResult;
+        }
+        anchor = microSettle.finalSample.unwrappedRaw;
+        gap = targetUnwrapped - anchor;
+    }
+
+    diag->finalGapRaw = gap;
+    return MA600_RESULT_OK;
+}
+#endif /* ENABLE_B0B_APPROACH_CREEP */
 
 static float WrapSignedDeg(float deg)
 {
@@ -2058,6 +2209,12 @@ typedef struct
     int64_t  approachBackoffStepUnwrapped[NL_B0B_APPROACH_DIAG_STEPS];
     uint8_t  approachForwardStepCount;
     int64_t  approachForwardStepUnwrapped[NL_B0B_APPROACH_DIAG_STEPS];
+
+    /* B0-B endpoint creep diagnostics -- see ENABLE_B0B_APPROACH_CREEP.
+     * Always declared (both branches compile); result stays NL_CREEP_NOT_RUN
+     * (zero-init) when the flag is off or a leg never reached this stage. */
+    NlCreepDiagnostics_t backoffCreepDiag;
+    NlCreepDiagnostics_t forwardCreepDiag;
 
 #if ENABLE_SWEEP_RAMP_STEP_DIAG
     /* Independent of B0-B: per-microstep raw position for the first
@@ -2709,6 +2866,18 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         }
         return MA600_RESULT_OK;
     }
+#if ENABLE_B0B_APPROACH_CREEP
+    /* 3b. Settle chỉ xác nhận rotor đã DỪNG và gần đúng vùng (910 raw,
+     * ~5 deg) -- không xác nhận đã đạt đúng expectedBackoffUnwrapped. Creep
+     * tiếp tục bằng feedback encoder tới khi trong deadband hoặc hết ngân
+     * sách an toàn; cập nhật backoffSettle.finalSample thành vị trí SAU
+     * creep để đoạn forward và các field chẩn đoán dưới đây dùng đúng mốc
+     * đã sửa (không đụng backoffSettle.result/stabilityValid -- vẫn giữ
+     * đúng ý nghĩa "settle ban đầu đã OK"). */
+    (void)CreepToUnwrappedTarget(&sweepAcquisition, &commandPos,
+        expectedBackoffUnwrapped, &backoffSettle.finalSample,
+        &out->backoffCreepDiag);
+#endif
     int64_t backoffAnchorUnwrapped = backoffSettle.finalSample.unwrappedRaw;
     /* Chẩn đoán riêng cho ĐOẠN CHUẨN BỊ (không phải đoạn đang so sánh,
      * nhưng vẫn đáng ghi lại). */
@@ -2770,6 +2939,18 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         }
         return MA600_RESULT_OK;
     }
+#if ENABLE_B0B_APPROACH_CREEP
+    /* Cùng lý do như creep đoạn backoff -- settle điểm 0 chỉ xác nhận đã
+     * dừng, không xác nhận đã đạt đúng expectedPoint0Unwrapped. Cập nhật
+     * point0Settle.finalSample thành vị trí SAU creep TRƯỚC khi gán sample/
+     * settleObservation/sweepOriginUnwrapped ngay dưới đây -- toàn bộ mốc
+     * pointAnchorUnwrapped của phép đo chính thức (dùng ở phần code chung
+     * sau #endif) sẽ tự động dùng đúng vị trí đã creep, không cần sửa gì
+     * thêm ở đó. */
+    (void)CreepToUnwrappedTarget(&sweepAcquisition, &commandPos,
+        expectedPoint0Unwrapped, &point0Settle.finalSample,
+        &out->forwardCreepDiag);
+#endif
     sweepOriginUnwrapped = point0Settle.finalSample.unwrappedRaw;
     /* Gán lại cho code dùng chung ngay sau #endif (dựng out->rawAtOffset/
      * out->motorOffset/...) dùng đúng kết quả settle của protocol B, không
@@ -4043,17 +4224,25 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     {
         char backoffDeltaBuf[24], backoffTargetErrBuf[24];
         char approachDeltaBuf[24], approachTargetErrBuf[24], returnErrBuf[24];
+        char backoffCreepTotalBuf[24], forwardCreepTotalBuf[24];
         FormatI64(c->backoffObservedDeltaRaw, backoffDeltaBuf, sizeof(backoffDeltaBuf));
         FormatI64(c->backoffTargetErrorRaw, backoffTargetErrBuf, sizeof(backoffTargetErrBuf));
         FormatI64(c->approachObservedDeltaRaw, approachDeltaBuf, sizeof(approachDeltaBuf));
         FormatI64(c->approachTargetErrorRaw, approachTargetErrBuf, sizeof(approachTargetErrBuf));
         FormatI64(c->approachReturnErrorRaw, returnErrBuf, sizeof(returnErrBuf));
+        FormatI64(c->backoffCreepDiag.totalCorrectionRaw, backoffCreepTotalBuf,
+            sizeof(backoffCreepTotalBuf));
+        FormatI64(c->forwardCreepDiag.totalCorrectionRaw, forwardCreepTotalBuf,
+            sizeof(forwardCreepTotalBuf));
         bool approachComplete = (c->approachResult == NL_APPROACH_OK);
         LogLineLarge(
             "APPROACH_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
             "Direction=%s,Official=0,Protocol=%s,Started=1,Complete=%d,Status=%s,"
             "ApproachBackoffRaw=%ld,ApproachRampStepRaw=%d,ApproachRampDelayMs=%d,"
             "B0BSoftStartProtocol=%s,"
+            "B0BCreepProtocol=%s,BackoffCreepResult=%s,BackoffCreepIterations=%lu,"
+            "BackoffCreepTotalRaw=%s,ForwardCreepResult=%s,ForwardCreepIterations=%lu,"
+            "ForwardCreepTotalRaw=%s,"
             "ApproachExpectedSteps=%d,"
             "ApproachInitialSettleResult=%s,ApproachBackoffSettleResult=%s,"
             "ApproachPoint0SettleResult=%s,"
@@ -4072,6 +4261,13 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             (long)NL_B0B_APPROACH_BACKOFF_RAW, (int)NL_RAMP_STEP,
             (int)NL_B0B_APPROACH_ACTIVE_DELAY_MS,
             NL_B0B_APPROACH_SOFT_START_PROTOCOL_ID,
+            NL_B0B_CREEP_PROTOCOL_ID,
+            NlCreepResultName(c->backoffCreepDiag.result),
+            (unsigned long)c->backoffCreepDiag.iterations,
+            backoffCreepTotalBuf,
+            NlCreepResultName(c->forwardCreepDiag.result),
+            (unsigned long)c->forwardCreepDiag.iterations,
+            forwardCreepTotalBuf,
             (int)NL_B0B_APPROACH_DIAG_STEPS,
             c->approachInitialAttempted
                 ? SettleResultName(c->approachInitialSettleResult) : "NA",

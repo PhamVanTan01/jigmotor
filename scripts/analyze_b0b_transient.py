@@ -60,10 +60,22 @@ def parse_b0b_log(path):
     text = open(path, encoding='utf-8', errors='replace').read()
     legs = []
     results = {}
+    corrupt = 0
     for line in text.splitlines():
         if line.startswith('APPROACH_STEPS,'):
             kv = dict(x.split('=', 1) for x in line.split(',')[1:] if '=' in x)
-            raw = [int(v) for v in kv['UnwrappedRaw'].split('|')]
+            if 'UnwrappedRaw' not in kv or 'SweepID' not in kv or 'Leg' not in kv:
+                corrupt += 1
+                print(f"  !! {path}: skipping a corrupted APPROACH_STEPS line "
+                      f"(UART glitch, missing field) -- {line[:80]!r}...")
+                continue
+            try:
+                raw = [int(v) for v in kv['UnwrappedRaw'].split('|')]
+            except ValueError:
+                corrupt += 1
+                print(f"  !! {path}: skipping a corrupted APPROACH_STEPS line "
+                      f"(non-integer UnwrappedRaw value)")
+                continue
             legs.append({'sweepId': int(kv['SweepID']), 'leg': kv['Leg'], 'raw': raw})
         elif line.startswith('APPROACH_RESULT,'):
             kv = dict(x.split('=', 1) for x in line.split(',')[1:] if '=' in x)
@@ -80,6 +92,11 @@ def analyze_b0b(paths):
             if len(leg['raw']) != B0B_TICKS:
                 print(f"  !! {path} sweep {leg['sweepId']} {leg['leg']}: "
                       f"expected {B0B_TICKS} ticks, got {len(leg['raw'])} -- skipped")
+                continue
+            r = results.get(leg['sweepId'])
+            if r is None or r.get('Status') != 'OK' or r.get('ApproachStructuralValid') != '1':
+                print(f"  !! {path} sweep {leg['sweepId']} {leg['leg']}: no matching "
+                      f"valid APPROACH_RESULT (orphan/incomplete capture) -- skipped")
                 continue
             target_signed = -B0B_TARGET_RAW if leg['leg'] == 'BACKOFF' else B0B_TARGET_RAW
             raw0 = leg['raw'][0]
