@@ -655,6 +655,37 @@ static const char *ResolveJigId(bool *outKnown)
 #if (NL_BATCH_RUN_COUNT != 10U)
 #error "ONE_FULL_SWEEP_120S_V1 requires the 10-run batch mode"
 #endif
+
+/* Adaptive precondition (plan Part 1): the fixed single-precondition-sweep
+ * protocol above assumes 1 sweep is always enough to reach a stable
+ * mechanical state before official runs start. Test 18A (10-run hardware
+ * batch) showed otherwise: excluding just the FIRST official run from the
+ * stats dropped Closure SD ~4x (0.02497 deg -> 0.00643 deg), meaning the
+ * warm-up effect the fixed precondition is supposed to absorb sometimes
+ * leaks into official RunOrder 1. This flag replaces the fixed "1 sweep"
+ * rule with "keep running precondition sweeps until two CONSECUTIVE ones
+ * agree within a threshold" -- using shadowClosureErrorDeg, already
+ * computed by ComputeShadowMetrics for every sweep (see CaptureSweep),
+ * so this needs no new measurement. Default OFF: unchanged behavior. */
+#ifndef ENABLE_ADAPTIVE_PRECONDITION
+#define ENABLE_ADAPTIVE_PRECONDITION   0
+#endif
+#if ENABLE_ADAPTIVE_PRECONDITION
+/* Pilot/uncalibrated first estimate: 0.03 deg sits between the run-to-run
+ * SD already measured in the stable region (~0.006-0.02 deg, test
+ * 18/18A) and the gap between run 1 and that stable region (~0.07 deg,
+ * test 18A) -- needs hardware confirmation before being treated as a
+ * production value. */
+#define NL_PRECONDITION_STABILITY_THRESHOLD_DEG    0.03f
+/* Safety cap: if stability is never reached, stop and report rather than
+ * precondition forever -- a real mechanical problem must surface, not be
+ * hidden behind an unbounded warm-up loop. */
+#define NL_PRECONDITION_MAX_COUNT                  5U
+#define NL_PRECONDITION_PROTOCOL_ID_ADAPTIVE       "ADAPTIVE_2CONSECUTIVE_STABLE_V1"
+#define NL_PRECONDITION_PROTOCOL_ID_ACTIVE         NL_PRECONDITION_PROTOCOL_ID_ADAPTIVE
+#else
+#define NL_PRECONDITION_PROTOCOL_ID_ACTIVE         NL_PRECONDITION_PROTOCOL_ID
+#endif
 #endif /* ENABLE_AUTO_BATCH_TEST */
 
 static void LogLine(const char *fmt, ...)
@@ -2612,6 +2643,21 @@ static uint32_t nlCooldownActualMs;
 static bool     nlCooldownValid;
 static bool     nlFirstRunInBatch;
 static bool     nlPreconditionValid;
+/* Adaptive precondition (ENABLE_ADAPTIVE_PRECONDITION) state. The counters
+ * below are tracked unconditionally (harmless, always 1/false/NA in fixed
+ * mode) so the BATCH log lines can report them without branching at every
+ * print site -- only the comparison LOGIC that updates them is flag-gated,
+ * in RunBatchSweep(). */
+static uint32_t nlPreconditionRunsSoFar;     /* precondition attempts this batch; always ends at
+                                                * exactly 1 when ENABLE_ADAPTIVE_PRECONDITION is off. */
+static bool     nlHasPreconditionDeltaDeg;   /* only ever set true under ENABLE_ADAPTIVE_PRECONDITION */
+static float    nlPreconditionDeltaDeg;      /* last consecutive-precondition delta (signed); only
+                                                * meaningful if nlHasPreconditionDeltaDeg is true */
+#if ENABLE_ADAPTIVE_PRECONDITION
+static bool     nlPreconditionStabilityAchieved;
+static bool     nlHasLastPreconditionClosure;
+static float    nlLastPreconditionClosureDeg;
+#endif
 static uint32_t nlLastMotorOffTick; /* set by NonlinearTest_Run() right after Motor_Disable() --
                                       * the real "torque off" moment cooldown must be timed from,
                                       * not whenever logging/feature computation finishes after it. */
@@ -4862,9 +4908,17 @@ static bool NonlinearTest_Run(void)
  * returns. */
 static void RunBatchSweep(void)
 {
+#if ENABLE_ADAPTIVE_PRECONDITION
+    bool preconditionRun = !nlPreconditionStabilityAchieved;
+#else
     bool preconditionRun = (nlCurrentCycle <= NL_PRECONDITION_COUNT);
+#endif
     uint32_t officialRunOrder = preconditionRun ? 0U
+#if ENABLE_ADAPTIVE_PRECONDITION
+        : (nlCurrentCycle - nlPreconditionRunsSoFar);
+#else
         : (nlCurrentCycle - NL_PRECONDITION_COUNT);
+#endif
     bool runValid = NonlinearTest_Run(nlBatchId, nlCurrentCycle, officialRunOrder,
         NL_OFFICIAL_RUN_COUNT, preconditionRun, nlPreconditionValid, nlFirstRunInBatch,
         NL_COOLDOWN_TIME_MS, nlCooldownActualMs, nlCooldownValid);
@@ -4882,18 +4936,98 @@ static void RunBatchSweep(void)
 
     if (preconditionRun)
     {
+        nlPreconditionRunsSoFar++;
+#if ENABLE_ADAPTIVE_PRECONDITION
+        /* nlCaptures[0] is guaranteed populated here: NonlinearTest_Run only
+         * returns true for a precondition run after CaptureSweep (and
+         * therefore ComputeShadowMetrics) already ran on it -- see the
+         * PRECONDITION_RESULT early-return above. shadowCanonicalValid
+         * gates on the metric having actually been computed; it is
+         * deliberately NOT the same as shadowClosureValid (which reports
+         * pass/fail against the 0.20 deg production limit -- irrelevant
+         * here, this is a stability-between-runs check, not a threshold). */
+        bool thisClosureUsable = nlCaptures[0].shadowCanonicalValid;
+        float thisClosureDeg = nlCaptures[0].shadowClosureErrorDeg;
+        bool stableNow = false;
+        if (thisClosureUsable && nlHasLastPreconditionClosure)
+        {
+            nlPreconditionDeltaDeg = thisClosureDeg - nlLastPreconditionClosureDeg;
+            nlHasPreconditionDeltaDeg = true;
+            stableNow = (fabsf(nlPreconditionDeltaDeg)
+                <= NL_PRECONDITION_STABILITY_THRESHOLD_DEG);
+        }
+        if (thisClosureUsable)
+        {
+            nlLastPreconditionClosureDeg = thisClosureDeg;
+            nlHasLastPreconditionClosure = true;
+        }
+
+        if (stableNow)
+        {
+            nlPreconditionStabilityAchieved = true;
+            nlPreconditionValid = true;
+        }
+        else if (nlPreconditionRunsSoFar >= NL_PRECONDITION_MAX_COUNT)
+        {
+            /* Stop and report rather than silently promoting an unstable
+             * precondition to official -- exactly the failure mode this
+             * whole feature exists to prevent. */
+            char preconditionDeltaBuf[16];
+            char preconditionThresholdBuf[16];
+            if (nlHasPreconditionDeltaDeg)
+            {
+                FormatDegN(nlPreconditionDeltaDeg, 5, preconditionDeltaBuf,
+                    sizeof(preconditionDeltaBuf));
+            }
+            else
+            {
+                snprintf(preconditionDeltaBuf, sizeof(preconditionDeltaBuf), "NA");
+            }
+            FormatDegN(NL_PRECONDITION_STABILITY_THRESHOLD_DEG, 5,
+                preconditionThresholdBuf, sizeof(preconditionThresholdBuf));
+            nlBatchState = NL_BATCH_COMPLETE;
+            SetEngineState(NL_ENGINE_SAFE_STOP);
+            LogLine(
+                "BATCH,BatchID=%lu,Status=PRECONDITION_UNSTABLE,CycleOrder=%lu,"
+                "PreconditionRunsUsed=%lu,PreconditionMaxCount=%lu,"
+                "PreconditionStabilityDeltaDeg=%s,PreconditionThresholdDeg=%s\r\n",
+                (unsigned long)nlBatchId, (unsigned long)nlCurrentCycle,
+                (unsigned long)nlPreconditionRunsSoFar, (unsigned long)NL_PRECONDITION_MAX_COUNT,
+                preconditionDeltaBuf, preconditionThresholdBuf);
+            return;
+        }
+#else
         nlPreconditionValid = true;
+#endif
     }
 
-    if (nlCurrentCycle >= NL_BATCH_TOTAL_CYCLE_COUNT)
+#if ENABLE_ADAPTIVE_PRECONDITION
+    bool batchOfficialRunsComplete = (!preconditionRun)
+        && ((nlCurrentCycle - nlPreconditionRunsSoFar) >= NL_OFFICIAL_RUN_COUNT);
+#else
+    bool batchOfficialRunsComplete = (nlCurrentCycle >= NL_BATCH_TOTAL_CYCLE_COUNT);
+#endif
+    if (batchOfficialRunsComplete)
     {
+        char preconditionDeltaBuf[16];
+        if (nlHasPreconditionDeltaDeg)
+        {
+            FormatDegN(nlPreconditionDeltaDeg, 5, preconditionDeltaBuf,
+                sizeof(preconditionDeltaBuf));
+        }
+        else
+        {
+            snprintf(preconditionDeltaBuf, sizeof(preconditionDeltaBuf), "NA");
+        }
         nlBatchState = NL_BATCH_COMPLETE;
         LogLine(
             "BATCH,BatchID=%lu,Status=COMPLETE,PreconditionCount=%lu,"
-            "RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=1\r\n",
+            "RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=1,"
+            "PreconditionRunsUsed=%lu,PreconditionStabilityDeltaDeg=%s\r\n",
             (unsigned long)nlBatchId, (unsigned long)NL_PRECONDITION_COUNT,
             (unsigned long)NL_OFFICIAL_RUN_COUNT,
-            (unsigned long)NL_BATCH_TOTAL_CYCLE_COUNT);
+            (unsigned long)NL_BATCH_TOTAL_CYCLE_COUNT,
+            (unsigned long)nlPreconditionRunsSoFar, preconditionDeltaBuf);
         return;
     }
 
@@ -4955,11 +5089,17 @@ static void NonlinearBatch_OnButtonPress(void)
     nlFirstRunInBatch = true;
     nlCooldownActualMs = 0;
     nlCooldownValid = false;
+    nlPreconditionRunsSoFar = 0;
+    nlHasPreconditionDeltaDeg = false;
+#if ENABLE_ADAPTIVE_PRECONDITION
+    nlPreconditionStabilityAchieved = false;
+    nlHasLastPreconditionClosure = false;
+#endif
     nlBatchState = NL_BATCH_RUNNING;
     LogLine(
         "BATCH,BatchID=%lu,Status=START,PreconditionProtocol=%s,PreconditionCount=%lu,"
         "RunCount=%lu,TotalCycleCount=%lu,CooldownTargetMs=%lu\r\n",
-        (unsigned long)nlBatchId, NL_PRECONDITION_PROTOCOL_ID,
+        (unsigned long)nlBatchId, NL_PRECONDITION_PROTOCOL_ID_ACTIVE,
         (unsigned long)NL_PRECONDITION_COUNT, (unsigned long)NL_OFFICIAL_RUN_COUNT,
         (unsigned long)NL_BATCH_TOTAL_CYCLE_COUNT, (unsigned long)NL_COOLDOWN_TIME_MS);
     RunBatchSweep();
