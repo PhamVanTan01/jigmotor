@@ -222,6 +222,147 @@ bool MA600_ComputeCanonicalErrorQ16(int64_t pointMeanRawQ16,
         point0MeanRawQ16, targetRaw, outErrorRawQ16);
 }
 
+/* ---- MAD (median absolute deviation) outlier filter, diagnostic-only ----
+ * Reused sequentially across MAD-enabled calls only (this test task is
+ * single-threaded, calls are never concurrent). */
+static int64_t s_madDeviationScratch[MA600_MAD_MAX_SAMPLES];
+
+static int64_t AbsDeltaI64(int64_t a, int64_t b)
+{
+    int64_t d = 0;
+    if (!SafeSubI64(a, b, &d))
+    {
+        return INT64_MAX;   /* unreachable in practice: point-level deltas
+                              * never approach the int64 range. */
+    }
+    return (d < 0) ? -d : d;
+}
+
+static void InsertionSortI64(int64_t *arr, uint32_t n)
+{
+    for (uint32_t i = 1U; i < n; i++)
+    {
+        int64_t key = arr[i];
+        uint32_t j = i;
+        while (j > 0U && arr[j - 1U] > key)
+        {
+            arr[j] = arr[j - 1U];
+            j--;
+        }
+        arr[j] = key;
+    }
+}
+
+static bool MedianOfSortedI64(const int64_t *sorted, uint32_t n, int64_t *outMedian)
+{
+    if (n == 0U || outMedian == NULL)
+    {
+        return false;
+    }
+    if ((n & 1U) != 0U)
+    {
+        *outMedian = sorted[n / 2U];
+        return true;
+    }
+    int64_t sum = 0;
+    if (!SafeAddI64(sorted[n / 2U - 1U], sorted[n / 2U], &sum))
+    {
+        return false;
+    }
+    return MA600_DivRoundNearestAwayFromZero(sum, 2, outMedian);
+}
+
+/* Reject threshold = round(5.19 * MAD). 5.19 approximates the classic
+ * modified-z-score outlier rule (reject when 0.6745*|x-median|/MAD > 3.5,
+ * i.e. |x-median| > (3.5/0.6745)*MAD ~= 5.19*MAD) using a pure-integer
+ * 519/100 rational multiplier -- this driver layer never uses float. */
+static bool ScaleThreshold519Over100(int64_t mad, int64_t *outThreshold)
+{
+    if (outThreshold == NULL || mad < 0 || mad > INT64_MAX / 519LL)
+    {
+        return false;
+    }
+    return MA600_DivRoundNearestAwayFromZero(mad * 519LL, 100LL, outThreshold);
+}
+
+/* Sorts relRawLog in place (transient per-point scratch, no further use by
+ * the caller), computes a median-absolute-deviation outlier threshold, and
+ * -- if at least one sample survives -- writes a robust mean into
+ * out->madFilteredMeanRawQ16 and out->madFilteringEnabled = true.
+ * out->pointMeanRawQ16 (the plain mean) is computed earlier by the caller
+ * and is never touched here. */
+static void ComputeMadFilteredPointMean(int64_t pointAnchorUnwrapped,
+    int64_t *relRawLog, uint32_t n, int64_t madRejectFloorRelRaw,
+    MA600_PointSample_t *out)
+{
+    out->madCandidateCount = n;
+    if (n == 0U || n > MA600_MAD_MAX_SAMPLES)
+    {
+        return;   /* defensive; unreachable given the entry-point guard */
+    }
+
+    InsertionSortI64(relRawLog, n);
+    int64_t median = 0;
+    if (!MedianOfSortedI64(relRawLog, n, &median))
+    {
+        return;
+    }
+
+    for (uint32_t i = 0U; i < n; i++)
+    {
+        s_madDeviationScratch[i] = AbsDeltaI64(relRawLog[i], median);
+    }
+    InsertionSortI64(s_madDeviationScratch, n);
+    int64_t mad = 0;
+    if (!MedianOfSortedI64(s_madDeviationScratch, n, &mad))
+    {
+        return;
+    }
+
+    int64_t thresholdFromMad = 0;
+    if (!ScaleThreshold519Over100(mad, &thresholdFromMad))
+    {
+        return;
+    }
+    int64_t threshold = (madRejectFloorRelRaw > thresholdFromMad)
+        ? madRejectFloorRelRaw : thresholdFromMad;
+
+    int64_t robustSum = 0;
+    uint32_t robustCount = 0U;
+    uint32_t rejectedCount = 0U;
+    for (uint32_t i = 0U; i < n; i++)
+    {
+        int64_t dev = AbsDeltaI64(relRawLog[i], median);
+        if (dev <= threshold)
+        {
+            if (!SafeAddI64(robustSum, relRawLog[i], &robustSum))
+            {
+                return;
+            }
+            robustCount++;
+        }
+        else
+        {
+            rejectedCount++;
+        }
+    }
+    out->madRejectedCount = rejectedCount;
+    out->robustSampleCount = robustCount;
+
+    if (robustCount == 0U)
+    {
+        return;   /* provably unreachable: threshold >= MAD, and by
+                   * definition of MAD (median of deviations), at least
+                   * half the samples have dev <= MAD. */
+    }
+    int64_t discardMeanRel = 0;
+    if (MA600_ComputeCanonicalPointMeanQ16(pointAnchorUnwrapped, robustSum,
+            robustCount, &discardMeanRel, &out->madFilteredMeanRawQ16))
+    {
+        out->madFilteringEnabled = true;
+    }
+}
+
 static bool CycleReached(uint32_t now, uint32_t target)
 {
     return (int32_t)(now - target) >= 0;
@@ -262,6 +403,9 @@ MA600_Result_t MA600_ReadAveragedPointWithIo(
     int64_t pointAnchorUnwrapped,
     const MA600_PointSamplerConfig_t *config,
     const MA600_PointSamplerIo_t *io,
+    int64_t *madRelRawSampleLog,
+    uint32_t madRelRawSampleLogCapacity,
+    int64_t madRejectFloorRelRaw,
     MA600_PointSample_t *out)
 {
     if (out != NULL)
@@ -282,7 +426,11 @@ MA600_Result_t MA600_ReadAveragedPointWithIo(
             || (config->timingMode == MA600_POINT_TIMING_SCHEDULED_START_TO_START
                 && (config->sampleIntervalCycles == 0U
                     || config->sampleIntervalCycles > INT32_MAX
-                    || io->waitUntil == NULL)))
+                    || io->waitUntil == NULL))
+            || (madRelRawSampleLog != NULL
+                && (madRelRawSampleLogCapacity < config->requiredAcceptedSamples
+                    || config->requiredAcceptedSamples > MA600_MAD_MAX_SAMPLES
+                    || madRejectFloorRelRaw < 0)))
     {
         return MA600_RESULT_INVALID_ARG;
     }
@@ -407,6 +555,11 @@ MA600_Result_t MA600_ReadAveragedPointWithIo(
                 return FinishPointFailure(out, MA600_RESULT_MATH_OVERFLOW);
             }
             out->sumRelRaw = newSum;
+            if (madRelRawSampleLog != NULL
+                    && out->acceptedSampleCount < madRelRawSampleLogCapacity)
+            {
+                madRelRawSampleLog[out->acceptedSampleCount] = relRaw;
+            }
             if (relRaw < out->minRelRaw) out->minRelRaw = relRaw;
             if (relRaw > out->maxRelRaw) out->maxRelRaw = relRaw;
             if (out->acceptedSampleCount == 0U)
@@ -445,6 +598,12 @@ MA600_Result_t MA600_ReadAveragedPointWithIo(
         return FinishPointFailure(out, MA600_RESULT_MATH_OVERFLOW);
     }
 
+    if (madRelRawSampleLog != NULL)
+    {
+        ComputeMadFilteredPointMean(pointAnchorUnwrapped, madRelRawSampleLog,
+            out->acceptedSampleCount, madRejectFloorRelRaw, out);
+    }
+
     out->valid = true;
     out->result = MA600_RESULT_OK;
     return MA600_RESULT_OK;
@@ -454,6 +613,9 @@ MA600_Result_t MA600_ReadAveragedPoint(
     MA600_UnwrapContext_t *sweepCtx,
     int64_t pointAnchorUnwrapped,
     const MA600_PointSamplerConfig_t *config,
+    int64_t *madRelRawSampleLog,
+    uint32_t madRelRawSampleLogCapacity,
+    int64_t madRejectFloorRelRaw,
     MA600_PointSample_t *out)
 {
     const MA600_PointSamplerIo_t io = {
@@ -463,7 +625,8 @@ MA600_Result_t MA600_ReadAveragedPoint(
         .user = NULL,
     };
     return MA600_ReadAveragedPointWithIo(sweepCtx, pointAnchorUnwrapped,
-        config, &io, out);
+        config, &io, madRelRawSampleLog, madRelRawSampleLogCapacity,
+        madRejectFloorRelRaw, out);
 }
 
 #define POINT_SELFTEST_MAX_INPUTS 8U
@@ -588,7 +751,8 @@ bool MA600_PointSamplerSelfTest(void)
     io.user = &state;
     MA600_UnwrapContextInit(&ctx);
     MA600_PointSamplerConfig_t config = PointSelfTestConfig(2U, 40U, 2U);
-    bool immediateOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io, &point)
+    bool immediateOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io,
+            NULL, 0U, 0, &point)
         == MA600_RESULT_OK
         && point.valid && point.transactionCount == 2U
         && point.acceptedSampleCount == 2U && point.skippedSlotCount == 0U
@@ -610,7 +774,7 @@ bool MA600_PointSamplerSelfTest(void)
     MA600_UnwrapContextInit(&ctx);
     config = PointSelfTestConfig(4U, 40U, 4U);
     bool alternatingWindowOk = MA600_ReadAveragedPointWithIo(&ctx, 100,
-        &config, &io, &point) == MA600_RESULT_OK
+        &config, &io, NULL, 0U, 0, &point) == MA600_RESULT_OK
         && point.minRelRaw == -4LL && point.maxRelRaw == 4LL
         && point.maxRelRaw - point.minRelRaw == 8LL
         && point.lastAcceptedUnwrapped - point.firstAcceptedUnwrapped == 0LL;
@@ -627,7 +791,7 @@ bool MA600_PointSamplerSelfTest(void)
     MA600_UnwrapContextInit(&ctx);
     config = PointSelfTestConfig(4U, 40U, 4U);
     bool monotonicWindowOk = MA600_ReadAveragedPointWithIo(&ctx, 100,
-        &config, &io, &point) == MA600_RESULT_OK
+        &config, &io, NULL, 0U, 0, &point) == MA600_RESULT_OK
         && point.minRelRaw == 0LL && point.maxRelRaw == 3LL
         && point.maxRelRaw - point.minRelRaw == 3LL
         && point.lastAcceptedUnwrapped - point.firstAcceptedUnwrapped == 3LL;
@@ -643,7 +807,8 @@ bool MA600_PointSamplerSelfTest(void)
     io.user = &state;
     MA600_UnwrapContextInit(&ctx);
     config = PointSelfTestConfig(2U, 40U, 3U);
-    bool firstFailureOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io, &point)
+    bool firstFailureOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io,
+            NULL, 0U, 0, &point)
         == MA600_RESULT_OK
         && point.scheduleInitialized && point.transactionCount == 3U
         && point.acceptedSampleCount == 2U && point.spiFailureCount == 1U
@@ -660,7 +825,8 @@ bool MA600_PointSamplerSelfTest(void)
     io.user = &state;
     MA600_UnwrapContextInit(&ctx);
     config = PointSelfTestConfig(3U, 40U, 3U);
-    bool skippedOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io, &point)
+    bool skippedOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io,
+            NULL, 0U, 0, &point)
         == MA600_RESULT_OK
         && point.skippedSlotCount == 2U && point.timingOverrunCount == 1U
         && point.maxAbsTimingErrorCycles == 85U
@@ -675,11 +841,86 @@ bool MA600_PointSamplerSelfTest(void)
     io.user = &state;
     MA600_UnwrapContextInit(&ctx);
     config = PointSelfTestConfig(2U, 32U, 2U);
-    bool wrapOk = MA600_ReadAveragedPointWithIo(&ctx, 65534, &config, &io, &point)
+    bool wrapOk = MA600_ReadAveragedPointWithIo(&ctx, 65534, &config, &io,
+            NULL, 0U, 0, &point)
         == MA600_RESULT_OK
         && point.elapsedCycles == 37U && point.skippedSlotCount == 0U
         && point.firstAcceptedUnwrapped == 65534LL
         && point.lastAcceptedUnwrapped == 65537LL;
+
+    /* MAD case A: 7 tightly-clustered samples (relRaw -1..1) plus 1 outlier
+     * (relRaw=15, still within maxJumpRaw=20 so it isn't rejected as a
+     * transport-level jump -- it must be rejected by the MAD deviation
+     * check instead). Hand-derived: sorted {-1,-1,0,0,0,1,1,15}, median=0;
+     * deviations sorted {0,0,0,1,1,1,1,15}, MAD=1; threshold=
+     * round(1*519/100)=5; the outlier (dev=15) exceeds it, the other 7
+     * (dev<=1) survive. Plain mean includes the outlier; MAD mean doesn't. */
+    int64_t madLogA[8];
+    PointSelfTestInitIo(&state, 8U);
+    state.raw[0] = 100U; state.raw[1] = 101U; state.raw[2] = 99U;
+    state.raw[3] = 101U; state.raw[4] = 100U; state.raw[5] = 99U;
+    state.raw[6] = 100U; state.raw[7] = 115U;
+    for (uint32_t i = 0U; i < 8U; i++)
+    {
+        state.csCycle[i] = 1000U + i * 40U;
+        state.afterCycle[i] = state.csCycle[i] + 5U;
+    }
+    state.now = 995U;
+    io.user = &state;
+    MA600_UnwrapContextInit(&ctx);
+    config = PointSelfTestConfig(8U, 40U, 8U);
+    bool madOutlierOk = MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io,
+            madLogA, 8U, 0, &point) == MA600_RESULT_OK
+        && point.madFilteringEnabled
+        && point.madCandidateCount == 8U && point.madRejectedCount == 1U
+        && point.robustSampleCount == 7U
+        && point.madFilteredMeanRawQ16 == 100LL * 65536LL
+        && point.pointMeanRawQ16 == 100LL * 65536LL + 15LL * 8192LL;
+
+    /* MAD case B: 7 identical samples (relRaw=0) plus 1 ordinary-noise
+     * sample (relRaw=1) -- MAD is 0 here (degenerate: the cluster has zero
+     * spread), so a threshold with no floor rejects the relRaw=1 sample as
+     * if it were an outlier, even though it's plain quantization noise.
+     * Run once with floor=0 (over-rejects) and once with floor=9 (the
+     * production NL_POINT_SETTLE_ERROR_RAW value; correctly keeps it). */
+    int64_t madLogB1[8];
+    PointSelfTestInitIo(&state, 8U);
+    for (uint32_t i = 0U; i < 7U; i++) { state.raw[i] = 100U; }
+    state.raw[7] = 101U;
+    for (uint32_t i = 0U; i < 8U; i++)
+    {
+        state.csCycle[i] = 1000U + i * 40U;
+        state.afterCycle[i] = state.csCycle[i] + 5U;
+    }
+    state.now = 995U;
+    io.user = &state;
+    MA600_UnwrapContextInit(&ctx);
+    config = PointSelfTestConfig(8U, 40U, 8U);
+    bool madFloorZeroOverRejects =
+        MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io,
+            madLogB1, 8U, 0, &point) == MA600_RESULT_OK
+        && point.madFilteringEnabled
+        && point.madRejectedCount == 1U && point.robustSampleCount == 7U;
+
+    int64_t madLogB2[8];
+    PointSelfTestInitIo(&state, 8U);
+    for (uint32_t i = 0U; i < 7U; i++) { state.raw[i] = 100U; }
+    state.raw[7] = 101U;
+    for (uint32_t i = 0U; i < 8U; i++)
+    {
+        state.csCycle[i] = 1000U + i * 40U;
+        state.afterCycle[i] = state.csCycle[i] + 5U;
+    }
+    state.now = 995U;
+    io.user = &state;
+    MA600_UnwrapContextInit(&ctx);
+    config = PointSelfTestConfig(8U, 40U, 8U);
+    bool madFloorNineKeepsAll =
+        MA600_ReadAveragedPointWithIo(&ctx, 100, &config, &io,
+            madLogB2, 8U, 9, &point) == MA600_RESULT_OK
+        && point.madFilteringEnabled
+        && point.madRejectedCount == 0U && point.robustSampleCount == 8U;
+    bool madFloorOk = madFloorZeroOverRejects && madFloorNineKeepsAll;
 
     MA600_UnwrapContextInit(&ctx);
     int64_t unwrapped = 0;
@@ -700,6 +941,7 @@ bool MA600_PointSamplerSelfTest(void)
     return roundingOk && meanOk && negativeMeanOk && errorOk
         && immediateOk && alternatingWindowOk && monotonicWindowOk
         && firstFailureOk && skippedOk && wrapOk
+        && madOutlierOk && madFloorOk
         && anchorAccepted && jumpRejected;
 }
 

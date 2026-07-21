@@ -710,6 +710,13 @@ foreach ($inputPath in $Path) {
                     }
                     $probeCommandRaw = $null
                     $probePower = $null
+                    $expectedProbePoint = if ($meta.ContainsKey('AnalysisPoints')) {
+                        $meta['AnalysisPoints']
+                    } elseif ($resultFields.ContainsKey('AnalysisPoints')) {
+                        $resultFields['AnalysisPoints']
+                    } else {
+                        throw "Phase-3B0 cannot resolve the closure point from META/RESULT in $file."
+                    }
                     foreach ($stageName in $closureProbeStages.Keys) {
                         $probeStage = $closureProbeStages[$stageName]
                         if (-not $expectedNominalMs.ContainsKey($stageName)) {
@@ -732,7 +739,7 @@ foreach ($inputPath in $Path) {
                         }
                         if ($probeStage['Official'] -ne '0' -or
                                 $probeStage['Protocol'] -ne 'CLOSURE_HOLD_V1' -or
-                                $probeStage['Point'] -ne '256' -or
+                                $probeStage['Point'] -ne $expectedProbePoint -or
                                 [int]$probeStage['NominalHoldMs'] -ne $expectedNominalMs[$stageName]) {
                             throw "CLOSURE_PROBE $stageName has an invalid fixed contract in $file."
                         }
