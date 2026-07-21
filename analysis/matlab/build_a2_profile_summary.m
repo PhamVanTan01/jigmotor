@@ -56,7 +56,10 @@ for index = 1:n
     settledResultantR(index) = circular.ResultantR;
     settledRunCount(index) = circular.Count;
 
-    powerEnvelopeCandidate(index) = totalRuns(index) >= 3 && ...
+    % 5 matches the hardware-test-plan gate (docs/control-a2-alignment-
+    % hardware-test.md, "5/5 run"). Do not lower this to accept a partial
+    % batch as a candidate.
+    powerEnvelopeCandidate(index) = totalRuns(index) >= 5 && ...
         allSafe(index) && allMoved(index);
     withinOneDegCluster(index) = powerEnvelopeCandidate(index) && ...
         settledRangeDeg(index) <= 1.0;
