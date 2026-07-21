@@ -1,0 +1,81 @@
+MATLAB A2-family offline analysis
+Generated: 2026-07-18 14:43:36 +0700
+Cross-check: 33/33 metrics match PowerShell
+
+CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1
+  power=6.0% runs=5 pass=5 fault=0 moved=3
+  maxStep=10 raw maxTravel=0.2856 deg
+  settledRange=40.3736 deg R=0.1825 candidate=0 cluster1deg=0
+
+CONTROL_A2D_FIXED_PHASE_ALIGN_P07_H500_V1
+  power=7.0% runs=5 pass=5 fault=0 moved=5
+  maxStep=10 raw maxTravel=1.1206 deg
+  settledRange=38.2698 deg R=0.2103 candidate=1 cluster1deg=0
+
+CONTROL_A2E_FIXED_PHASE_ALIGN_P08_H500_V1
+  power=8.0% runs=5 pass=5 fault=0 moved=5
+  maxStep=10 raw maxTravel=0.9064 deg
+  settledRange=31.2471 deg R=0.3364 candidate=1 cluster1deg=0
+
+CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1
+  power=9.0% runs=5 pass=5 fault=0 moved=4
+  maxStep=45 raw maxTravel=2.5433 deg
+  settledRange=32.2789 deg R=0.4567 candidate=0 cluster1deg=0
+
+CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1
+  power=10.0% runs=12 pass=10 fault=2 moved=7
+  maxStep=52 raw maxTravel=5.0262 deg
+  settledRange=40.5081 deg R=0.3001 candidate=0 cluster1deg=0
+
+Circular significance (is SettledModuloRaw distinguishable from uniform?):
+  CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1: power=6.0% n=5 R=0.1825 Rayleigh p=0.8594 bootstrap95%CI=[0.1659, 0.8939]
+  CONTROL_A2D_FIXED_PHASE_ALIGN_P07_H500_V1: power=7.0% n=5 R=0.2103 Rayleigh p=0.8174 bootstrap95%CI=[0.1370, 0.9103]
+  CONTROL_A2E_FIXED_PHASE_ALIGN_P08_H500_V1: power=8.0% n=5 R=0.3364 Rayleigh p=0.5922 bootstrap95%CI=[0.1597, 0.9998]
+  CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1: power=9.0% n=5 R=0.4567 Rayleigh p=0.3722 bootstrap95%CI=[0.1379, 0.9016]
+  CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1: power=10.0% n=10 R=0.3001 Rayleigh p=0.4168 bootstrap95%CI=[0.1010, 0.7415]
+  p<0.05 rejects "uniform/no phase-lock" at that power level.
+  A wide bootstrap CI means the R point estimate is not trustworthy yet
+  at n=5 -- do not over-read a single power level's R without it.
+
+Safety envelope (includes hard-gate FAULT runs, not just passes):
+  CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1: power=6.0% runs=5 faults=0 []
+    maxStep=10/45 raw (22%) maxTravel=0.286/4.999 deg (6%)
+  CONTROL_A2D_FIXED_PHASE_ALIGN_P07_H500_V1: power=7.0% runs=5 faults=0 []
+    maxStep=10/45 raw (22%) maxTravel=1.121/4.999 deg (22%)
+  CONTROL_A2E_FIXED_PHASE_ALIGN_P08_H500_V1: power=8.0% runs=5 faults=0 []
+    maxStep=10/45 raw (22%) maxTravel=0.906/4.999 deg (18%)
+  CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1: power=9.0% runs=5 faults=0 []
+    maxStep=45/45 raw (100%) maxTravel=2.543/4.999 deg (51%)
+  CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1: power=10.0% runs=12 faults=2 [SAMPLE_STEP_LIMIT,TRAVEL_LIMIT]
+    maxStep=52/45 raw (116%) maxTravel=5.026/4.999 deg (101%)
+  Linear-extrapolated ceiling (diagnostic only, NOT a validated
+  safe limit -- confirm empirically one power step at a time):
+    step budget crosses 45 raw at approximately 9.65% power
+    travel budget crosses 910 raw at approximately 10.77% power
+
+Restoring-torque harmonic fit (FinalTravelRaw ~ a*sin(theta)+b*cos(theta)+c):
+  CONTROL_A2C_FIXED_PHASE_ALIGN_P06_H500_V1: power=6.0% n=5 amplitude=49.41 raw phase=1991.9 raw (10.94 deg) R2=0.8265 p=0.173546
+  CONTROL_A2D_FIXED_PHASE_ALIGN_P07_H500_V1: power=7.0% n=5 amplitude=97.19 raw phase=2429.2 raw (13.34 deg) R2=0.7393 p=0.260660
+  CONTROL_A2E_FIXED_PHASE_ALIGN_P08_H500_V1: power=8.0% n=5 amplitude=128.16 raw phase=2146.4 raw (11.79 deg) R2=0.9135 p=0.086461
+  CONTROL_A2F_FIXED_PHASE_ALIGN_P09_H500_V1: power=9.0% n=5 amplitude=365.85 raw phase=3038.0 raw (16.69 deg) R2=0.8025 p=0.197524
+  CONTROL_A2_FIXED_PHASE_ALIGN_P10_V1: power=10.0% n=10 amplitude=158.80 raw phase=2344.0 raw (12.88 deg) R2=0.9705 p=0.000004
+  Pooled (all safe runs, all power levels): n=30 amplitude=145.28 raw phase=2356.3 raw (12.94 deg) R2=0.6588 p=0.000000
+  p<0.05 rejects "no phase dependence" -- a significant fit's phase
+  is a candidate A3 offset. Per-level amplitude trend vs power is a second,
+  independent read on whether higher power is producing more restoring
+  torque. Requires GatePass runs only; fault runs are excluded because
+  their travel reflects a safety cutoff, not a settled position.
+
+Interpretation rules:
+- PowerEnvelopeCandidate means >=5 included runs were all safe and all
+  moved >0.1 deg, matching the docs/control-a2-alignment-hardware-test.md
+  "5/5 run" gate. Fewer than 5 runs can never set this true.
+- PowerEnvelopeCandidate is a necessary, not sufficient, condition for the
+  official gate: it does not check PrimeStateValid/EnableStateValid/
+  EnablePowerPpm or zero-fault health counters. Confirm those from the
+  summary CSV directly before treating a profile as gate-passed.
+- WithinOneDegCluster is diagnostic only, not an official acceptance gate.
+- MATLAB never authorizes a higher hardware power after a hard-gate fault.
+- The power-ceiling estimate is a straight-line fit through a handful of
+  power levels, not a physical model; a level that already faulted (see
+  FaultKinds above) is the real ceiling evidence, not the extrapolation.
