@@ -4987,7 +4987,7 @@ static void RunBatchSweep(void)
                 preconditionThresholdBuf, sizeof(preconditionThresholdBuf));
             nlBatchState = NL_BATCH_COMPLETE;
             SetEngineState(NL_ENGINE_SAFE_STOP);
-            LogLine(
+            LogLineLarge(
                 "BATCH,BatchID=%lu,Status=PRECONDITION_UNSTABLE,CycleOrder=%lu,"
                 "PreconditionRunsUsed=%lu,PreconditionMaxCount=%lu,"
                 "PreconditionStabilityDeltaDeg=%s,PreconditionThresholdDeg=%s\r\n",
@@ -5020,7 +5020,7 @@ static void RunBatchSweep(void)
             snprintf(preconditionDeltaBuf, sizeof(preconditionDeltaBuf), "NA");
         }
         nlBatchState = NL_BATCH_COMPLETE;
-        LogLine(
+        LogLineLarge(
             "BATCH,BatchID=%lu,Status=COMPLETE,PreconditionCount=%lu,"
             "RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=1,"
             "PreconditionRunsUsed=%lu,PreconditionStabilityDeltaDeg=%s\r\n",
@@ -5096,7 +5096,7 @@ static void NonlinearBatch_OnButtonPress(void)
     nlHasLastPreconditionClosure = false;
 #endif
     nlBatchState = NL_BATCH_RUNNING;
-    LogLine(
+    LogLineLarge(
         "BATCH,BatchID=%lu,Status=START,PreconditionProtocol=%s,PreconditionCount=%lu,"
         "RunCount=%lu,TotalCycleCount=%lu,CooldownTargetMs=%lu\r\n",
         (unsigned long)nlBatchId, NL_PRECONDITION_PROTOCOL_ID_ACTIVE,
