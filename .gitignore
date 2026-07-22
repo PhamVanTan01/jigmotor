@@ -10,3 +10,7 @@ analysis/output/
 
 # Claude Code working directory
 .claude/
+
+# Python bytecode cache
+__pycache__/
+*.pyc

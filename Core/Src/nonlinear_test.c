@@ -435,15 +435,50 @@ static const char *ResolveJigId(bool *outKnown)
  * ENABLE_CCW_ENGINEERING_TEST default above on purpose -- the #error guard
  * below reads that macro, and placing it earlier would evaluate an
  * undefined macro as 0 and silently never fire. */
+/* B0-B approach mode selector (docs/b0b-v3-no-reversal-plan.md, mục 6.2).
+ * Replaces the old plain boolean ENABLE_B0B_EQUAL_APPROACH as the primary
+ * knob: mode 0 is exactly today's ENABLE_B0B_EQUAL_APPROACH=0 fallback
+ * (protocol A / SCURVE_LOCK_V2), mode 1 is exactly today's default
+ * (protocol B / SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2, backoff-then-forward
+ * reversal), mode 2 is the new V3 no-reversal CW-only pre-roll approach,
+ * mode 3 (shifted-reversal A0, V3.2 causal control) is reserved but not yet
+ * implemented -- selecting it is a hard build error until that phase. */
+#define NL_APPROACH_MODE_LOCK_ONLY               0
+#define NL_APPROACH_MODE_REVERSAL_V2             1
+#define NL_APPROACH_MODE_NO_REVERSAL_V3          2
+#define NL_APPROACH_MODE_SHIFTED_REVERSAL_A0     3
+#ifndef NL_APPROACH_MODE
+#define NL_APPROACH_MODE NL_APPROACH_MODE_REVERSAL_V2
+#endif
+#if NL_APPROACH_MODE < NL_APPROACH_MODE_LOCK_ONLY || \
+    NL_APPROACH_MODE > NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
+#error "Invalid NL_APPROACH_MODE"
+#endif
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
+#error "NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 is reserved for V3.2 and not yet implemented"
+#endif
+/* V3 pre-roll/final target math (docs/b0b-v3-no-reversal-plan.md mục 3.1)
+ * hard-codes 59/60 one-degree grid steps derived from 6 pole pairs (one
+ * electrical cycle = 360/6 = 60 mechanical degrees). Not valid for any
+ * other pole-pair count without re-deriving those two indices from
+ * MOTOR_COUNT_PER_ELECTRICAL_CYCLE. */
+#if NL_APPROACH_MODE >= NL_APPROACH_MODE_NO_REVERSAL_V3 && (MOTOR_POLE_PAIRS != 6U)
+#error "V3 no-reversal V1 is validated only for 12-pole/6-pole-pair motors"
+#endif
+
 #ifndef ENABLE_B0B_EQUAL_APPROACH
-#define ENABLE_B0B_EQUAL_APPROACH   1
+#define ENABLE_B0B_EQUAL_APPROACH   (NL_APPROACH_MODE != NL_APPROACH_MODE_LOCK_ONLY)
 #endif
 #if ENABLE_B0B_EQUAL_APPROACH
 /* The point-359 -> point-360 closure increment is 182 raw under the rounded
  * one-degree target rule. Both the local approach and the real sweep use the
  * selected motion profile and clamp the final command to the exact target. */
 #define NL_B0B_APPROACH_BACKOFF_RAW   NL_GRID_STEP_RAW_MIN
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_NO_REVERSAL_V3
+#define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_CW_PREROLL_NO_REVERSAL_V1"
+#else
 #define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2"
+#endif
 /* B0-B hard-codes "lùi CCW / tiến CW" -- đúng "cùng chiều với sweep chính" CHỈ khi sweep
  * đó là CW. ENABLE_CCW_ENGINEERING_TEST cho phép sweep chạy CCW -- kết hợp 2 flag sẽ âm
  * thầm phá vỡ đúng giả thuyết "equal approach" mà B0-B định kiểm chứng. Chưa tổng quát
@@ -451,6 +486,13 @@ static const char *ResolveJigId(bool *outKnown)
  * giả thuyết đang kiểm định chỉ nhắm sweep CW mặc định) -- cấm kết hợp thay vì đoán. */
 #if ENABLE_CCW_ENGINEERING_TEST
 #error "B0-B equal-approach (CW-only) not yet validated against CCW engineering sweeps -- enable at most one of ENABLE_B0B_EQUAL_APPROACH / ENABLE_CCW_ENGINEERING_TEST"
+#endif
+/* V3 (no-reversal / shifted-reversal) pre-roll/final target math assumes the
+ * quintic S-curve profile and its exact 40-tick cadence -- see
+ * docs/b0b-v3-no-reversal-plan.md mục 3.3. */
+#if NL_APPROACH_MODE >= NL_APPROACH_MODE_NO_REVERSAL_V3 && \
+    (NL_MOTION_PROFILE != NL_MOTION_PROFILE_SCURVE_V2)
+#error "V3 (no-reversal/shifted-reversal) requires NL_MOTION_PROFILE_SCURVE_V2 -- pre-roll/final math assumes the quintic profile"
 #endif
 #else
 #define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_LOCK_V2"
@@ -493,6 +535,11 @@ static const char *ResolveJigId(bool *outKnown)
 #define NL_SWEEP_RAMP_SOFT_START_PROTOCOL_ID   "SOFT_START_V1"
 #else
 #define NL_SWEEP_RAMP_SOFT_START_PROTOCOL_ID   "NONE"
+#endif
+/* V3 (no-reversal/shifted-reversal) pre-roll cadence is untested combined
+ * with sweep-ramp soft-start -- docs/b0b-v3-no-reversal-plan.md mục 3.3. */
+#if NL_APPROACH_MODE >= NL_APPROACH_MODE_NO_REVERSAL_V3 && ENABLE_SWEEP_RAMP_SOFT_START
+#error "V3 (no-reversal/shifted-reversal) must not combine with sweep-ramp soft-start -- untested interaction with pre-roll cadence"
 #endif
 
 /* B0-B soft-start experiment: Phase A (scripts/analyze_b0b_transient.py
@@ -586,16 +633,13 @@ static const char *ResolveJigId(bool *outKnown)
  * short. This flag instead predicts the shortfall and commands PAST the
  * base 182-raw target by that amount, so the open-loop ramp itself lands
  * closer to the true target -- feed-forward, not feedback. The bias
- * values are the exact CreepTotalRaw means measured on real hardware for
- * this precise move (test 19B, 10 official runs, 182 raw/40 tick/full
- * power): backoff mean=100.0 raw (SD 8.64), forward mean=135.2 raw
- * (SD 16.20, min-max 96-152 -- a wide range, so a fixed constant will not
- * be right for every run). These are NOT a friction coefficient -- they
- * are the total empirical correction creep needed under one specific
- * profile on one specific jig/motor, lumping static+kinetic friction,
- * cogging, backlash, rotor inertia, and settle timing together. Do NOT
- * reuse these numbers on a different jig or motor (including the new
- * 7-pole-pair motor) without re-measuring creep on that hardware first.
+ * V1 used the exact CreepTotalRaw means from test 19B (100/136 raw). The
+ * bracketed A-B-A test 21 showed that V1 systematically overshot backoff
+ * by 22.9 raw and forward by 9.5 raw. The V2 pilot values below are the
+ * endpoint-gain estimates from that same-jig dataset: 79 raw backoff and
+ * 126 raw forward. They remain empirical, hardware/profile-specific
+ * corrections, NOT friction coefficients, and must not be reused on a
+ * different jig or motor without new validation.
  *
  * Deliberately does NOT modify RampCommandToTarget or the 40-tick quintic
  * -- that function is shared by the whole official sweep's point-to-point
@@ -608,9 +652,9 @@ static const char *ResolveJigId(bool *outKnown)
 #define ENABLE_B0B_APPROACH_FEEDFORWARD   0
 #endif
 #if ENABLE_B0B_APPROACH_FEEDFORWARD
-#define NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW      100
-#define NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW      136
-#define NL_B0B_FEEDFORWARD_PROTOCOL_ID           "CREEP_DERIVED_BIAS_V1"
+#define NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW      79
+#define NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW      126
+#define NL_B0B_FEEDFORWARD_PROTOCOL_ID           "CREEP_DERIVED_BIAS_V2"
 #define NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE   NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW
 #define NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE   NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW
 #else
@@ -637,6 +681,17 @@ static const char *ResolveJigId(bool *outKnown)
     || ((NL_B0B_APPROACH_BACKOFF_RAW + NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE \
          + NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE) > NL_B0B_MAX_COMMAND_EXCURSION_RAW)
 #error "B0-B feedforward total command excursion exceeds the safety cap"
+#endif
+
+/* V3 no-reversal (docs/b0b-v3-no-reversal-plan.md mục 3.3) must not be built
+ * combined with feedforward/creep/soft-start -- those experiments target
+ * the old backoff/forward reversal legs, which V3 does not have, and their
+ * interaction with V3's pre-roll cadence is untested. Build V3-B by setting
+ * NL_APPROACH_MODE=2 with all three of these left at their 0 default. */
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_NO_REVERSAL_V3 && \
+    (ENABLE_B0B_APPROACH_FEEDFORWARD || ENABLE_B0B_APPROACH_CREEP \
+     || ENABLE_B0B_APPROACH_SOFT_START)
+#error "NL_APPROACH_MODE_NO_REVERSAL_V3 must not combine with ENABLE_B0B_APPROACH_FEEDFORWARD/CREEP/SOFT_START"
 #endif
 
 #ifndef ENABLE_NL_MATH_SELF_TEST
@@ -1766,6 +1821,11 @@ typedef enum
     NL_APPROACH_BACKOFF_SETTLE_FAILED,
     NL_APPROACH_POINT0_SETTLE_FAILED,
     NL_APPROACH_ACQUISITION_ERROR,
+    /* V3 no-reversal (NL_APPROACH_MODE_NO_REVERSAL_V3) has no backoff leg --
+     * reusing NL_APPROACH_BACKOFF_SETTLE_FAILED for its pre-roll settle
+     * failure would print a misleading "BACKOFF" name under a protocol that
+     * never backs off. */
+    NL_APPROACH_PREROLL_SETTLE_FAILED,
 } NlApproachResult_t;
 
 #if ENABLE_B0B_EQUAL_APPROACH
@@ -1779,6 +1839,7 @@ static const char *NlApproachResultName(NlApproachResult_t result)
         case NL_APPROACH_BACKOFF_SETTLE_FAILED: return "BACKOFF_SETTLE_FAILED";
         case NL_APPROACH_POINT0_SETTLE_FAILED:  return "POINT0_SETTLE_FAILED";
         case NL_APPROACH_ACQUISITION_ERROR:     return "ACQUISITION_ERROR";
+        case NL_APPROACH_PREROLL_SETTLE_FAILED: return "PREROLL_SETTLE_FAILED";
         default:                                return "UNKNOWN";
     }
 }
@@ -2347,6 +2408,38 @@ typedef struct
     NlAcquisitionCounters_t approachForwardRampAcquisition;
     NlAcquisitionCounters_t approachPoint0SettleAcquisitionDiag;
 
+    /* V3 no-reversal (NL_APPROACH_MODE_NO_REVERSAL_V3, see
+     * docs/b0b-v3-no-reversal-plan.md mục 3.1/4b) diagnostics. Always
+     * declared (all modes compile); zero-init defaults leave every
+     * Attempted flag false and every count/delta at 0 under modes 0/1, so
+     * APPROACH_RESULT prints NA for all of these there -- same convention as
+     * the V2 fields above. approachPoint0Attempted/approachPoint0SettleResult
+     * (declared above) are reused for V3's own final settle: same role
+     * (produces sweepOriginUnwrapped), same field. approachSettleAcquisition
+     * (declared above) is reused too, but covers ONLY InitialSettle +
+     * PreRollSettle under V3 (its own final settle is charged to the MAIN
+     * settleAcquisition, exactly the same convention as V2's point-0 settle
+     * -- see approachPoint0SettleAcquisitionDiag's comment). */
+    bool     approachPreRollAttempted;
+    NlSettleResult_t approachPreRollSettleResult;
+    NlAcquisitionCounters_t approachPreRollRampAcquisition;
+    /* Diagnostic-only, never subtracted from Acq* -- exists purely so the
+     * initial acquire (which intentionally has no isolated snapshot, so its
+     * reads keep flowing into Acq* like protocol A's point-0 read does) can
+     * still be reported in the V3 Approach{ReadAttempts,...} aggregate. */
+    NlAcquisitionCounters_t approachInitialAcquisitionDiag;
+    int64_t  preRollCommandDeltaRaw;
+    int64_t  preRollObservedDeltaRaw;
+    int64_t  preRollTargetErrorRaw;
+    uint32_t preRollDurationMs;
+    int64_t  finalCommandDeltaRaw;
+    int64_t  finalObservedDeltaRaw;
+    int64_t  finalTargetErrorRaw;
+    uint32_t finalDurationMs;
+    int64_t  originShiftObservedRaw;
+    int64_t  originShiftTargetErrorRaw;
+    uint32_t reversalCount;
+
     /* SF-pre-step diagnostic: per-microstep observed raw position for both
      * approach legs, only populated under protocol B (zero/unused under A).
      * *StepCount is the number of valid entries (<= NL_B0B_APPROACH_DIAG_STEPS);
@@ -2868,31 +2961,36 @@ static void FinalizeApproachEarlyExit(NlSweepCapture_t *out,
         - out->settleAcquisition.readAttempts
         - out->approachSettleAcquisition.readAttempts
         - out->approachBackoffRampAcquisition.readAttempts
-        - out->approachForwardRampAcquisition.readAttempts;
+        - out->approachForwardRampAcquisition.readAttempts
+        - out->approachPreRollRampAcquisition.readAttempts;
     out->acquisitionRetries = out->contextAcquisition.retryCount
         - out->rampAcquisition.retryCount
         - out->settleAcquisition.retryCount
         - out->approachSettleAcquisition.retryCount
         - out->approachBackoffRampAcquisition.retryCount
-        - out->approachForwardRampAcquisition.retryCount;
+        - out->approachForwardRampAcquisition.retryCount
+        - out->approachPreRollRampAcquisition.retryCount;
     out->acquisitionTransportErrors = out->contextAcquisition.transportErrorCount
         - out->rampAcquisition.transportErrorCount
         - out->settleAcquisition.transportErrorCount
         - out->approachSettleAcquisition.transportErrorCount
         - out->approachBackoffRampAcquisition.transportErrorCount
-        - out->approachForwardRampAcquisition.transportErrorCount;
+        - out->approachForwardRampAcquisition.transportErrorCount
+        - out->approachPreRollRampAcquisition.transportErrorCount;
     out->acquisitionJumpRejects = out->contextAcquisition.jumpRejectCount
         - out->rampAcquisition.jumpRejectCount
         - out->settleAcquisition.jumpRejectCount
         - out->approachSettleAcquisition.jumpRejectCount
         - out->approachBackoffRampAcquisition.jumpRejectCount
-        - out->approachForwardRampAcquisition.jumpRejectCount;
+        - out->approachForwardRampAcquisition.jumpRejectCount
+        - out->approachPreRollRampAcquisition.jumpRejectCount;
     out->acquisitionFailedSamples = out->contextAcquisition.failedSampleCount
         - out->rampAcquisition.failedSampleCount
         - out->settleAcquisition.failedSampleCount
         - out->approachSettleAcquisition.failedSampleCount
         - out->approachBackoffRampAcquisition.failedSampleCount
-        - out->approachForwardRampAcquisition.failedSampleCount;
+        - out->approachForwardRampAcquisition.failedSampleCount
+        - out->approachPreRollRampAcquisition.failedSampleCount;
 }
 #endif
 
@@ -2953,8 +3051,15 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
      * bọc snapshot, nghiễm nhiên tính vào "context" giống hệt A) để Acq*
      * của 2 protocol so sánh được với nhau theo cùng một ý nghĩa. */
     SetEngineState(NL_ENGINE_ACQUIRE);
+    /* Diagnostic-only snapshot (never subtracted from Acq*, see
+     * approachInitialAcquisitionDiag's declaration comment) -- lets V3's
+     * Approach{ReadAttempts,...} aggregate report the initial read even
+     * though it intentionally still flows into Acq* like protocol A's does. */
+    NlAcquisitionCounters_t initialAcquireBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
     acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
         NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
+    AccumulateCounterDelta(&sweepAcquisition, &initialAcquireBefore,
+        &out->approachInitialAcquisitionDiag);
     if (acquisitionResult != MA600_RESULT_OK)
     {
         out->acquisitionResult = acquisitionResult;
@@ -2993,6 +3098,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     }
     int64_t initialAnchorUnwrapped = initialSettle.finalSample.unwrappedRaw;
 
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_REVERSAL_V2
     /* 2. Ramp CHUẨN BỊ: lệnh motor 0 -> -182 raw (miền lệnh, chiều tự suy CCW).
      * Đếm số bước thực tế để kiểm chứng ở bước 6. */
     SetEngineState(NL_ENGINE_RAMP);
@@ -3210,6 +3316,222 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     /* Kiểm tra vòng kín: sau 0 -> -182 -> 0, rotor có quay lại đúng vị trí
      * cơ học ban đầu không. */
     out->approachReturnErrorRaw = sweepOriginUnwrapped - initialAnchorUnwrapped;
+#else /* NL_APPROACH_MODE_NO_REVERSAL_V3 -- docs/b0b-v3-no-reversal-plan.md muc 3.1 */
+    /* 2. Pre-roll CW: 59 lệnh RampCommandToTarget() ĐỘC LẬP, mỗi lệnh đúng 1
+     * grid step (~1 deg) -- KHÔNG được gộp thành một lệnh duy nhất tới
+     * target point-59 (~10741 raw): RampCommandToTarget() luôn chạy đúng
+     * NL_SCURVE_SEGMENT_TICKS tick BẤT KỂ khoảng cách target, nên một lệnh
+     * duy nhất tới đó sẽ ra ~268 raw/tick, nhanh gấp ~59 lần tốc độ 1 grid
+     * step bình thường (182 raw/40 tick) -- nguy cơ mất đồng bộ động cơ.
+     * Không settle giữa các segment; chỉ settle tại point-59 và point-60. */
+    SetEngineState(NL_ENGINE_RAMP);
+    uint32_t preRollStageStartTick = HAL_GetTick();
+    NlAcquisitionCounters_t approachRampBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+    MA600_Result_t approachAcqResult;
+    uint32_t preRollCommandCount = 0;
+    int32_t preRollLastDeltaSign = 0;
+    int32_t preRollPrevTarget = 0;
+    for (uint32_t point = 1U; point <= 59U; point++)
+    {
+        /* ReversalCount: chỉ đếm đổi dấu delta giữa các motion segment thực
+         * sự gửi lệnh tới động cơ, bỏ qua delta bằng 0 -- không quét thô
+         * commandPos (bị rebase ở bước 7 dưới đây, sẽ gây đếm nhầm nếu quét
+         * trực tiếp biến đó). */
+        int32_t segmentTarget = NlTargetRawMagnitudeForPoint(point);
+        int32_t segmentDelta = segmentTarget - preRollPrevTarget;
+        if (segmentDelta != 0)
+        {
+            int32_t segmentSign = (segmentDelta > 0) ? 1 : -1;
+            if (preRollLastDeltaSign != 0 && segmentSign != preRollLastDeltaSign)
+            {
+                out->reversalCount++;
+            }
+            preRollLastDeltaSign = segmentSign;
+        }
+        preRollPrevTarget = segmentTarget;
+
+        uint32_t segmentSteps = 0;
+        approachAcqResult = RampCommandToTarget(&sweepAcquisition, &commandPos,
+            segmentTarget, &segmentSteps, NULL, 0,
+            NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->motionDiagnostics);
+        preRollCommandCount += segmentSteps;
+        if (approachAcqResult != MA600_RESULT_OK)
+        {
+            AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
+                &out->approachPreRollRampAcquisition);
+            out->acquisitionResult = approachAcqResult;
+            out->approachResult = NL_APPROACH_ACQUISITION_ERROR;
+            FinalizeApproachEarlyExit(out, &sweepAcquisition);
+            return approachAcqResult;
+        }
+    }
+    AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
+        &out->approachPreRollRampAcquisition);
+
+    /* 3. Settle tại point-59 (pre-roll target). Target TUYỆT ĐỐI tính thẳng
+     * từ initialAnchorUnwrapped -- KHÔNG nối chuỗi qua anchor trung gian
+     * (đây chính là lỗi V2's expectedPoint0Unwrapped=backoffAnchorUnwrapped+
+     * BACKOFF_RAW mà V3 phải tránh, để không cộng dồn sai số settle từng
+     * bước vào target settle cuối). Counter tính vào approachSettleAcquisition
+     * (InitialSettle + PreRollSettle, KHÔNG có FinalSettle -- xem comment
+     * approachPreRollRampAcquisition). */
+    out->approachPreRollAttempted = true;
+    SetEngineState(NL_ENGINE_SETTLE);
+    int64_t expectedPoint59 = initialAnchorUnwrapped
+        + (int64_t)NlTargetRawMagnitudeForPoint(59U);
+    NlSettleObservation_t preRollSettle;
+    settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+    out->approachPreRollSettleResult = WaitForPointSettle(&sweepAcquisition,
+        expectedPoint59, true, &preRollSettle);
+    AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
+        &out->approachSettleAcquisition);
+    if (out->approachPreRollSettleResult != NL_SETTLE_OK)
+    {
+        bool isAcqError =
+            (out->approachPreRollSettleResult == NL_SETTLE_ACQUISITION_ERROR);
+        out->approachResult = isAcqError ? NL_APPROACH_ACQUISITION_ERROR
+                                         : NL_APPROACH_PREROLL_SETTLE_FAILED;
+        FinalizeApproachEarlyExit(out, &sweepAcquisition);
+        if (isAcqError)
+        {
+            out->acquisitionResult = preRollSettle.acquisitionResult;
+            return out->acquisitionResult;
+        }
+        return MA600_RESULT_OK;
+    }
+    int64_t preRollFinalUnwrapped = preRollSettle.finalSample.unwrappedRaw;
+    out->preRollCommandDeltaRaw = (int64_t)NlTargetRawMagnitudeForPoint(59U);
+    out->preRollObservedDeltaRaw = preRollFinalUnwrapped - initialAnchorUnwrapped;
+    out->preRollTargetErrorRaw =
+        out->preRollObservedDeltaRaw - out->preRollCommandDeltaRaw;
+    out->preRollDurationMs = HAL_GetTick() - preRollStageStartTick;
+
+    /* 4. Ramp CW đúng 1 grid step (point-59 -> point-60), CÙNG
+     * RampCommandToTarget/quintic/tick như đoạn point359->point360 thật mà
+     * B0-B đang kiểm định giả thuyết -- có log per-tick đầy đủ, tái dùng
+     * đúng mảng approachForwardStepUnwrapped/NL_B0B_APPROACH_DIAG_STEPS mà
+     * protocol V2 cũng dùng cho đoạn "so sánh" cuối của nó. */
+    uint32_t finalStageStartTick = HAL_GetTick();
+    SetEngineState(NL_ENGINE_RAMP);
+    int32_t finalTarget = NlTargetRawMagnitudeForPoint(60U);
+    {
+        int32_t segmentDelta = finalTarget - preRollPrevTarget;
+        if (segmentDelta != 0)
+        {
+            int32_t segmentSign = (segmentDelta > 0) ? 1 : -1;
+            if (preRollLastDeltaSign != 0 && segmentSign != preRollLastDeltaSign)
+            {
+                out->reversalCount++;
+            }
+        }
+    }
+    approachRampBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+    uint32_t finalStepsExecuted = 0;
+    approachAcqResult = RampCommandToTarget(&sweepAcquisition, &commandPos,
+        finalTarget, &finalStepsExecuted,
+        out->approachForwardStepUnwrapped, NL_B0B_APPROACH_DIAG_STEPS,
+        NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->motionDiagnostics);
+    AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
+        &out->approachForwardRampAcquisition);
+    out->approachForwardStepsExecuted = finalStepsExecuted;
+    out->approachForwardStepCount = (uint8_t)finalStepsExecuted;
+    if (approachAcqResult != MA600_RESULT_OK)
+    {
+        out->acquisitionResult = approachAcqResult;
+        out->approachResult = NL_APPROACH_ACQUISITION_ERROR;
+        FinalizeApproachEarlyExit(out, &sweepAcquisition);
+        return approachAcqResult;
+    }
+
+    /* 5. Settle tại point-60 (point-0 candidate) -- CHÍNH LÀ settle điểm 0,
+     * thay thế đúng vai trò settle điểm 0 của protocol A/V2: counter tính
+     * vào out->settleAcquisition CHÍNH (KHÔNG vào approachSettleAcquisition),
+     * giữ SettlePoints/SettleReadAttempts nhất quán giữa các protocol; kèm
+     * bản copy CHẨN ĐOÁN riêng (approachPoint0SettleAcquisitionDiag, không
+     * trừ Acq*) dùng cho ApproachAcquisitionClean/aggregate. Target TUYỆT
+     * ĐỐI tính từ initialAnchorUnwrapped, KHÔNG nối chuỗi qua
+     * preRollFinalUnwrapped. */
+    out->approachPoint0Attempted = true;
+    SetEngineState(NL_ENGINE_SETTLE);
+    int64_t expectedPoint60 = initialAnchorUnwrapped + (int64_t)finalTarget;
+    settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+    NlSettleObservation_t finalSettle;
+    out->approachPoint0SettleResult = WaitForPointSettle(&sweepAcquisition,
+        expectedPoint60, true, &finalSettle);
+    AccumulateCounterDelta(&sweepAcquisition, &settleBefore, &out->settleAcquisition);
+    AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
+        &out->approachPoint0SettleAcquisitionDiag);
+    if (out->approachPoint0SettleResult != NL_SETTLE_OK)
+    {
+        bool isAcqError =
+            (out->approachPoint0SettleResult == NL_SETTLE_ACQUISITION_ERROR);
+        out->approachResult = isAcqError ? NL_APPROACH_ACQUISITION_ERROR
+                                         : NL_APPROACH_POINT0_SETTLE_FAILED;
+        FinalizeApproachEarlyExit(out, &sweepAcquisition);
+        if (isAcqError)
+        {
+            out->acquisitionResult = finalSettle.acquisitionResult;
+            return out->acquisitionResult;
+        }
+        return MA600_RESULT_OK;
+    }
+    /* 6. Dùng final settled sample làm sweepOriginUnwrapped -- không
+     * feedforward/creep dưới V3 (mục 3.3 cưỡng chế cả hai =0 cho build này). */
+    sweepOriginUnwrapped = finalSettle.finalSample.unwrappedRaw;
+    /* Gán lại cho code dùng chung ngay sau #endif, giống V2. */
+    sample = finalSettle.finalSample;
+    settleObservation = finalSettle;
+    settleResult = out->approachPoint0SettleResult;
+    out->approachResult = NL_APPROACH_OK;
+    out->finalDurationMs = HAL_GetTick() - finalStageStartTick;
+
+    /* 7. Chẩn đoán đoạn so sánh + chuẩn hóa command-domain. finalTarget đã
+     * LÀ command-domain hiện tại (commandPos == finalTarget sau bước 4) --
+     * không có lệnh Motor_SetElectricalPos mới nào ở đây, "chuẩn hóa" chỉ là
+     * quy ước rằng sweep chính sẽ coi vị trí NÀY là gốc 0 mới (modulo điện);
+     * KHÔNG được tính vào ReversalCount vì không phát chuyển động thật. */
+    out->finalCommandDeltaRaw =
+        (int64_t)finalTarget - (int64_t)NlTargetRawMagnitudeForPoint(59U);
+    out->finalObservedDeltaRaw = sweepOriginUnwrapped - preRollFinalUnwrapped;
+    out->finalTargetErrorRaw =
+        out->finalObservedDeltaRaw - out->finalCommandDeltaRaw;
+    out->originShiftObservedRaw = sweepOriginUnwrapped - initialAnchorUnwrapped;
+    out->originShiftTargetErrorRaw =
+        out->originShiftObservedRaw - (int64_t)finalTarget;
+    out->approachStepCountValid =
+        (preRollCommandCount == 59U * NL_SCURVE_SEGMENT_TICKS)
+        && (finalStepsExecuted == NL_B0B_APPROACH_DIAG_STEPS);
+    /* ApproachAcquisitionClean: 0 retry/transport-error/jump-reject/
+     * failed-sample trên toàn bộ approach (settle chuẩn bị + ramp pre-roll +
+     * ramp final + settle cuối qua bản copy chẩn đoán) -- cùng công thức V2,
+     * chỉ đổi approachBackoffRampAcquisition -> approachPreRollRampAcquisition. */
+    out->approachAcquisitionClean =
+        (out->approachSettleAcquisition.retryCount == 0)
+        && (out->approachSettleAcquisition.transportErrorCount == 0)
+        && (out->approachSettleAcquisition.jumpRejectCount == 0)
+        && (out->approachSettleAcquisition.failedSampleCount == 0)
+        && (out->approachPreRollRampAcquisition.retryCount == 0)
+        && (out->approachPreRollRampAcquisition.transportErrorCount == 0)
+        && (out->approachPreRollRampAcquisition.jumpRejectCount == 0)
+        && (out->approachPreRollRampAcquisition.failedSampleCount == 0)
+        && (out->approachForwardRampAcquisition.retryCount == 0)
+        && (out->approachForwardRampAcquisition.transportErrorCount == 0)
+        && (out->approachForwardRampAcquisition.jumpRejectCount == 0)
+        && (out->approachForwardRampAcquisition.failedSampleCount == 0)
+        && (out->approachPoint0SettleAcquisitionDiag.retryCount == 0)
+        && (out->approachPoint0SettleAcquisitionDiag.transportErrorCount == 0)
+        && (out->approachPoint0SettleAcquisitionDiag.jumpRejectCount == 0)
+        && (out->approachPoint0SettleAcquisitionDiag.failedSampleCount == 0);
+    /* ApproachStructuralValid cho B (docs/b0b-v3-no-reversal-plan.md mục
+     * 4b): pre-roll/final command delta đều dương, ReversalCount=0, đúng số
+     * command dự kiến, cả 3 settle OK (đảm bảo vì mới tới được đây), sạch. */
+    out->approachStructuralValid =
+        (out->preRollCommandDeltaRaw > 0)
+        && (out->finalCommandDeltaRaw > 0)
+        && (out->reversalCount == 0U)
+        && out->approachStepCountValid
+        && out->approachAcquisitionClean;
+#endif /* NL_APPROACH_MODE */
 #else
     /* ===== Protocol A (DITHER_V1) origin -- unchanged behavior, only the
      * declarations moved above the #if so both branches share them. ===== */
@@ -3529,29 +3851,34 @@ capture_complete:
         - out->rampAcquisition.readAttempts - out->settleAcquisition.readAttempts
         - out->approachSettleAcquisition.readAttempts
         - out->approachBackoffRampAcquisition.readAttempts
-        - out->approachForwardRampAcquisition.readAttempts;
+        - out->approachForwardRampAcquisition.readAttempts
+        - out->approachPreRollRampAcquisition.readAttempts;
     out->acquisitionRetries = out->contextAcquisition.retryCount
         - out->rampAcquisition.retryCount - out->settleAcquisition.retryCount
         - out->approachSettleAcquisition.retryCount
         - out->approachBackoffRampAcquisition.retryCount
-        - out->approachForwardRampAcquisition.retryCount;
+        - out->approachForwardRampAcquisition.retryCount
+        - out->approachPreRollRampAcquisition.retryCount;
     out->acquisitionTransportErrors = out->contextAcquisition.transportErrorCount
         - out->rampAcquisition.transportErrorCount
         - out->settleAcquisition.transportErrorCount
         - out->approachSettleAcquisition.transportErrorCount
         - out->approachBackoffRampAcquisition.transportErrorCount
-        - out->approachForwardRampAcquisition.transportErrorCount;
+        - out->approachForwardRampAcquisition.transportErrorCount
+        - out->approachPreRollRampAcquisition.transportErrorCount;
     out->acquisitionJumpRejects = out->contextAcquisition.jumpRejectCount
         - out->rampAcquisition.jumpRejectCount - out->settleAcquisition.jumpRejectCount
         - out->approachSettleAcquisition.jumpRejectCount
         - out->approachBackoffRampAcquisition.jumpRejectCount
-        - out->approachForwardRampAcquisition.jumpRejectCount;
+        - out->approachForwardRampAcquisition.jumpRejectCount
+        - out->approachPreRollRampAcquisition.jumpRejectCount;
     out->acquisitionFailedSamples = out->contextAcquisition.failedSampleCount
         - out->rampAcquisition.failedSampleCount
         - out->settleAcquisition.failedSampleCount
         - out->approachSettleAcquisition.failedSampleCount
         - out->approachBackoffRampAcquisition.failedSampleCount
-        - out->approachForwardRampAcquisition.failedSampleCount;
+        - out->approachForwardRampAcquisition.failedSampleCount
+        - out->approachPreRollRampAcquisition.failedSampleCount;
 
     if (acquisitionResult != MA600_RESULT_OK)
     {
@@ -4430,6 +4757,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
      * actually attempted -- NL_SETTLE_OK==0 under zero-init would otherwise
      * read as a fake "OK" for stages that never ran. int64 diagnostics use
      * FormatI64 (STM32 long is 32-bit; %ld would be wrong for int64_t). */
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_REVERSAL_V2
     {
         char backoffDeltaBuf[24], backoffTargetErrBuf[24];
         char approachDeltaBuf[24], approachTargetErrBuf[24], returnErrBuf[24];
@@ -4513,6 +4841,99 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             backoffDeltaBuf, backoffTargetErrBuf,
             approachDeltaBuf, approachTargetErrBuf, returnErrBuf);
     }
+#else
+    /* NL_APPROACH_MODE_NO_REVERSAL_V3 (mode 3/A0 not yet implemented, see
+     * the #error guard near NL_APPROACH_MODE's definition). Fixed-shape
+     * record (docs/b0b-v3-no-reversal-plan.md mục 4b): every field always
+     * printed, LocalBackoff-prefixed/PrePositionSettleResult/LocalBackoffSettleResult
+     * always NA under mode 2 (no local-backoff leg exists under B) -- kept
+     * in the format string now so a future A0 implementation only has to
+     * supply real values, not change the record shape. Approach aggregate
+     * fields sum the acquisition counters covering this whole maneuver,
+     * using approachInitialAcquisitionDiag/approachPoint0SettleAcquisitionDiag
+     * for the initial read and final settle respectively (settleAcquisition
+     * main cannot be used post-hoc: the following sweep loop keeps
+     * accumulating every point settle into that same field). */
+    {
+        char preRollCmdBuf[24], preRollObsBuf[24], preRollErrBuf[24];
+        char finalCmdBuf[24], finalObsBuf[24], finalErrBuf[24];
+        char originShiftObsBuf[24], originShiftErrBuf[24];
+        FormatI64(c->preRollCommandDeltaRaw, preRollCmdBuf, sizeof(preRollCmdBuf));
+        FormatI64(c->preRollObservedDeltaRaw, preRollObsBuf, sizeof(preRollObsBuf));
+        FormatI64(c->preRollTargetErrorRaw, preRollErrBuf, sizeof(preRollErrBuf));
+        FormatI64(c->finalCommandDeltaRaw, finalCmdBuf, sizeof(finalCmdBuf));
+        FormatI64(c->finalObservedDeltaRaw, finalObsBuf, sizeof(finalObsBuf));
+        FormatI64(c->finalTargetErrorRaw, finalErrBuf, sizeof(finalErrBuf));
+        FormatI64(c->originShiftObservedRaw, originShiftObsBuf, sizeof(originShiftObsBuf));
+        FormatI64(c->originShiftTargetErrorRaw, originShiftErrBuf, sizeof(originShiftErrBuf));
+        NlAcquisitionCounters_t approachAggregate = {0};
+        approachAggregate.readAttempts = c->approachInitialAcquisitionDiag.readAttempts
+            + c->approachSettleAcquisition.readAttempts
+            + c->approachPreRollRampAcquisition.readAttempts
+            + c->approachForwardRampAcquisition.readAttempts
+            + c->approachPoint0SettleAcquisitionDiag.readAttempts;
+        approachAggregate.retryCount = c->approachInitialAcquisitionDiag.retryCount
+            + c->approachSettleAcquisition.retryCount
+            + c->approachPreRollRampAcquisition.retryCount
+            + c->approachForwardRampAcquisition.retryCount
+            + c->approachPoint0SettleAcquisitionDiag.retryCount;
+        approachAggregate.transportErrorCount = c->approachInitialAcquisitionDiag.transportErrorCount
+            + c->approachSettleAcquisition.transportErrorCount
+            + c->approachPreRollRampAcquisition.transportErrorCount
+            + c->approachForwardRampAcquisition.transportErrorCount
+            + c->approachPoint0SettleAcquisitionDiag.transportErrorCount;
+        approachAggregate.jumpRejectCount = c->approachInitialAcquisitionDiag.jumpRejectCount
+            + c->approachSettleAcquisition.jumpRejectCount
+            + c->approachPreRollRampAcquisition.jumpRejectCount
+            + c->approachForwardRampAcquisition.jumpRejectCount
+            + c->approachPoint0SettleAcquisitionDiag.jumpRejectCount;
+        approachAggregate.failedSampleCount = c->approachInitialAcquisitionDiag.failedSampleCount
+            + c->approachSettleAcquisition.failedSampleCount
+            + c->approachPreRollRampAcquisition.failedSampleCount
+            + c->approachForwardRampAcquisition.failedSampleCount
+            + c->approachPoint0SettleAcquisitionDiag.failedSampleCount;
+        bool approachComplete = (c->approachResult == NL_APPROACH_OK);
+        LogLineLarge(
+            "APPROACH_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+            "Direction=%s,Official=0,Protocol=%s,ApproachPath=CW_ONLY,ReversalCount=%lu,"
+            "Started=1,Complete=%d,Status=%s,"
+            "PreRollCommandDeltaRaw=%s,PreRollObservedDeltaRaw=%s,PreRollTargetErrorRaw=%s,"
+            "PreRollDurationMs=%lu,"
+            "FinalCommandDeltaRaw=%s,FinalObservedDeltaRaw=%s,FinalTargetErrorRaw=%s,"
+            "FinalDurationMs=%lu,"
+            "OriginShiftObservedRaw=%s,OriginShiftTargetErrorRaw=%s,"
+            "InitialSettleResult=%s,PreRollSettleResult=%s,FinalSettleResult=%s,"
+            "PrePositionSettleResult=NA,LocalBackoffSettleResult=NA,"
+            "LocalBackoffCommandDeltaRaw=NA,LocalBackoffObservedDeltaRaw=NA,"
+            "LocalBackoffTargetErrorRaw=NA,LocalBackoffDurationMs=NA,"
+            "ApproachReadAttempts=%lu,ApproachRetries=%lu,ApproachTransportErrors=%lu,"
+            "ApproachJumpRejects=%lu,ApproachFailedSamples=%lu,"
+            "ApproachAcquisitionClean=%d,ApproachStructuralValid=%d\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+            (unsigned long)c->sweepId, jigId, MOTOR_ID, dirStr,
+            NL_B0B_APPROACH_PROTOCOL_ID, (unsigned long)c->reversalCount,
+            approachComplete ? 1 : 0,
+            NlApproachResultName(c->approachResult),
+            preRollCmdBuf, preRollObsBuf, preRollErrBuf,
+            (unsigned long)c->preRollDurationMs,
+            finalCmdBuf, finalObsBuf, finalErrBuf,
+            (unsigned long)c->finalDurationMs,
+            originShiftObsBuf, originShiftErrBuf,
+            c->approachInitialAttempted
+                ? SettleResultName(c->approachInitialSettleResult) : "NA",
+            c->approachPreRollAttempted
+                ? SettleResultName(c->approachPreRollSettleResult) : "NA",
+            c->approachPoint0Attempted
+                ? SettleResultName(c->approachPoint0SettleResult) : "NA",
+            (unsigned long)approachAggregate.readAttempts,
+            (unsigned long)approachAggregate.retryCount,
+            (unsigned long)approachAggregate.transportErrorCount,
+            (unsigned long)approachAggregate.jumpRejectCount,
+            (unsigned long)approachAggregate.failedSampleCount,
+            c->approachAcquisitionClean ? 1 : 0,
+            c->approachStructuralValid ? 1 : 0);
+    }
+#endif /* NL_APPROACH_MODE */
 
     /* SF-pre-step diagnostic (see plan): raw position at each of the up-to-32
      * micro-steps of both approach legs, to tell apart a front-loaded

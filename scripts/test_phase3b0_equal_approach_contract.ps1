@@ -18,8 +18,17 @@ $baselineCsv = Join-Path ([System.IO.Path]::GetTempPath()) 'jigmotor-phase3b0-eq
 # Keep the legacy fixture checks below for legacy-profile branches, while the
 # active V2 branch has its own source contract here.
 if ($source -match '#define\s+NL_MOTION_PROFILE\s+NL_MOTION_PROFILE_SCURVE_V2') {
-    Assert-True ($source -match '#ifndef\s+ENABLE_B0B_EQUAL_APPROACH\s*[\r\n]+#define\s+ENABLE_B0B_EQUAL_APPROACH\s+1') `
-        'Motion V2 must compile equal-approach as the default.'
+    # docs/b0b-v3-no-reversal-plan.md muc 6.2: NL_APPROACH_MODE (4-way mode
+    # selector) replaced the plain ENABLE_B0B_EQUAL_APPROACH=1 literal as the
+    # primary knob; ENABLE_B0B_EQUAL_APPROACH is now DERIVED from it (true for
+    # every mode except NL_APPROACH_MODE_LOCK_ONLY=0), preserving the exact
+    # same default behavior (NL_APPROACH_MODE defaults to
+    # NL_APPROACH_MODE_REVERSAL_V2=1, so ENABLE_B0B_EQUAL_APPROACH still
+    # compiles to true by default) without rewriting every call site.
+    Assert-True ($source -match '#ifndef\s+NL_APPROACH_MODE\s*[\r\n]+#define\s+NL_APPROACH_MODE\s+NL_APPROACH_MODE_REVERSAL_V2') `
+        'NL_APPROACH_MODE must default to NL_APPROACH_MODE_REVERSAL_V2 (equal-approach behavior unchanged by default).'
+    Assert-True ($source -match '#ifndef\s+ENABLE_B0B_EQUAL_APPROACH\s*[\r\n]+#define\s+ENABLE_B0B_EQUAL_APPROACH\s+\(NL_APPROACH_MODE\s*!=\s*NL_APPROACH_MODE_LOCK_ONLY\)') `
+        'ENABLE_B0B_EQUAL_APPROACH must be derived from NL_APPROACH_MODE (true for every mode except LOCK_ONLY).'
     Assert-True ($source -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2') `
         'Motion V2 equal-approach protocol ID is missing.'
     Assert-True ($source -match '#define\s+NL_B0B_APPROACH_DIAG_STEPS\s+NL_MOTION_COMMANDS_PER_DEG') `

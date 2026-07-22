@@ -807,10 +807,78 @@ foreach ($inputPath in $Path) {
                 $closureErrorDeg = Convert-ToNullableDouble $resultFields['ClosureErrorDeg']
                 $closureValid = if ($resultFields.ContainsKey('ClosureValid')) { $resultFields['ClosureValid'] } else { "" }
                 $closureMeaning = if ($schemaVersion -eq '6') { 'OFFICIAL_INTEGRITY' } else { 'DIAGNOSTIC' }
-            } elseif ($null -ne $dataErrors[0] -and $null -ne $dataErrors[256]) {
-                $closureErrorDeg = [double]$dataErrors[256] - [double]$dataErrors[0]
-                $closureValid = if ([math]::Abs($closureErrorDeg) -le 0.20) { '1' } else { '0' }
-                $closureMeaning = 'DIAGNOSTIC_SCHEMA_V5_PILOT'
+            } else {
+                # Legacy schema-v5 logs never carry ClosureErrorDeg on RESULT, so the closure
+                # point must be resolved from the sweep's own grid size (AnalysisPoints), not
+                # assumed. Pre-migration 256-raw-count-step logs close at point 256; the current
+                # 1-degree grid (UNIFORM_1_DEG_ROUNDED_RAW_V1) closes at point 360. Hardcoding
+                # 256 here silently mislabeled every 360-point sweep's closure as point 256's
+                # ordinary mid-sweep error -- see docs/measured-and-checked-parameters.md.
+                $legacyClosureIndex = if ($meta.ContainsKey('AnalysisPoints')) {
+                    [int]$meta['AnalysisPoints']
+                } elseif ($resultFields.ContainsKey('AnalysisPoints')) {
+                    [int]$resultFields['AnalysisPoints']
+                } else {
+                    256
+                }
+                if ($null -ne $dataErrors[0] -and $null -ne $dataErrors[$legacyClosureIndex]) {
+                    $closureErrorDeg = [double]$dataErrors[$legacyClosureIndex] - [double]$dataErrors[0]
+                    $closureValid = if ([math]::Abs($closureErrorDeg) -le 0.20) { '1' } else { '0' }
+                    $closureMeaning = 'DIAGNOSTIC_SCHEMA_V5_PILOT'
+                }
+            }
+
+            # Post-turn residual (docs/b0b-v3-no-reversal-plan.md muc 4/5): points
+            # 361..370 repeat mechanical angles 1..10 after one full turn. Formula is
+            # locked to DATA.Error (legacy TARGET_MINUS_MEASURED, see muc 4 sign-convention
+            # lock) -- must NOT be normalized against SHADOW_RESULT.ClosureErrorDeg
+            # (canonical MEASURED_MINUS_TARGET, different sampling pipeline/reference).
+            # Only meaningful for the current 360-point-grid protocol -- pre-migration
+            # 256-point logs have no points past 264 and must not compute this.
+            $postTurnAnalysisPoints = if ($meta.ContainsKey('AnalysisPoints')) {
+                [int]$meta['AnalysisPoints']
+            } elseif ($resultFields.ContainsKey('AnalysisPoints')) {
+                [int]$resultFields['AnalysisPoints']
+            } else {
+                0
+            }
+            $postTurnCapturedPoints = if ($meta.ContainsKey('CapturedPoints')) {
+                [int]$meta['CapturedPoints']
+            } elseif ($resultFields.ContainsKey('CapturedPoints')) {
+                [int]$resultFields['CapturedPoints']
+            } else {
+                0
+            }
+            $postTurnRepeatRmsDeg = $null
+            $closureNormalizedDeltaRmsDeg = $null
+            $closureNormalizedDeltaMaxAbsDeg = $null
+            $postTurnAnalysisValid = '0'
+            if ($postTurnAnalysisPoints -eq 360 -and $postTurnCapturedPoints -ge 371 -and
+                    $officialValid -eq '1' -and $null -ne $dataErrors[0] -and
+                    $null -ne $dataErrors[360]) {
+                $allIndicesPresent = $true
+                for ($i = 1; $i -le 10; $i++) {
+                    if ($null -eq $dataErrors[$i] -or $null -eq $dataErrors[360 + $i]) {
+                        $allIndicesPresent = $false
+                        break
+                    }
+                }
+                if ($allIndicesPresent) {
+                    $legacyClosureForResidual = [double]$dataErrors[360] - [double]$dataErrors[0]
+                    $postValues = @()
+                    $normalizedValues = @()
+                    for ($i = 1; $i -le 10; $i++) {
+                        $post = [double]$dataErrors[360 + $i] - [double]$dataErrors[$i]
+                        $postValues += $post
+                        $normalizedValues += ($post - $legacyClosureForResidual)
+                    }
+                    $postTurnRepeatRmsDeg = [math]::Sqrt(
+                        ($postValues | ForEach-Object { $_ * $_ } | Measure-Object -Sum).Sum / $postValues.Count)
+                    $closureNormalizedDeltaRmsDeg = [math]::Sqrt(
+                        ($normalizedValues | ForEach-Object { $_ * $_ } | Measure-Object -Sum).Sum / $normalizedValues.Count)
+                    $closureNormalizedDeltaMaxAbsDeg = ($normalizedValues | ForEach-Object { [math]::Abs($_) } | Measure-Object -Maximum).Maximum
+                    $postTurnAnalysisValid = '1'
+                }
             }
 
             $probeInitialDeg = if ($closureProbeStages.ContainsKey('INITIAL') -and
@@ -936,6 +1004,10 @@ foreach ($inputPath in $Path) {
                 ClosureLimitDeg = if ($resultFields.ContainsKey('ClosureLimitDeg')) { $resultFields['ClosureLimitDeg'] } else { "" }
                 ClosureValid = $closureValid
                 ClosureMeaning = $closureMeaning
+                PostTurnRepeatRMSDeg = $postTurnRepeatRmsDeg
+                ClosureNormalizedDeltaRMSDeg = $closureNormalizedDeltaRmsDeg
+                ClosureNormalizedDeltaMaxAbsDeg = $closureNormalizedDeltaMaxAbsDeg
+                PostTurnAnalysisValid = $postTurnAnalysisValid
                 AcquisitionResult = if ($meta.ContainsKey('AcquisitionResult')) { $meta['AcquisitionResult'] } else { "" }
                 EndStatus = if ($end.ContainsKey('Status')) { $end['Status'] } else { "" }
                 MotorOffset1 = $motorOffset1

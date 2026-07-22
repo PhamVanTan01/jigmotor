@@ -11,12 +11,12 @@ $source = Get-Content -Raw (Join-Path $root 'Core\Src\nonlinear_test.c')
 # --- Default-off. ---
 Assert-True ($source -match '#ifndef\s+ENABLE_B0B_APPROACH_FEEDFORWARD\s*[\r\n]+#define\s+ENABLE_B0B_APPROACH_FEEDFORWARD\s+0') `
     'ENABLE_B0B_APPROACH_FEEDFORWARD must default to 0.'
-Assert-True ($source -match '#define\s+NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW\s+100' -and
-        $source -match '#define\s+NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW\s+136') `
-    'Feedforward bias constants must match the creep-derived first estimates (100/136 raw).'
-Assert-True ($source -match '#define\s+NL_B0B_FEEDFORWARD_PROTOCOL_ID\s+"CREEP_DERIVED_BIAS_V1"' -and
+Assert-True ($source -match '#define\s+NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW\s+79' -and
+        $source -match '#define\s+NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW\s+126') `
+    'Feedforward bias constants must match the test-21 bracket-retuned estimates (79/126 raw).'
+Assert-True ($source -match '#define\s+NL_B0B_FEEDFORWARD_PROTOCOL_ID\s+"CREEP_DERIVED_BIAS_V2"' -and
         $source -match '#define\s+NL_B0B_FEEDFORWARD_PROTOCOL_ID\s+"NONE"') `
-    'Both protocol IDs (CREEP_DERIVED_BIAS_V1 when flagged / NONE default) must exist.'
+    'Both protocol IDs (CREEP_DERIVED_BIAS_V2 when flagged / NONE default) must exist.'
 Assert-True ($source -notmatch 'friction.feed.forward' -and $source -notmatch 'FRICTION_FEEDFORWARD') `
     'The bias must not be framed/named as a friction coefficient -- it is a lumped, creep-derived, hardware-specific empirical correction.'
 
@@ -121,12 +121,12 @@ foreach ($lf in $logFiles) {
 }
 Assert-True ($maxApproachResultLen -gt 0) `
     'No real APPROACH_RESULT line found to measure the line budget against.'
-# Worst case per new field: CREEP_DERIVED_BIAS_V1 (longest protocol string),
+# Worst case per new field: CREEP_DERIVED_BIAS_V2 (longest protocol string),
 # a full-width negative int (-2147483648) for the bias fields, a full-width
 # uint32 for the step counters, and a full-width negative int64 for the
 # target-error fields.
 $newFieldsCost = (
-    ',B0BFeedforwardProtocol=CREEP_DERIVED_BIAS_V1,FeedforwardBackoffBiasRaw=-2147483648,' +
+    ',B0BFeedforwardProtocol=CREEP_DERIVED_BIAS_V2,FeedforwardBackoffBiasRaw=-2147483648,' +
     'FeedforwardForwardBiasRaw=-2147483648,BackoffExtensionStepsExecuted=4294967295,' +
     'ForwardExtensionStepsExecuted=4294967295,BackoffFeedforwardTargetErrorRaw=-9223372036854775808,' +
     'ForwardFeedforwardTargetErrorRaw=-9223372036854775808,BackoffFeedforwardTrackingValid=0,' +

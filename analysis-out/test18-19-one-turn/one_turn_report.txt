@@ -1,0 +1,25 @@
+ONE-TURN PATTERN REPORT
+=======================
+Official 360-degree sweeps: 51
+Dominant-order count: {36: 51}
+Representative sweep: T18-A1 RunOrder=1
+Representative 36-sector folding explained ratio: 0.839781
+H36/H72/H108 explained ratio mean: 0.840149
+12-order model explained ratio mean: 0.976016
+
+Top pooled harmonics:
+H 36: amplitude=0.905083 deg period=10.000 deg energy=78.887% phaseCoherence=0.99999
+H  1: amplitude=0.229019 deg period=360.000 deg energy=5.053% phaseCoherence=0.99620
+H 72: amplitude=0.196280 deg period=5.000 deg energy=3.711% phaseCoherence=0.99989
+H  9: amplitude=0.189960 deg period=40.000 deg energy=3.477% phaseCoherence=0.99985
+H  2: amplitude=0.175772 deg period=180.000 deg energy=2.977% phaseCoherence=0.99828
+H108: amplitude=0.121278 deg period=3.333 deg energy=1.417% phaseCoherence=0.99971
+H 18: amplitude=0.094409 deg period=20.000 deg energy=0.859% phaseCoherence=0.99968
+H 54: amplitude=0.068856 deg period=6.667 deg energy=0.458% phaseCoherence=0.99927
+H  3: amplitude=0.057371 deg period=120.000 deg energy=0.318% phaseCoherence=0.99927
+H  6: amplitude=0.051177 deg period=60.000 deg energy=0.253% phaseCoherence=0.99816
+H  7: amplitude=0.050711 deg period=51.429 deg energy=0.251% phaseCoherence=0.99229
+H 12: amplitude=0.047848 deg period=30.000 deg energy=0.328% phaseCoherence=0.88271
+H 45: amplitude=0.045518 deg period=8.000 deg energy=0.201% phaseCoherence=0.99622
+H 11: amplitude=0.038878 deg period=32.727 deg energy=0.148% phaseCoherence=0.99318
+H 13: amplitude=0.037802 deg period=27.692 deg energy=0.140% phaseCoherence=0.99144

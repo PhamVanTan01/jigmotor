@@ -1,0 +1,41 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 51
+Excluded sweeps: 6
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+T18-A1: n=1 mean=2.938284 deg SD=0.000000 CV=0.000% range=0.000000 r(2.77s)=0.000000 deg slope=+0.000000 deg/run R2=0.0000
+T18-B: n=10 mean=2.903100 deg SD=0.020662 CV=0.712% range=0.072602 r(2.77s)=0.057233 deg slope=-0.000919 deg/run R2=0.0181
+T18-A2: n=10 mean=2.922543 deg SD=0.022531 CV=0.771% range=0.079086 r(2.77s)=0.062410 deg slope=+0.001080 deg/run R2=0.0211
+T19-A1: n=10 mean=3.006788 deg SD=0.016967 CV=0.564% range=0.063870 r(2.77s)=0.046999 deg slope=-0.003561 deg/run R2=0.4039
+T19-B: n=10 mean=2.964750 deg SD=0.022407 CV=0.756% range=0.072072 r(2.77s)=0.062068 deg slope=-0.002883 deg/run R2=0.1517
+T19-A2: n=10 mean=2.968294 deg SD=0.010646 CV=0.359% range=0.035112 r(2.77s)=0.029489 deg slope=+0.001394 deg/run R2=0.1571
+ALL: n=51 mean=2.952805 deg SD=0.040886 CV=1.385% range=0.165282 r(2.77s)=0.113254 deg slope=+0.001559 deg/run R2=0.3213
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00487800 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00075612 deg
+max |recomputed A36 - shadow A36| = 0.00076189 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=51 r=+0.8756 R2=0.7667 slope=+0.363182 residualSD=0.019947
+RMS_AC_Deg: n=51 r=-0.5537 R2=0.3066 slope=-8.006511 residualSD=0.034392
+A36_Deg: n=51 r=-0.6210 R2=0.3856 slope=-5.932177 residualSD=0.032372
+ClosureErrorDeg: n=51 r=-0.0613 R2=0.0038 slope=-0.037990 residualSD=0.041223
+ApproachReturnErrorDeg: n=51 r=+0.0353 R2=0.0012 slope=+0.021849 residualSD=0.041275
+AnalysisStartRawCentered: n=51 r=-0.8268 R2=0.6836 slope=-0.000296 residualSD=0.023232
+
+EXCLUSIONS
+----------
+p03 jig 1 test 18.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+p03 jig 1 test 18 B.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+p03 jig 1 test 18 A.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+p03 jig 1 test 19 A.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+p03 jig 1 test 19 B.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+p03  jig 1 test 19 A2.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded

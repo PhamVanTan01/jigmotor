@@ -56,7 +56,12 @@ foreach ($delta in @(182, 183, -182, -183)) {
 }
 
 # Start alignment: one smooth phase alignment, then equal CW local approach.
-Assert-True ($nl -match '#define\s+ENABLE_B0B_EQUAL_APPROACH\s+1' -and
+# docs/b0b-v3-no-reversal-plan.md muc 6.2: ENABLE_B0B_EQUAL_APPROACH is now
+# derived from NL_APPROACH_MODE (true for every mode except LOCK_ONLY=0),
+# which itself defaults to NL_APPROACH_MODE_REVERSAL_V2=1 -- same compiled
+# default behavior as the old literal "#define ENABLE_B0B_EQUAL_APPROACH 1".
+Assert-True ($nl -match '#ifndef\s+NL_APPROACH_MODE\s*[\r\n]+#define\s+NL_APPROACH_MODE\s+NL_APPROACH_MODE_REVERSAL_V2' -and
+        $nl -match '#define\s+ENABLE_B0B_EQUAL_APPROACH\s+\(NL_APPROACH_MODE\s*!=\s*NL_APPROACH_MODE_LOCK_ONLY\)' -and
         $nl -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2') `
     'Same-direction point-0 approach is not the Motion-V2 default.'
 $lockFn = [regex]::Match($nl, '(?s)static void LockStartPosition\(void\).*?\n\}').Value

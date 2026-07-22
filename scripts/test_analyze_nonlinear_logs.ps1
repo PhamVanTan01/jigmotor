@@ -14,12 +14,14 @@ try {
         (Join-Path $fixtures 'schema-v5-interrupted-preamble-p03-jig2.txt'),
         (Join-Path $fixtures 'schema-v5-shadow-p05-jig3.txt'),
         (Join-Path $fixtures 'schema-v5-phase3b0-closure-probe-p05-jig3.txt'),
-        (Join-Path $fixtures 'schema-v5-preconditioned-10run-p03-jig1.txt')
+        (Join-Path $fixtures 'schema-v5-preconditioned-10run-p03-jig1.txt'),
+        (Join-Path $fixtures 'schema-v5-360grid-closure-p03-jig1.txt'),
+        (Join-Path $fixtures 'schema-v5-postturn-residual-p03-jig1.txt')
     ) -OutCsv $csv | Out-Null
 
     $rows = @(Import-Csv $csv)
-    if ($rows.Count -ne 10) {
-        throw "Expected 10 parsed records, got $($rows.Count)."
+    if ($rows.Count -ne 12) {
+        throw "Expected 12 parsed records, got $($rows.Count)."
     }
 
     $schema5Misleading = $rows | Where-Object {
@@ -115,6 +117,38 @@ try {
             ($preconditionedOfficial.Run -ne '1') -or
             ($preconditionedOfficial.EligibleForStatistics -ne '1')) {
         throw 'Precondition/official statistical eligibility parsing failed.'
+    }
+
+    # Guards the index-256 -> index-360 closure fix: this fixture declares
+    # AnalysisPoints=360 and puts a deliberately wrong-looking value at DATA
+    # point 256 (error=-5.0) so a regression to a hardcoded legacy index 256
+    # would compute ClosureErrorDeg=-5.01 instead of the correct -0.09 from
+    # DATA point 360. See docs/measured-and-checked-parameters.md.
+    $grid360 = $rows | Where-Object { $_.Source -eq 'schema-v5-360grid-closure-p03-jig1.txt' }
+    if (($null -eq $grid360) -or
+            ($grid360.ClosureMeaning -ne 'DIAGNOSTIC_SCHEMA_V5_PILOT') -or
+            ([math]::Abs([double]$grid360.ClosureErrorDeg - -0.09) -gt 0.000001) -or
+            ($grid360.ClosureValid -ne '1')) {
+        throw "Schema-v5 360-point-grid closure fallback did not resolve DATA point 360 (got ClosureErrorDeg=$($grid360.ClosureErrorDeg))."
+    }
+
+    # Post-turn residual (docs/b0b-v3-no-reversal-plan.md muc 4/5): fixture has
+    # known post[i]/normalized[i] values (i=1..10, odd/even alternating 0.3/0.5
+    # before closure-normalization) so the three metrics are hand-verifiable,
+    # not just "the analyzer agrees with itself":
+    #   post[i]       alternates 0.3 (odd i) / 0.5 (even i)
+    #   legacyClosure = Error[360]-Error[0] = -0.08 - 0.01 = -0.09
+    #   normalized[i] = post[i] - legacyClosure -> 0.39 (odd) / 0.59 (even)
+    #   PostTurnRepeatRMSDeg            = sqrt(mean(post^2))       = sqrt(0.17)   = 0.41231056...
+    #   ClosureNormalizedDeltaRMSDeg    = sqrt(mean(normalized^2)) = sqrt(0.2501) = 0.50009999...
+    #   ClosureNormalizedDeltaMaxAbsDeg = max(|normalized|)                      = 0.59
+    $postTurn = $rows | Where-Object { $_.Source -eq 'schema-v5-postturn-residual-p03-jig1.txt' }
+    if (($null -eq $postTurn) -or
+            ($postTurn.PostTurnAnalysisValid -ne '1') -or
+            ([math]::Abs([double]$postTurn.PostTurnRepeatRMSDeg - 0.412310562561766) -gt 0.000001) -or
+            ([math]::Abs([double]$postTurn.ClosureNormalizedDeltaRMSDeg - 0.500099990001999) -gt 0.000001) -or
+            ([math]::Abs([double]$postTurn.ClosureNormalizedDeltaMaxAbsDeg - 0.59) -gt 0.000001)) {
+        throw "Post-turn residual fixture did not resolve the expected RMS/MaxAbs values (got PostTurnRepeatRMSDeg=$($postTurn.PostTurnRepeatRMSDeg), ClosureNormalizedDeltaRMSDeg=$($postTurn.ClosureNormalizedDeltaRMSDeg), ClosureNormalizedDeltaMaxAbsDeg=$($postTurn.ClosureNormalizedDeltaMaxAbsDeg), PostTurnAnalysisValid=$($postTurn.PostTurnAnalysisValid))."
     }
 
     Write-Host '[ OK ] Analyzer regression tests passed.'
