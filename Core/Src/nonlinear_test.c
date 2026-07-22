@@ -552,13 +552,20 @@ static const char *ResolveJigId(bool *outKnown)
 #ifndef ENABLE_B0B_APPROACH_CREEP
 #define ENABLE_B0B_APPROACH_CREEP   0
 #endif
+/* Shared deadband for creep AND feed-forward bias (below) -- deliberately
+ * NOT gated behind ENABLE_B0B_APPROACH_CREEP: a build with feed-forward on
+ * and creep off (the first hardware test) must still compile, and both
+ * features validate against the same "close enough to the true target"
+ * threshold. About 2x NL_POINT_SETTLE_ERROR_RAW (9 raw), looser than the
+ * pure position-noise floor so neither mechanism chases noise. */
+#define NL_B0B_TARGET_DEADBAND_RAW      16LL
+
 #if ENABLE_B0B_APPROACH_CREEP
 /* Pilot/uncalibrated first estimates:
  * - step = NL_RAMP_STEP (8 raw), the same per-command magnitude the
  *   existing ramp already uses -- a step size already proven not to
  *   destabilize this motor.
- * - deadband = 16 raw, about 2x NL_POINT_SETTLE_ERROR_RAW (9 raw), looser
- *   than the pure position-noise floor so creep does not chase noise.
+ * - deadband: see NL_B0B_TARGET_DEADBAND_RAW above.
  * - max total correction = 150 raw, comfortably above the largest
  *   shortfall observed so far (~90-120 raw) with margin, while still far
  *   below NL_B0B_APPROACH_BACKOFF_RAW (182) so a runaway cannot be
@@ -566,12 +573,70 @@ static const char *ResolveJigId(bool *outKnown)
  * - max iterations = 30: at 8 raw/step this reaches the 150-raw budget in
  *   ~19 steps: 30 leaves headroom without an effectively unbounded loop. */
 #define NL_B0B_CREEP_STEP_RAW           8
-#define NL_B0B_CREEP_DEADBAND_RAW       16LL
+#define NL_B0B_CREEP_DEADBAND_RAW       NL_B0B_TARGET_DEADBAND_RAW
 #define NL_B0B_CREEP_MAX_TOTAL_RAW      150LL
 #define NL_B0B_CREEP_MAX_ITERATIONS     30U
 #define NL_B0B_CREEP_PROTOCOL_ID        "ENCODER_CREEP_V1"
 #else
 #define NL_B0B_CREEP_PROTOCOL_ID        "NONE"
+#endif
+
+/* B0-B creep-derived endpoint bias: creep (above) closes the approach-leg
+ * gap REACTIVELY, after settle already confirmed the open-loop ramp fell
+ * short. This flag instead predicts the shortfall and commands PAST the
+ * base 182-raw target by that amount, so the open-loop ramp itself lands
+ * closer to the true target -- feed-forward, not feedback. The bias
+ * values are the exact CreepTotalRaw means measured on real hardware for
+ * this precise move (test 19B, 10 official runs, 182 raw/40 tick/full
+ * power): backoff mean=100.0 raw (SD 8.64), forward mean=135.2 raw
+ * (SD 16.20, min-max 96-152 -- a wide range, so a fixed constant will not
+ * be right for every run). These are NOT a friction coefficient -- they
+ * are the total empirical correction creep needed under one specific
+ * profile on one specific jig/motor, lumping static+kinetic friction,
+ * cogging, backlash, rotor inertia, and settle timing together. Do NOT
+ * reuse these numbers on a different jig or motor (including the new
+ * 7-pole-pair motor) without re-measuring creep on that hardware first.
+ *
+ * Deliberately does NOT modify RampCommandToTarget or the 40-tick quintic
+ * -- that function is shared by the whole official sweep's point-to-point
+ * ramps too, not just B0-B. Instead, ExtendCommandBlind() (see near
+ * CreepToUnwrappedTarget) appends a SEPARATE, open-loop, unmeasured
+ * "blind" continuation after the unchanged 40-tick ramp finishes, before
+ * settle runs -- the original ramp stays byte-identical to the A
+ * baseline; the bias is a distinct, later, additive stage. Default OFF. */
+#ifndef ENABLE_B0B_APPROACH_FEEDFORWARD
+#define ENABLE_B0B_APPROACH_FEEDFORWARD   0
+#endif
+#if ENABLE_B0B_APPROACH_FEEDFORWARD
+#define NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW      100
+#define NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW      136
+#define NL_B0B_FEEDFORWARD_PROTOCOL_ID           "CREEP_DERIVED_BIAS_V1"
+#define NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE   NL_B0B_FEEDFORWARD_BACKOFF_BIAS_RAW
+#define NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE   NL_B0B_FEEDFORWARD_FORWARD_BIAS_RAW
+#else
+#define NL_B0B_FEEDFORWARD_PROTOCOL_ID            "NONE"
+#define NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE    0
+#define NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE    0
+#endif
+/* Guard 1: bias must be non-negative -- direction is applied separately by
+ * ExtendCommandBlind's caller (sign of the argument passed in); a negative
+ * bias constant here would compile but silently reverse direction. */
+#if (NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE < 0) \
+    || (NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE < 0)
+#error "B0-B endpoint bias must be non-negative"
+#endif
+/* Guard 2: cap on the TOTAL commandPos excursion each leg actually spans
+ * (not just the bias in isolation) -- backoff spans 182+backoffBias;
+ * forward spans (182+backoffBias)+forwardBias, since forward starts from
+ * wherever the (now-biased) backoff leg left commandPos. 500 raw ~= 2.75
+ * deg mechanical ~= 16.5 deg electrical at today's 6 pole pairs -- a pilot
+ * safety cap, not a production limit. */
+#define NL_B0B_MAX_COMMAND_EXCURSION_RAW   500
+#if ((NL_B0B_APPROACH_BACKOFF_RAW + NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE) \
+        > NL_B0B_MAX_COMMAND_EXCURSION_RAW) \
+    || ((NL_B0B_APPROACH_BACKOFF_RAW + NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE \
+         + NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE) > NL_B0B_MAX_COMMAND_EXCURSION_RAW)
+#error "B0-B feedforward total command excursion exceeds the safety cap"
 #endif
 
 #ifndef ENABLE_NL_MATH_SELF_TEST
@@ -1946,6 +2011,56 @@ static MA600_Result_t CreepToUnwrappedTarget(
 }
 #endif /* ENABLE_B0B_APPROACH_CREEP */
 
+#if ENABLE_B0B_APPROACH_FEEDFORWARD
+/* Open-loop, unmeasured continuation of *commandPos by exactly
+ * totalExtensionRaw (signed), issued NL_RAMP_STEP-sized (last step
+ * clamped to the remainder, same clamping idiom as CreepToUnwrappedTarget)
+ * -- but unlike creep, this NEVER reads the encoder and NEVER settles
+ * between steps: it is a blind, predictive command sequence, not a
+ * feedback loop. Signature deliberately mirrors RampCommandToTarget's
+ * (stepsExecuted out-param, shared NlMotionDiagnostics_t) rather than
+ * inventing a parallel diagnostics type, and takes no acquisition context
+ * parameter -- it has nothing to acquire. Always runs to completion (no
+ * error path): with no MA600 calls, there is nothing that can fail here. */
+static void ExtendCommandBlind(int32_t *commandPos, int32_t totalExtensionRaw,
+    uint32_t stepDelayMs, uint32_t *stepsExecuted, NlMotionDiagnostics_t *motionDiag)
+{
+    int direction = (totalExtensionRaw >= 0) ? 1 : -1;
+    uint32_t remaining = (uint32_t)AbsI64ToU64((int64_t)totalExtensionRaw);
+    uint32_t deadline = osKernelGetTickCount();
+    uint32_t steps = 0U;
+    if (motionDiag != NULL) motionDiag->segmentCount++;
+
+    while (remaining > 0U)
+    {
+        uint32_t stepMagnitude = (remaining > (uint32_t)NL_RAMP_STEP)
+            ? (uint32_t)NL_RAMP_STEP : remaining;
+        *commandPos += direction * (int32_t)stepMagnitude;
+        Motor_SetElectricalPos((uint16_t)*commandPos, 1.0f);
+
+        deadline += stepDelayMs;
+        uint32_t now = osKernelGetTickCount();
+        if ((int32_t)(deadline - now) > 0)
+        {
+            (void)osDelayUntil(deadline);
+        }
+        else if ((int32_t)(now - deadline) > 0)
+        {
+            uint32_t lateness = now - deadline;
+            if (motionDiag != NULL)
+            {
+                motionDiag->timingOverrunCount++;
+                if (lateness > motionDiag->maxLatenessTicks)
+                    motionDiag->maxLatenessTicks = lateness;
+            }
+        }
+        remaining -= stepMagnitude;
+        steps++;
+    }
+    *stepsExecuted = steps;
+}
+#endif /* ENABLE_B0B_APPROACH_FEEDFORWARD */
+
 static float WrapSignedDeg(float deg)
 {
     while (deg > 180.0f) deg -= 360.0f;
@@ -2246,6 +2361,20 @@ typedef struct
      * (zero-init) when the flag is off or a leg never reached this stage. */
     NlCreepDiagnostics_t backoffCreepDiag;
     NlCreepDiagnostics_t forwardCreepDiag;
+
+    /* B0-B creep-derived endpoint bias diagnostics -- see
+     * ENABLE_B0B_APPROACH_FEEDFORWARD. Always declared (both branches
+     * compile); *ExtensionSteps stays 0 and *TrackingValid stays false
+     * (zero-init) when the flag is off. *FeedforwardTargetErrorRaw is a
+     * snapshot taken immediately after settle, BEFORE creep (if also
+     * enabled) runs -- so it reflects feed-forward's own contribution,
+     * never creep's. */
+    uint32_t backoffExtensionSteps;
+    uint32_t forwardExtensionSteps;
+    int64_t  backoffFeedforwardTargetErrorRaw;
+    int64_t  forwardFeedforwardTargetErrorRaw;
+    bool     backoffFeedforwardTrackingValid;
+    bool     forwardFeedforwardTrackingValid;
 
 #if ENABLE_SWEEP_RAMP_STEP_DIAG
     /* Independent of B0-B: per-microstep raw position for the first
@@ -2885,6 +3014,14 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         FinalizeApproachEarlyExit(out, &sweepAcquisition);
         return approachAcqResult;
     }
+#if ENABLE_B0B_APPROACH_FEEDFORWARD
+    /* Ramp gốc 40-tick giữ nguyên (target vẫn đúng backoffCommand, không
+     * đổi) -- extension mù chạy TRƯỚC settle, không phản hồi, không đo lại
+     * encoder. Cùng chiều với backoff (âm). */
+    ExtendCommandBlind(&commandPos, -NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE,
+        NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->backoffExtensionSteps,
+        &out->motionDiagnostics);
+#endif
 
     /* 3. Settle CÓ mục tiêu tại vị trí lùi -- BẮT BUỘC == NL_SETTLE_OK, cùng
      * cách tách lỗi ở bước 1. Counter bước 1+3 tính vào
@@ -2912,6 +3049,16 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         }
         return MA600_RESULT_OK;
     }
+#if ENABLE_B0B_APPROACH_FEEDFORWARD
+    /* Snapshot NGAY SAU settle, TRƯỚC creep (nếu creep cũng bật) -- đo
+     * đúng phần feed-forward tự làm được, không để creep "nhận công" (creep
+     * cập nhật backoffSettle.finalSample TRƯỚC khi backoffAnchorUnwrapped
+     * được đọc ở dưới, nên phải chụp ở đây, sớm hơn). */
+    out->backoffFeedforwardTargetErrorRaw =
+        backoffSettle.finalSample.unwrappedRaw - expectedBackoffUnwrapped;
+    out->backoffFeedforwardTrackingValid =
+        AbsI64ToU64(out->backoffFeedforwardTargetErrorRaw) <= (uint64_t)NL_B0B_TARGET_DEADBAND_RAW;
+#endif
 #if ENABLE_B0B_APPROACH_CREEP
     /* 3b. Settle chỉ xác nhận rotor đã DỪNG và gần đúng vùng (910 raw,
      * ~5 deg) -- không xác nhận đã đạt đúng expectedBackoffUnwrapped. Creep
@@ -2953,6 +3100,13 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         FinalizeApproachEarlyExit(out, &sweepAcquisition);
         return approachAcqResult;
     }
+#if ENABLE_B0B_APPROACH_FEEDFORWARD
+    /* Ramp gốc 40-tick giữ nguyên (target vẫn đúng 0, không đổi) --
+     * extension mù chạy TRƯỚC settle. Cùng chiều với forward (dương, CW). */
+    ExtendCommandBlind(&commandPos, NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE,
+        NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->forwardExtensionSteps,
+        &out->motionDiagnostics);
+#endif
 
     /* 5. Settle CÓ mục tiêu tường minh tại điểm 0 -- BẮT BUỘC ==
      * NL_SETTLE_OK. Đây CHÍNH LÀ settle điểm 0, thay thế đúng vai trò settle
@@ -2985,6 +3139,15 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         }
         return MA600_RESULT_OK;
     }
+#if ENABLE_B0B_APPROACH_FEEDFORWARD
+    /* Snapshot NGAY SAU settle điểm-0, TRƯỚC creep -- cùng lý do như đoạn
+     * backoff (point0Settle.finalSample bị creep cập nhật trước khi
+     * sweepOriginUnwrapped đọc nó ở dưới, nên phải chụp ở đây). */
+    out->forwardFeedforwardTargetErrorRaw =
+        point0Settle.finalSample.unwrappedRaw - expectedPoint0Unwrapped;
+    out->forwardFeedforwardTrackingValid =
+        AbsI64ToU64(out->forwardFeedforwardTargetErrorRaw) <= (uint64_t)NL_B0B_TARGET_DEADBAND_RAW;
+#endif
 #if ENABLE_B0B_APPROACH_CREEP
     /* Cùng lý do như creep đoạn backoff -- settle điểm 0 chỉ xác nhận đã
      * dừng, không xác nhận đã đạt đúng expectedPoint0Unwrapped. Cập nhật
@@ -4271,6 +4434,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         char backoffDeltaBuf[24], backoffTargetErrBuf[24];
         char approachDeltaBuf[24], approachTargetErrBuf[24], returnErrBuf[24];
         char backoffCreepTotalBuf[24], forwardCreepTotalBuf[24];
+        char backoffFeedforwardErrBuf[24], forwardFeedforwardErrBuf[24];
         FormatI64(c->backoffObservedDeltaRaw, backoffDeltaBuf, sizeof(backoffDeltaBuf));
         FormatI64(c->backoffTargetErrorRaw, backoffTargetErrBuf, sizeof(backoffTargetErrBuf));
         FormatI64(c->approachObservedDeltaRaw, approachDeltaBuf, sizeof(approachDeltaBuf));
@@ -4280,6 +4444,10 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             sizeof(backoffCreepTotalBuf));
         FormatI64(c->forwardCreepDiag.totalCorrectionRaw, forwardCreepTotalBuf,
             sizeof(forwardCreepTotalBuf));
+        FormatI64(c->backoffFeedforwardTargetErrorRaw, backoffFeedforwardErrBuf,
+            sizeof(backoffFeedforwardErrBuf));
+        FormatI64(c->forwardFeedforwardTargetErrorRaw, forwardFeedforwardErrBuf,
+            sizeof(forwardFeedforwardErrBuf));
         bool approachComplete = (c->approachResult == NL_APPROACH_OK);
         LogLineLarge(
             "APPROACH_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
@@ -4289,6 +4457,11 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             "B0BCreepProtocol=%s,BackoffCreepResult=%s,BackoffCreepIterations=%lu,"
             "BackoffCreepTotalRaw=%s,ForwardCreepResult=%s,ForwardCreepIterations=%lu,"
             "ForwardCreepTotalRaw=%s,"
+            "B0BFeedforwardProtocol=%s,FeedforwardBackoffBiasRaw=%d,"
+            "FeedforwardForwardBiasRaw=%d,BackoffExtensionStepsExecuted=%lu,"
+            "ForwardExtensionStepsExecuted=%lu,BackoffFeedforwardTargetErrorRaw=%s,"
+            "ForwardFeedforwardTargetErrorRaw=%s,BackoffFeedforwardTrackingValid=%d,"
+            "ForwardFeedforwardTrackingValid=%d,"
             "ApproachExpectedSteps=%d,"
             "ApproachInitialSettleResult=%s,ApproachBackoffSettleResult=%s,"
             "ApproachPoint0SettleResult=%s,"
@@ -4314,6 +4487,15 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             NlCreepResultName(c->forwardCreepDiag.result),
             (unsigned long)c->forwardCreepDiag.iterations,
             forwardCreepTotalBuf,
+            NL_B0B_FEEDFORWARD_PROTOCOL_ID,
+            (int)NL_B0B_FEEDFORWARD_BACKOFF_BIAS_ACTIVE,
+            (int)NL_B0B_FEEDFORWARD_FORWARD_BIAS_ACTIVE,
+            (unsigned long)c->backoffExtensionSteps,
+            (unsigned long)c->forwardExtensionSteps,
+            backoffFeedforwardErrBuf,
+            forwardFeedforwardErrBuf,
+            c->backoffFeedforwardTrackingValid ? 1 : 0,
+            c->forwardFeedforwardTrackingValid ? 1 : 0,
             (int)NL_B0B_APPROACH_DIAG_STEPS,
             c->approachInitialAttempted
                 ? SettleResultName(c->approachInitialSettleResult) : "NA",

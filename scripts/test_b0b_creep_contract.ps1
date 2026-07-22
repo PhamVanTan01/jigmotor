@@ -12,10 +12,17 @@ $source = Get-Content -Raw (Join-Path $root 'Core\Src\nonlinear_test.c')
 Assert-True ($source -match '#ifndef\s+ENABLE_B0B_APPROACH_CREEP\s*[\r\n]+#define\s+ENABLE_B0B_APPROACH_CREEP\s+0') `
     'ENABLE_B0B_APPROACH_CREEP must default to 0.'
 Assert-True ($source -match '#define\s+NL_B0B_CREEP_STEP_RAW\s+8' -and
-        $source -match '#define\s+NL_B0B_CREEP_DEADBAND_RAW\s+16LL' -and
         $source -match '#define\s+NL_B0B_CREEP_MAX_TOTAL_RAW\s+150LL' -and
         $source -match '#define\s+NL_B0B_CREEP_MAX_ITERATIONS\s+30U') `
-    'Creep safety constants (step/deadband/budget/iteration cap) must match the documented first estimates.'
+    'Creep safety constants (step/budget/iteration cap) must match the documented first estimates.'
+# Deadband is shared with the feed-forward experiment (Part 3) via
+# NL_B0B_TARGET_DEADBAND_RAW, defined unconditionally so a
+# feedforward=1/creep=0 build still compiles -- NL_B0B_CREEP_DEADBAND_RAW
+# now aliases it instead of redefining its own literal. The EFFECTIVE
+# value (16 raw) must still match the documented first estimate.
+Assert-True ($source -match '(?m)^#define\s+NL_B0B_TARGET_DEADBAND_RAW\s+16LL' -and
+        $source -match '#define\s+NL_B0B_CREEP_DEADBAND_RAW\s+NL_B0B_TARGET_DEADBAND_RAW') `
+    'NL_B0B_CREEP_DEADBAND_RAW must alias the shared, unconditionally-defined NL_B0B_TARGET_DEADBAND_RAW (16 raw).'
 Assert-True ($source -match '#define\s+NL_B0B_CREEP_PROTOCOL_ID\s+"ENCODER_CREEP_V1"' -and
         $source -match '#define\s+NL_B0B_CREEP_PROTOCOL_ID\s+"NONE"') `
     'Both protocol IDs (ENCODER_CREEP_V1 when flagged / NONE default) must exist.'
