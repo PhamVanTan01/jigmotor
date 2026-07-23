@@ -3,11 +3,23 @@
 ## Goal
 
 Confirm that a jig with the MA600A mounted **end-of-shaft** (on-axis, per the
-datasheet's Figure 6) actually meets the sensor's accuracy spec before it is
-trusted for motor QC. This checks the mechanical assembly first, then a
-firmware angle sweep, and is meant to run once per jig (or after any rework
-that disturbs the sensor/magnet mounting) -- it is not a per-unit production
-test.
+datasheet's Figure 6) is mechanically sound and produces a stable,
+repeatable whole-system angle-error signature before it is trusted for motor
+QC. The firmware sweep has no independent precision reference encoder, so it
+cannot establish the MA600A's sensor-only INL. It measures the combined motor,
+magnet, mounting, jig mechanics, drive, and MA600A response.
+
+This plan uses measurement policy `WHOLE_SYSTEM_REPORT_ONLY_V1`: acquisition
+validity is checked, but no nonlinear pass/fail threshold is applied. The
+test is meant to run once per jig (or after rework that disturbs the mounting),
+not as a per-unit production acceptance test.
+
+Protocol note (2026-07-14): the earlier three-run/average convention below is
+historical and must not be used for the new repeatability qualification.
+Phase-3A hardware logs show an unresolved full-turn endpoint error. Complete
+`phase3b0-closure-measurement-review.md` first. The qualified protocol must
+retain every individual result, separate first-run/cold-start effects, and
+pass closure without averaging.
 
 This is separate from `docs/nonlinear-test-plan.md`-style tests in the sibling
 `GremsyMotorTester-MainBoard` project (jig-to-jig correlation, LUT A/B). Those
@@ -51,16 +63,18 @@ first place.
   curve in the firmware sweep below (a field near the edges of the functional
   range, or the air gap being wrong, tends to show up as excess nonlinearity).
 
-### Accuracy reference values to check against
+### Datasheet context (not firmware acceptance limits)
 
-- Typical INL at 25 degC, 45mT (uncalibrated): **0.2 deg**, max **0.6 deg**.
+- Typical sensor-only INL at 25 degC, 45mT (uncalibrated): **0.2 deg**, max
+  **0.6 deg**. The firmware sweep must not use these values as pass/fail limits
+  because commanded motor position is not an independent precision reference.
 - INL after the MA600A's on-chip 32-point user calibration: **0.06-0.1 deg**.
   **Do not rely on this for jigmotor.** The sibling project's
   `docs/ma600-calibration-procedure.md` found the on-chip LUT correction does
   not generalize well on real hardware and now ships disabled
-  (`MA600_LUT_ENABLED = 0`). This plan evaluates the **raw, uncalibrated**
-  reading -- if raw accuracy doesn't meet spec, fix the mounting, don't reach
-  for the LUT to paper over it.
+  (`MA600_LUT_ENABLED = 0`). This plan records the **raw, uncalibrated**
+  whole-system response. Do not use the LUT to hide a mechanical or acquisition
+  problem.
 - Functional test mode (FTM) accuracy: **2 deg**. This is a sanity self-test
   (verifies signal-path integrity, not real angle accuracy) -- use it only to
   rule out a dead/miswired sensor before doing the real sweep below.
@@ -135,15 +149,20 @@ Procedure:
 - Check the mechanical checklist first. If air gap, concentricity, or field
   strength are out of range, fix the assembly before drawing any conclusion
   from the firmware sweep numbers.
-- Compare the measured raw `NL AVG` against the datasheet's uncalibrated INL
-  reference (0.2 deg typical, 0.6 deg max at 25 degC/45mT). Treat 0.6 deg as
-  the initial pass/fail threshold, but -- consistent with how
-  `docs/nonlinear-test-plan.md` handles this -- prioritize repeatability
-  across runs first, and refine the threshold empirically once enough jigs
-  have been measured.
-- If the raw sweep is consistently worse than 0.6 deg even with the mechanical
-  checklist passing, suspect field strength (measure with a gaussmeter if not
-  already done) before suspecting the sensor itself.
+- Require protocol validity first: clean sensor status, successful checked SPI
+  reads, acceptable sample jumps, the expected analysis-point count, successful
+  settling at every point, and gross tracking integrity. Schema v5 uses wide
+  15 deg RMS / 30 deg maximum tracking-error guards to catch a stalled or lost
+  drive; these guards are not nonlinear product-quality acceptance limits.
+- Compare repeatability across runs, jigs, and remounts. Investigate a change
+  against the established jig/product population rather than against the
+  MA600A's sensor-only 0.6 degree INL limit.
+- If the whole-system curve degrades while acquisition remains valid, inspect
+  air gap, concentricity, magnet strength, mechanical seating, drive behavior,
+  and temperature before suspecting the sensor alone.
+- Introducing a production nonlinear threshold requires a new versioned policy
+  backed by a representative population study or an independent reference
+  encoder.
 
 ## Parse Raw Logs
 

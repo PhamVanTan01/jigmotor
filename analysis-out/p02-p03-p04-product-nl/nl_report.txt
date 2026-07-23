@@ -1,0 +1,37 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 40
+Excluded sweeps: 4
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+P03: n=10 mean=3.028056 deg SD=0.017451 CV=0.576% range=0.059810 r(2.77s)=0.048338 deg slope=+0.001489 deg/run R2=0.0667
+P02_R1: n=10 mean=3.267638 deg SD=0.015352 CV=0.470% range=0.042698 r(2.77s)=0.042526 deg slope=+0.002363 deg/run R2=0.2173
+P02_R2: n=10 mean=3.275605 deg SD=0.016853 CV=0.515% range=0.052314 r(2.77s)=0.046684 deg slope=+0.002347 deg/run R2=0.1777
+P04: n=10 mean=3.139313 deg SD=0.031366 CV=0.999% range=0.085238 r(2.77s)=0.086883 deg slope=-0.007112 deg/run R2=0.4713
+ALL: n=40 mean=3.177653 deg SD=0.105208 CV=3.311% range=0.300376 r(2.77s)=0.291428 deg slope=+0.003192 deg/run R2=0.1258
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00497400 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00066937 deg
+max |recomputed A36 - shadow A36| = 0.00072431 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=40 r=+0.0096 R2=0.0001 slope=+0.031431 residualSD=0.106579
+RMS_AC_Deg: n=40 r=+0.9476 R2=0.8979 slope=+4.285550 residualSD=0.034064
+A36_Deg: n=40 r=+0.0894 R2=0.0080 slope=+0.410786 residualSD=0.106157
+ClosureErrorDeg: n=40 r=-0.8736 R2=0.7632 slope=-0.865820 residualSD=0.051867
+ApproachReturnErrorDeg: n=40 r=+0.8754 R2=0.7664 slope=+0.369389 residualSD=0.051515
+AnalysisStartRawCentered: n=40 r=-0.9097 R2=0.8275 slope=-0.000003 residualSD=0.044265
+
+EXCLUSIONS
+----------
+B0-B p03 jig 1 test 22.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+B0-B p02 jig 1 test 23.txt TestID=2 SweepID=1 RunOrder=0: precondition excluded
+B0-B p02 jig 1 test 23 lần 2.txt TestID=13 SweepID=12 RunOrder=0: precondition excluded
+B0-B p04 jig 1 test 23 lần 1.txt TestID=24 SweepID=23 RunOrder=0: precondition excluded

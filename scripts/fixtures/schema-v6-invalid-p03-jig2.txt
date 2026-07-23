@@ -1,0 +1,4 @@
+Getting result!
+META,SchemaVersion=6,MCU_UID=0025002C3234470438353535,JigID=JIG2,JigKnown=1,MotorID=p03,OfficialResultSource=CANONICAL_Q16,OfficialMeasurementValid=0,OfficialInvalidReasonMask=0x0000000C,TrackingValid=0,AcquisitionResult=OK,MathContractVersion=CANONICAL_Q16_V1,SignedRoundingMode=NEAREST_AWAY_FROM_ZERO,ReferenceDefinition=POINT0_CANONICAL_MEAN,CanonicalMeanSource=ALL_TIER1,MadFilteringEnabled=0,MeanDCComparableToLegacy=0,SampleTimingMode=SCHEDULED_START_TO_START,SampleIntervalCycles=6720,ScheduleInitialized=1,SettleStabilityValid=1,SettleTargetProximityValid=0,SettleValid=0
+DIAGNOSTIC_RESULT,SchemaVersion=6,Point0MeanRawQ16=805306368,ClosureErrorRawQ16=4772186,ClosureErrorDeg=0.4000,ClosureLimitDeg=0.2000,ClosureValid=0,Diagnostic_RMS_AC=100.0000,Diagnostic_Motor_Error_P2P_Deg=320.0000
+END,SchemaVersion=6,Status=INVALID

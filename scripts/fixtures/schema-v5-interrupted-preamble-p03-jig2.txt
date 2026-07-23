@@ -1,0 +1,12 @@
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_AUDIT_V1,AuditFieldsLocked=0
+MA600 move-to-zero: error=3.14 deg settled=0/500 cmdPos=-1904
+[UART CLOSED]
+[UART OPENED]
+Getting result!
+META,SchemaVersion=5,MCU_UID=0025002C3234470438353535,JigID=JIG2,JigKnown=1,MotorID=p03,MeasurementValid=1,TrackingValid=1,AcquisitionResult=OK,SessionID=ABC00001,BatchID=2,RunOrder=1,TestID=2,SweepID=1
+Nonlinear 1 Angle: 2.70 degree
+MA600 Raw Nonlinear 1 Angle: 2.70 degree
+Nonlinear Final Average: 2.70 degree
+MA600 Raw Nonlinear Final Average: 2.70 degree
+Motor OK!
+END,SchemaVersion=5,TestID=2,SweepID=1,Status=VALID

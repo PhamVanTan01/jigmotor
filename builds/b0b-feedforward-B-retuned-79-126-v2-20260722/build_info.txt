@@ -1,0 +1,17 @@
+SavedAtLocal=2026-07-22T11:11:28+07:00
+SavedAtUtc=2026-07-22T04:11:28Z
+Configuration=Release
+GitCommit=921cfc1762fdd047e9a3698851f261a2f5d6c4d6
+GitDirty=yes
+JigAppMode=Measurement(2)
+ApproachProtocol=SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2
+FeedforwardEnabled=1
+FeedforwardProtocol=CREEP_DERIVED_BIAS_V2
+FeedforwardBackoffBiasRaw=79
+FeedforwardForwardBiasRaw=126
+ExpectedBackoffExtensionSteps=10
+ExpectedForwardExtensionSteps=16
+SoftStartEnabled=0
+CreepEnabled=0
+HexSHA256=82A7798CFD5E6FE36925255BFBBEC1960A05D9E10F53009BE9DDA01FF3B3C312
+ElfSHA256=25A2406DB29C113094FB7B819BFFF0EA7A1A8A8E9DA94C811B4A6CFBA51DB30E

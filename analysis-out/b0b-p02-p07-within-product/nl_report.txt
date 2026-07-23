@@ -1,0 +1,45 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 80
+Excluded sweeps: 8
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+P02_R1: n=10 mean=3.267638 deg SD=0.015352 CV=0.470% range=0.042698 r(2.77s)=0.042526 deg slope=+0.002363 deg/run R2=0.2173
+P02_R2: n=10 mean=3.275605 deg SD=0.016853 CV=0.515% range=0.052314 r(2.77s)=0.046684 deg slope=+0.002347 deg/run R2=0.1777
+P03: n=10 mean=3.028056 deg SD=0.017451 CV=0.576% range=0.059810 r(2.77s)=0.048338 deg slope=+0.001489 deg/run R2=0.0667
+P04: n=10 mean=3.139313 deg SD=0.031366 CV=0.999% range=0.085238 r(2.77s)=0.086883 deg slope=-0.007112 deg/run R2=0.4713
+P05: n=10 mean=3.137267 deg SD=0.022619 CV=0.721% range=0.078206 r(2.77s)=0.062655 deg slope=+0.005605 deg/run R2=0.5629
+P06_R1: n=10 mean=3.029728 deg SD=0.016148 CV=0.533% range=0.047572 r(2.77s)=0.044731 deg slope=-0.000486 deg/run R2=0.0083
+P06_R2: n=10 mean=3.085274 deg SD=0.013256 CV=0.430% range=0.038640 r(2.77s)=0.036720 deg slope=-0.000545 deg/run R2=0.0155
+P07: n=10 mean=2.477082 deg SD=0.013715 CV=0.554% range=0.036014 r(2.77s)=0.037991 deg slope=-0.001414 deg/run R2=0.0974
+ALL: n=80 mean=3.054996 deg SD=0.237785 CV=7.783% range=0.832636 r(2.77s)=0.658663 deg slope=-0.007594 deg/run R2=0.5507
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00497400 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00066937 deg
+max |recomputed A36 - shadow A36| = 0.00072431 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=80 r=+0.9335 R2=0.8715 slope=+0.764989 residualSD=0.085799
+RMS_AC_Deg: n=80 r=+0.9490 R2=0.9006 slope=+7.160891 residualSD=0.075442
+A36_Deg: n=80 r=+0.2913 R2=0.0849 slope=+2.064647 residualSD=0.228924
+ClosureErrorDeg: n=80 r=+0.5243 R2=0.2749 slope=+0.859910 residualSD=0.203774
+ApproachReturnErrorDeg: n=80 r=-0.0575 R2=0.0033 slope=-0.070104 residualSD=0.238908
+AnalysisStartRawCentered: n=80 r=+0.1930 R2=0.0373 slope=+0.000002 residualSD=0.234804
+
+EXCLUSIONS
+----------
+B0-B p02 jig 1 test 23.txt TestID=2 SweepID=1 RunOrder=0: precondition excluded
+B0-B p02 jig 1 test 23 lần 2.txt TestID=13 SweepID=12 RunOrder=0: precondition excluded
+B0-B p03 jig 1 test 22.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+B0-B p04 jig 1 test 23 lần 1.txt TestID=24 SweepID=23 RunOrder=0: precondition excluded
+B0-B p05 jig 1 test 23 lần 1.txt TestID=35 SweepID=34 RunOrder=0: precondition excluded
+B0-B p06 jig 1 test 23 lần 1.txt TestID=46 SweepID=45 RunOrder=0: precondition excluded
+B0-B p06 jig 1 test 23 lần 2.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+B0-B p07 jig 1 test 23 lần 1.txt TestID=57 SweepID=56 RunOrder=0: precondition excluded

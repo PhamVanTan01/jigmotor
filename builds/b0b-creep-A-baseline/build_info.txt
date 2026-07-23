@@ -1,0 +1,5 @@
+﻿SavedAtUtc=2026-07-21T04:54:51Z
+Configuration=Release
+GitCommit=4b4b4e4c55ac01b90cf5b18329f7cc9412c2745f
+GitDirty=yes
+ApproachFlag(ENABLE_B0B_EQUAL_APPROACH)=1

@@ -1,0 +1,31 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 55
+Excluded sweeps: 0
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+P02_R1: n=11 mean=3.267324 deg SD=0.014602 CV=0.447% range=0.042698 r(2.77s)=0.040446 deg slope=+0.001930 deg/run R2=0.1921
+P02_R2: n=11 mean=3.276718 deg SD=0.016409 CV=0.501% range=0.052314 r(2.77s)=0.045452 deg slope=+0.001204 deg/run R2=0.0592
+P04: n=11 mean=3.192359 deg SD=0.178435 CV=5.589% range=0.628500 r(2.77s)=0.494265 deg slope=-0.031858 deg/run R2=0.3506
+P05: n=11 mean=3.196504 deg SD=0.197635 CV=6.183% range=0.678052 r(2.77s)=0.547448 deg slope=-0.025414 deg/run R2=0.1819
+P06: n=11 mean=3.029283 deg SD=0.015391 CV=0.508% range=0.047572 r(2.77s)=0.042632 deg slope=-0.000141 deg/run R2=0.0009
+ALL: n=55 mean=3.192438 deg SD=0.145869 CV=4.569% range=0.780070 r(2.77s)=0.404057 deg slope=-0.005287 deg/run R2=0.3372
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00497400 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00066937 deg
+max |recomputed A36 - shadow A36| = 0.00072431 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=55 r=+0.8403 R2=0.7061 slope=+0.745924 residualSD=0.079825
+RMS_AC_Deg: n=55 r=+0.8639 R2=0.7464 slope=+5.316958 residualSD=0.074151
+A36_Deg: n=55 r=+0.6503 R2=0.4229 slope=+3.042488 residualSD=0.111857
+ClosureErrorDeg: n=55 r=+0.8835 R2=0.7805 slope=+0.834824 residualSD=0.068984
+ApproachReturnErrorDeg: n=55 r=+0.3108 R2=0.0966 slope=+0.215452 residualSD=0.139948
+AnalysisStartRawCentered: n=55 r=-0.4666 R2=0.2177 slope=-0.000002 residualSD=0.130229

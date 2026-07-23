@@ -1,6 +1,16 @@
 # Build outputs
 Debug/
 Release/
+Control/
+Measurement/
+Build/
+
+# Generated offline analysis artifacts (source remains tracked).
+analysis/output/
 
 # Claude Code working directory
 .claude/
+
+# Python bytecode cache
+__pycache__/
+*.pyc

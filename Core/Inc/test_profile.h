@@ -7,11 +7,12 @@
 #ifndef __TEST_PROFILE_H
 #define __TEST_PROFILE_H
 
-#define TEST_PROFILE_ID            "7PP_ENGINEERING_LOCK_ONLY_1RUN_V1"
-#define TEST_BUILD_LABEL           "motor-7pp-lock-only-1run-v1"
+#define TEST_PROFILE_7PP_ENGINEERING 1
+#define TEST_PROFILE_ID            "7PP_ENGINEERING_MOTION_V2_DMA_LOCK_ONLY_1RUN_V1"
+#define TEST_BUILD_LABEL           "motor-7pp-motion-v2-dma-lock-only-1run-v1"
 #define TEST_RESULT_CLASS          "ENGINEERING_ONLY"
-#define TEST_APPROACH_PROTOCOL     "LOCK_ONLY_DITHER_V1"
-#define TEST_MOTION_PROFILE        "LEGACY_RAMP8_1MS_BRINGUP"
+#define TEST_APPROACH_PROTOCOL     "SCURVE_LOCK_V2"
+#define TEST_MOTION_PROFILE        "SCURVE40_ABSOLUTE_TICK_V2"
 
 /* MOTOR_NUM_POLSE is the physical pole count, not the pole-pair count. */
 #ifndef MOTOR_NUM_POLSE
@@ -28,6 +29,34 @@
 #endif
 #ifndef ENABLE_CCW_ENGINEERING_TEST
 #define ENABLE_CCW_ENGINEERING_TEST 0
+#endif
+
+/* Motion Control V2 + DMA baseline selected from
+ * codex/motion-control-v2-dma. Values match the selectors local to
+ * nonlinear_test.c: S-curve V2=2 and lock-only approach=0. */
+#ifndef NL_MOTION_PROFILE
+#define NL_MOTION_PROFILE          2
+#endif
+#ifndef NL_APPROACH_MODE
+#define NL_APPROACH_MODE           0
+#endif
+
+/* Keep observation enabled, but do not combine the first movement check
+ * with any experimental control behavior. */
+#ifndef ENABLE_SWEEP_RAMP_STEP_DIAG
+#define ENABLE_SWEEP_RAMP_STEP_DIAG 1
+#endif
+#ifndef ENABLE_SWEEP_RAMP_SOFT_START
+#define ENABLE_SWEEP_RAMP_SOFT_START 0
+#endif
+#ifndef ENABLE_B0B_APPROACH_SOFT_START
+#define ENABLE_B0B_APPROACH_SOFT_START 0
+#endif
+#ifndef ENABLE_B0B_APPROACH_CREEP
+#define ENABLE_B0B_APPROACH_CREEP  0
+#endif
+#ifndef ENABLE_B0B_APPROACH_FEEDFORWARD
+#define ENABLE_B0B_APPROACH_FEEDFORWARD 0
 #endif
 
 #endif /* __TEST_PROFILE_H */
