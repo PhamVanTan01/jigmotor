@@ -121,7 +121,7 @@ typedef struct
     uint8_t          filt;          /* FILT (0x0D) -- FW bits */
     uint8_t          status;        /* STATUS (0x1A) at snapshot time */
     uint8_t          prt;           /* PRT (0x1C) -- MTSP/PRT/PRTS/APRT/FTA/FTM */
-    uint8_t          rmapId;        /* RMAPID (0x1F) */
+    uint8_t          rmapId;        /* Register 0x1F: MA600 PRODUCTID or MA600A RMAPID */
     uint8_t          corr[32];      /* CORR0..CORR31, 0x20-0x3F */
     uint16_t         corrNonZeroCount;
     uint32_t         corrCrc32;     /* CRC-32/ISO-HDLC over corr[0..31], CORR0 first */

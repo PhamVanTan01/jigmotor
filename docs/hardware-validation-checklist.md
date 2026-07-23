@@ -50,6 +50,14 @@ Phase 1 is closed for JIG1/JIG3 by passing locked, self-identified CONFIG
 records. JIG2 requires the same locked smoke record before reuse in production
 scope.
 
+The dedicated 1807/7PP engineering profile is a separate hardware identity:
+its sensor repeatedly reported register `0x1F = 0x3C` on JIG3 on 2026-07-23.
+That value is the original MA600 `PRODUCTID` default (60 decimal), whereas
+MA600A uses the same address for `RMAPID/SUFFIXID` with default `0x00`.
+`TEST_EXPECTED_MA600_REG_1F` therefore locks the 7PP build to `0x3C`; it does
+not weaken the remaining Policy-A checks or change the historical MA600A
+audit records above.
+
 The Phase-2B canonical-shadow run matrix is tracked separately in
 `docs/phase2b-shadow-checklist.md`.
 

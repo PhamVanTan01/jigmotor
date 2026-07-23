@@ -58,6 +58,9 @@
     ENABLE_B0B_APPROACH_CREEP || ENABLE_B0B_APPROACH_FEEDFORWARD
 #error "7PP first-movement profile must not enable experimental motion controls"
 #endif
+#if TEST_EXPECTED_MA600_REG_1F != 0x3CU
+#error "7PP 1807 profile requires MA600 PRODUCTID 0x3C at register 0x1F"
+#endif
 #endif
 
 #endif /* __MOTOR_CONFIG_H */

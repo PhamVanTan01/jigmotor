@@ -13,6 +13,14 @@
 #define TEST_RESULT_CLASS          "ENGINEERING_ONLY"
 #define TEST_APPROACH_PROTOCOL     "SCURVE_LOCK_V2"
 #define TEST_MOTION_PROFILE        "SCURVE40_ABSOLUTE_TICK_V2"
+#define TEST_SENSOR_IDENTITY       "MA600_PRODUCTID_0x3C"
+
+/* Register 0x1F is PRODUCTID on the original MA600 and reads 60 decimal
+ * (0x3C). On MA600A the same address is RMAPID/SUFFIXID and defaults to
+ * 0x00. The 1807/7PP hardware log repeatedly reports 0x3C, so this
+ * engineering profile requires that exact identity instead of disabling
+ * the configuration gate. */
+#define TEST_EXPECTED_MA600_REG_1F 0x3CU
 
 /* MOTOR_NUM_POLSE is the physical pole count, not the pole-pair count. */
 #ifndef MOTOR_NUM_POLSE

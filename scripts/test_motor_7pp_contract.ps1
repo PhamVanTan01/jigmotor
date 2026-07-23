@@ -26,6 +26,9 @@ Assert-True ($profile -match '#define\s+NL_MOTION_PROFILE\s+2' -and
 Assert-True ($profile -match 'SCURVE40_ABSOLUTE_TICK_V2' -and
         $profile -match 'SCURVE_LOCK_V2') `
     '7PP profile identity does not describe the selected Motion V2 protocol.'
+Assert-True ($profile -match '#define\s+TEST_EXPECTED_MA600_REG_1F\s+0x3CU' -and
+        $profile -match 'MA600_PRODUCTID_0x3C') `
+    '7PP profile must require the observed MA600 PRODUCTID 0x3C.'
 Assert-True ($profile -match '#define\s+ENABLE_B0B_APPROACH_CREEP\s+0' -and
         $profile -match '#define\s+ENABLE_B0B_APPROACH_FEEDFORWARD\s+0' -and
         $profile -match '#define\s+ENABLE_SWEEP_RAMP_SOFT_START\s+0') `
@@ -47,8 +50,13 @@ Assert-True ($nonlinear -match 'NL_MOTION_PROFILE_SCURVE_V2' -and
         $nonlinear -match 'NL_SCURVE_SEGMENT_TICKS\s+40U' -and
         $nonlinear -match 'NL_GRID_PROTOCOL_ID\s+"UNIFORM_1_DEG_ROUNDED_RAW_V1"') `
     'Motion V2 or one-degree measurement grid is missing.'
+Assert-True (($nonlinear | Select-String -AllMatches `
+        'TEST_EXPECTED_MA600_REG_1F').Matches.Count -eq 3) `
+    'Every known jig profile must use the 7PP sensor identity expectation.'
 Assert-True ($main -match 'BUILD_MANIFEST' -and
+        $main -match 'char\s+manifestLine\[768\]' -and
         $main -match 'MotorPolePairs=%u' -and
+        $main -match 'ExpectedSensorReg1F=0x%02X' -and
         $main -match 'RunsPerButton=%u' -and
         $main -match 'Transport=%s') `
     'Boot manifest does not identify the one-run 7PP build.'

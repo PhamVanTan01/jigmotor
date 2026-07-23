@@ -825,12 +825,13 @@ void StartDefaultTask(void *argument)
   HAL_UART_Transmit(&huart3, (uint8_t *)transportLine,
       (uint16_t)transportLen, 50);
 
-  char manifestLine[512];
+  char manifestLine[768];
   int manifestLen = snprintf(manifestLine, sizeof(manifestLine),
       "BUILD_MANIFEST,AppMode=%s,AppProfile=%s,MCU=STM32F405RGTx,"
       "SourceId=%s,ProfileFingerprint=0x%08lX,SystemClockHz=%lu,Transport=%s,"
       "BuildLabel=%s,ResultClass=%s,MotorPoleCount=%u,MotorPolePairs=%u,"
       "ElectricalCycleRaw=%u,ElectricalRippleOrder=%u,Approach=%s,Motion=%s,"
+      "SensorIdentity=%s,ExpectedSensorReg1F=0x%02X,"
       "AutoBatch=%u,RunsPerButton=%u\r\n",
       AppEngine_ModeId(), AppEngine_ProfileId(), AppEngine_SourceId(),
       AppEngine_ProfileFingerprint(),
@@ -839,7 +840,9 @@ void StartDefaultTask(void *argument)
       (unsigned)MOTOR_POLE_PAIRS,
       (unsigned)MOTOR_COUNT_PER_ELECTRICAL_CYCLE,
       (unsigned)MOTOR_ELECTRICAL_RIPPLE_ORDER, TEST_APPROACH_PROTOCOL,
-      TEST_MOTION_PROFILE, (unsigned)ENABLE_AUTO_BATCH_TEST,
+      TEST_MOTION_PROFILE, TEST_SENSOR_IDENTITY,
+      (unsigned)TEST_EXPECTED_MA600_REG_1F,
+      (unsigned)ENABLE_AUTO_BATCH_TEST,
       (unsigned)TEST_RUNS_PER_BUTTON);
   if (manifestLen >= (int)sizeof(manifestLine))
   {
