@@ -23,6 +23,8 @@
 
 #include "nonlinear_test.h"
 #include "motor.h"
+#include "motor_config.h"
+#include "test_profile.h"
 #include "ma600.h"
 #include "main.h"
 #include "cmsis_os.h"
@@ -127,6 +129,18 @@ extern UART_HandleTypeDef huart3;
  * used today) now that NL_POS_INCREASE is back to 256 too. */
 #define NL_ROBUST_EXTREME_COUNT     5
 #define NL_MAX_SWEEP_POINTS         300
+
+#if (TEST_RUNS_PER_BUTTON != 1U) || (NL_TEST_COUNT != 1) || (NL_SKIP_FIRST_COUNT != 0)
+#error "7PP smoke profile requires exactly one retained sweep per button press"
+#endif
+
+#if ENABLE_AUTO_BATCH_TEST
+#error "7PP smoke profile must not enable automatic batch execution"
+#endif
+
+#if ENABLE_CCW_ENGINEERING_TEST
+#error "7PP smoke profile is CW-only"
+#endif
 
 /* --- Schema v2 additions: all overridable via a build define without editing source. ---
  * v2->v3 (rejected, see below) attempted to redefine Residual_RMS_Full/Fitted_P2P/
@@ -259,7 +273,7 @@ static const char *ResolveJigId(bool *outKnown)
  * (ENABLE_CCW_ENGINEERING_TEST, ENABLE_NL_MATH_SELF_TEST) -- flip on only when deliberately
  * running a batch. */
 #ifndef ENABLE_AUTO_BATCH_TEST
-#define ENABLE_AUTO_BATCH_TEST      1
+#define ENABLE_AUTO_BATCH_TEST      0
 #endif
 
 #if ENABLE_AUTO_BATCH_TEST
@@ -969,6 +983,7 @@ typedef struct
     float    mean;
     float    rmsAc;
     NlHarmonicResult_t harmonics[NL_HARMONIC_COUNT];
+    NlHarmonicResult_t electricalRipple;
     /* Datasheet-aligned diagnostic orders (MA600A Rev. 1.0 uses H1/H2/H4/H8 for its own
      * constant-speed calibration fit) -- computed standalone, deliberately NOT folded into
      * harmonics[]/NL_HARMONIC_ORDERS so ExtendedOrders/Residual_RMS_Extended/Fitted_P2P_Extended
@@ -1265,6 +1280,8 @@ static void CaptureSweep(int runIndex, NlSweepDirection_t direction, uint32_t te
     {
         ComputeHarmonicFull(out->errorSamples, analysisCount, meanVal, NL_HARMONIC_ORDERS[k], &out->harmonics[k]);
     }
+    ComputeHarmonicFull(out->errorSamples, analysisCount, meanVal,
+        (int)MOTOR_ELECTRICAL_RIPPLE_ORDER, &out->electricalRipple);
 
     /* Datasheet-aligned H4/H8 -- see the NlSweepCapture_t field comment. Nyquist-safe by a wide
      * margin (order 4/8 vs. analysisCount ~256, limit ~128). */
@@ -1408,6 +1425,9 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     LogLineLarge(
         "META,SchemaVersion=%d,Firmware=%s,BuildID=%s,MCU_UID=%08lX%08lX%08lX,CounterScope=BOOT,"
         "JigID=%s,JigKnown=%d,MotorID=%s,TestID=%lu,SweepID=%lu,Direction=%s,"
+        "AppProfile=%s,ResultClass=%s,MotorPoleCount=%u,MotorPolePairs=%u,"
+        "ElectricalCycleRaw=%u,ElectricalRippleMultiple=%u,ElectricalRippleOrder=%u,"
+        "ApproachProtocol=%s,MotionProfile=%s,AutoBatch=0,"
         "PhaseReference=SweepProgress,StepRaw=%d,ExpectedAnalysisPoints=%d,CapturedPoints=%d,"
         "AnalysisPoints=%d,MeasurementValid=%d,StartRaw=%u,StartAngleDeg=%s,AnalysisStartRaw=%u"
 #if ENABLE_AUTO_BATCH_TEST
@@ -1419,6 +1439,11 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         NL_LOG_SCHEMA_VERSION, FIRMWARE_VERSION, FIRMWARE_BUILD_ID,
         (unsigned long)MCU_UID_WORD0, (unsigned long)MCU_UID_WORD1, (unsigned long)MCU_UID_WORD2,
         jigId, jigKnown ? 1 : 0, MOTOR_ID, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
+        TEST_PROFILE_ID, TEST_RESULT_CLASS, (unsigned)MOTOR_NUM_POLSE,
+        (unsigned)MOTOR_POLE_PAIRS, (unsigned)MOTOR_COUNT_PER_ELECTRICAL_CYCLE,
+        (unsigned)MOTOR_ELECTRICAL_RIPPLE_MULTIPLE,
+        (unsigned)MOTOR_ELECTRICAL_RIPPLE_ORDER, TEST_APPROACH_PROTOCOL,
+        TEST_MOTION_PROFILE,
         NL_POS_INCREASE, (int)(NL_FULL_TURN_RAW / (float)NL_POS_INCREASE),
         c->capturedCount, c->analysisCount, c->measurementValid ? 1 : 0,
         (unsigned)c->rawAtOffset, startAngleBuf,
@@ -1475,7 +1500,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     char resFullBuf[16], fittedBuf[16], ferBuf[16];
     char resExtBuf[16], fittedExtBuf[16], ferExtBuf[16];
     char crestBuf[16], p99Buf[16], trkRmsBuf[16], trkMaxBuf[16];
-    char domAmpBuf[16], domEnergyBuf[16];
+    char domAmpBuf[16], domEnergyBuf[16], electricalAmpBuf[16], electricalPhaseBuf[16];
     char motorP2PBuf[16], motorInlBuf[16];
     FormatDegN(c->mean, 4, meanBuf, sizeof(meanBuf));
     FormatDegN(c->rmsAc, 4, rmsAcBuf, sizeof(rmsAcBuf));
@@ -1493,6 +1518,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     FormatDegN(c->trackingErrorMaxAbsDeg, 4, trkMaxBuf, sizeof(trkMaxBuf));
     FormatDegN(c->dominantSelectedAmplitude, 4, domAmpBuf, sizeof(domAmpBuf));
     FormatDegN(c->dominantSelectedEnergyRatio, 4, domEnergyBuf, sizeof(domEnergyBuf));
+    FormatDegN(c->electricalRipple.amplitude, 4, electricalAmpBuf, sizeof(electricalAmpBuf));
+    FormatDegN(c->electricalRipple.phaseDeg, 4, electricalPhaseBuf, sizeof(electricalPhaseBuf));
     /* Raw measured-curve peak-to-peak (max-min of c->errorSamples, via legacyStats.rawPP --
      * already computed, not a new calculation) and the MA600A-datasheet INL formula
      * (P2P/2) applied to it. See the file-header comment: this is a SYSTEM value (motor +
@@ -1509,6 +1536,9 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     LogLineLarge(
         "RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,Direction=%s,"
         "CapturedPoints=%d,AnalysisPoints=%d,MeanDC=%s,RMS_AC=%s,"
+        "MotorPoleCount=%u,MotorPolePairs=%u,ElectricalRippleMultiple=%u,"
+        "ElectricalRippleOrder=%u,AElectrical6=%s,Electrical6_PhaseSweepDeg=%s,"
+        "ElectricalRippleValid=%d,"
         "A1=%s,A2=%s,A3=%s,A6=%s,A9=%s,A12=%s,A18=%s,A27=%s,A36=%s,A45=%s,A72=%s,A108=%s,"
         "H1_PhaseSweepDeg=%s,H2_PhaseSweepDeg=%s,H3_PhaseSweepDeg=%s,H6_PhaseSweepDeg=%s,"
         "H9_PhaseSweepDeg=%s,H12_PhaseSweepDeg=%s,H18_PhaseSweepDeg=%s,H27_PhaseSweepDeg=%s,"
@@ -1525,6 +1555,10 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         "TrackingError_MaxAbs_Deg=%s,FeatureComputeTimeMs=%lu\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
         jigId, MOTOR_ID, dirStr, c->capturedCount, c->analysisCount, meanBuf, rmsAcBuf,
+        (unsigned)MOTOR_NUM_POLSE, (unsigned)MOTOR_POLE_PAIRS,
+        (unsigned)MOTOR_ELECTRICAL_RIPPLE_MULTIPLE,
+        (unsigned)MOTOR_ELECTRICAL_RIPPLE_ORDER, electricalAmpBuf,
+        electricalPhaseBuf, c->electricalRipple.phaseValid ? 1 : 0,
         ampBuf[0], ampBuf[1], ampBuf[2], ampBuf[3], ampBuf[4], ampBuf[5],
         ampBuf[6], ampBuf[7], ampBuf[8], ampBuf[9], ampBuf[10], ampBuf[11],
         phaseBuf[0], phaseBuf[1], phaseBuf[2], phaseBuf[3], phaseBuf[4], phaseBuf[5],

@@ -124,4 +124,9 @@ $Global:CubeMxJar = Get-CubeMxJar -CubeIdeInstallDir $Global:CubeIdeInstallDir
 $Global:BundledJavaExe = Get-BundledJavaExe -CubeIdeInstallDir $Global:CubeIdeInstallDir
 $Global:ArmGccBinDir = Get-ArmGccBinDir -CubeIdeInstallDir $Global:CubeIdeInstallDir
 $Global:MakeExe = Get-MakeExe -CubeIdeInstallDir $Global:CubeIdeInstallDir
-$Global:WorkspaceDir = Join-Path $env:TEMP "$($Global:ProjectName)-cubeide-workspace"
+# Multiple motor repositories in this tree share the Cube project name
+# "jigmotor". Include the parent folder in the temporary workspace identity so
+# headless imports cannot collide with a sibling checkout already registered
+# under the same Eclipse project name.
+$workspaceParentId = Split-Path (Split-Path $Global:ProjectRoot -Parent) -Leaf
+$Global:WorkspaceDir = Join-Path $env:TEMP "$($Global:ProjectName)-$workspaceParentId-cubeide-workspace"

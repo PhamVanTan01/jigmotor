@@ -1,6 +1,6 @@
-/* 3-phase sine-commutation motor driver (TIM1 CH1/2/3) for a PM1505 (12-pole)
- * test motor, plus a simple closed-loop position controller used only to
- * return to a reference angle before a sweep. */
+/* 3-phase sine-commutation motor driver (TIM1 CH1/2/3), plus a simple
+ * closed-loop position controller used only to return to a reference angle
+ * before a sweep. */
 
 #ifndef __MOTOR_H
 #define __MOTOR_H
@@ -35,6 +35,12 @@ uint16_t Motor_ElectricalOffset(uint16_t rawCount);
  * the PID is actually driving the commutation angle a meaningful amount, or
  * barely moving it, when the shaft itself isn't visibly rotating. */
 int32_t Motor_GetCommandedPos(void);
+
+/* Build-geometry audit values used by boot/run manifests. */
+uint16_t Motor_GetPoleCount(void);
+uint16_t Motor_GetPolePairs(void);
+uint16_t Motor_GetElectricalCycleRaw(void);
+uint16_t Motor_GetElectricalRippleOrder(void);
 
 #ifdef __cplusplus
 }

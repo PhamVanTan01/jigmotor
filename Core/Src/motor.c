@@ -1,23 +1,20 @@
-/* 3-phase sine-commutation motor driver (TIM1 CH1/2/3) for a PM1505 (12-pole)
- * test motor, plus a simple closed-loop position controller used only to
- * return to a reference angle before a sweep. */
+/* 3-phase sine-commutation motor driver (TIM1 CH1/2/3), plus a simple
+ * closed-loop position controller used only to return to a reference angle
+ * before a sweep. Motor geometry comes from motor_config.h. */
 
 #include "motor.h"
+#include "motor_config.h"
 #include "ma600.h"
 #include "main.h"
 #include <math.h>
 
 extern TIM_HandleTypeDef htim1;
 
-/* PM1505 test motor: 12 poles -> 6 pole pairs. One full mechanical
- * revolution (65536 raw counts, same scale as the MA600A) contains 6
- * electrical cycles, so the commutation math reduces any position to its
- * offset within a single electrical cycle before looking up a phase value. */
-#define MOTOR_POLE_PAIRS        6
-#define MOTOR_ENCODER_COUNT     65536
-#define MOTOR_COUNT_PER_CYCLE   (MOTOR_ENCODER_COUNT / MOTOR_POLE_PAIRS + 1)
-#define MOTOR_PHASE_B_OFFSET    (MOTOR_COUNT_PER_CYCLE / 3)
-#define MOTOR_PHASE_C_OFFSET    (MOTOR_COUNT_PER_CYCLE * 2 / 3)
+/* One mechanical revolution contains MOTOR_POLE_PAIRS electrical cycles.
+ * The bring-up build deliberately preserves the existing integer-cycle
+ * modulo mapping; direct-Q16 electrical phase is a separate later trial. */
+#define MOTOR_PHASE_B_OFFSET    (MOTOR_COUNT_PER_ELECTRICAL_CYCLE / 3U)
+#define MOTOR_PHASE_C_OFFSET    (MOTOR_COUNT_PER_ELECTRICAL_CYCLE * 2U / 3U)
 
 /* Matches jigmotor.ioc's TIM1 Period (SPI1/TIM1 config generated from the
  * .ioc, not something this file owns) -- PWM full-scale compare value. */
@@ -68,7 +65,8 @@ static float pidCurrentPos = 0.0f;
  * wave offset 120 electrical degrees from the others. */
 static uint16_t Motor_PhasePwm(uint32_t stepInCycle, float power)
 {
-    float angleRad = 2.0f * (float)M_PI * (float)stepInCycle / (float)MOTOR_COUNT_PER_CYCLE;
+    float angleRad = 2.0f * (float)M_PI * (float)stepInCycle /
+        (float)MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
     float duty = (sinf(angleRad) * 0.5f + 0.5f) * power;
 
     if (duty < 0.0f) duty = 0.0f;
@@ -112,9 +110,9 @@ void Motor_Disable(void)
 
 void Motor_SetElectricalPos(uint16_t pos, float power)
 {
-    uint32_t stepA = (uint32_t)pos % MOTOR_COUNT_PER_CYCLE;
-    uint32_t stepB = ((uint32_t)pos + MOTOR_PHASE_B_OFFSET) % MOTOR_COUNT_PER_CYCLE;
-    uint32_t stepC = ((uint32_t)pos + MOTOR_PHASE_C_OFFSET) % MOTOR_COUNT_PER_CYCLE;
+    uint32_t stepA = (uint32_t)pos % MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
+    uint32_t stepB = ((uint32_t)pos + MOTOR_PHASE_B_OFFSET) % MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
+    uint32_t stepC = ((uint32_t)pos + MOTOR_PHASE_C_OFFSET) % MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
 
     __HAL_TIM_SetCompare(&htim1, TIM_CHANNEL_1, Motor_PhasePwm(stepA, power));
     __HAL_TIM_SetCompare(&htim1, TIM_CHANNEL_2, Motor_PhasePwm(stepB, power));
@@ -160,10 +158,30 @@ float Motor_MoveToAngle(float targetDeg)
 
 uint16_t Motor_ElectricalOffset(uint16_t rawCount)
 {
-    return (uint16_t)((uint32_t)rawCount % MOTOR_COUNT_PER_CYCLE);
+    return (uint16_t)((uint32_t)rawCount % MOTOR_COUNT_PER_ELECTRICAL_CYCLE);
 }
 
 int32_t Motor_GetCommandedPos(void)
 {
     return pidCurrentPos;
+}
+
+uint16_t Motor_GetPoleCount(void)
+{
+    return (uint16_t)MOTOR_NUM_POLSE;
+}
+
+uint16_t Motor_GetPolePairs(void)
+{
+    return (uint16_t)MOTOR_POLE_PAIRS;
+}
+
+uint16_t Motor_GetElectricalCycleRaw(void)
+{
+    return (uint16_t)MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
+}
+
+uint16_t Motor_GetElectricalRippleOrder(void)
+{
+    return (uint16_t)MOTOR_ELECTRICAL_RIPPLE_ORDER;
 }

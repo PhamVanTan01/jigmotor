@@ -24,7 +24,9 @@
 /* USER CODE BEGIN Includes */
 #include "ma600.h"
 #include "motor.h"
+#include "motor_config.h"
 #include "nonlinear_test.h"
+#include "test_profile.h"
 #include <stdio.h>
 #include <math.h>
 /* USER CODE END Includes */
@@ -98,6 +100,33 @@ void StartDefaultTask(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+static void PrintBuildManifest(void)
+{
+  char line[448];
+  int len = snprintf(line, sizeof(line),
+      "BUILD_MANIFEST,AppMode=MEASUREMENT,AppProfile=%s,BuildLabel=%s,"
+      "ResultClass=%s,MotorPoleCount=%u,MotorPolePairs=%u,"
+      "ElectricalCycleRaw=%u,ElectricalRippleMultiple=%u,ElectricalRippleOrder=%u,"
+      "ApproachProtocol=%s,MotionProfile=%s,AutoBatch=%u,RunsPerButton=%u,"
+      "BuildID=%s_%s\r\n",
+      TEST_PROFILE_ID, TEST_BUILD_LABEL, TEST_RESULT_CLASS,
+      (unsigned)MOTOR_NUM_POLSE, (unsigned)MOTOR_POLE_PAIRS,
+      (unsigned)MOTOR_COUNT_PER_ELECTRICAL_CYCLE,
+      (unsigned)MOTOR_ELECTRICAL_RIPPLE_MULTIPLE,
+      (unsigned)MOTOR_ELECTRICAL_RIPPLE_ORDER,
+      TEST_APPROACH_PROTOCOL, TEST_MOTION_PROFILE,
+      (unsigned)ENABLE_AUTO_BATCH_TEST, (unsigned)TEST_RUNS_PER_BUTTON,
+      __DATE__, __TIME__);
+  if (len > 0)
+  {
+    if ((size_t)len >= sizeof(line))
+    {
+      len = (int)sizeof(line) - 1;
+    }
+    HAL_UART_Transmit(&huart3, (uint8_t *)line, (uint16_t)len, 200);
+  }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -147,6 +176,7 @@ int main(void)
    * large bogus initial error to the motor position PID. */
   MA600_ResetMultiTurn();
   Motor_Init();
+  PrintBuildManifest();
   /* USER CODE END 2 */
 
   /* Init scheduler */
