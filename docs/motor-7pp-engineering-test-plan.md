@@ -348,3 +348,27 @@ Lần thử motor 7PP hoàn thành ở mức engineering khi:
 5. giới hạn mapping 9,363 raw đã được chấp nhận bằng dữ liệu hoặc đã được xử
    lý qua P7.5;
 6. không có số liệu 7PP nào bị gộp vào baseline 6PP.
+
+## 9. P7.7 — B0-B V2 one-run pilot
+
+Sau khi smoke test và repeatability cho thấy motor 7PP di chuyển ổn định, build
+thử tiếp theo chỉ bật một biến: equal approach theo reversal V2.
+
+- `Profile=7PP_ENGINEERING_B0B_REVERSAL_V2_1RUN_V1`
+- `ApproachProtocol=SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2`
+- `NL_APPROACH_MODE=1`, `ENABLE_B0B_EQUAL_APPROACH=1`
+- một lần nhấn nút chỉ chạy một run; `AutoBatch=0`
+- feedforward 79/126, creep, B0-B soft-start, sweep soft-start và CCW đều tắt
+
+Không dùng V3 no-reversal vì guard hiện tại chỉ được xác nhận cho 6PP. Cũng
+không dùng bias 79/126 của 6PP để tránh trộn ảnh hưởng equal approach với một
+hệ số chưa được hiệu chỉnh cho 7PP.
+
+Gate log của mỗi run:
+
+1. boot manifest đúng profile/protocol ở trên;
+2. có đúng một `APPROACH_RESULT`;
+3. `ApproachStructuralValid=1`, không có acquisition/motion error;
+4. dùng trường canonical `SHADOW_RESULT.ClosureErrorDeg` để so với mục tiêu
+   `<0.2 deg`; `WindowP2P` không được thay thế closure;
+5. thử A-B-A với cooldown cố định trước khi kết luận B0-B có cải thiện closure.

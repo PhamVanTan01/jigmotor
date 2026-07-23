@@ -21,18 +21,20 @@ Assert-True ($profile -match '#define\s+TEST_RUNS_PER_BUTTON\s+1U') `
 Assert-True ($profile -match '#define\s+ENABLE_AUTO_BATCH_TEST\s+0') `
     'Automatic batch must be disabled for the smoke test.'
 Assert-True ($profile -match '#define\s+NL_MOTION_PROFILE\s+2' -and
-        $profile -match '#define\s+NL_APPROACH_MODE\s+0') `
-    '7PP profile must select Motion V2 and lock-only approach.'
+        $profile -match '#define\s+NL_APPROACH_MODE\s+1' -and
+        $profile -match '#define\s+ENABLE_B0B_EQUAL_APPROACH\s+1') `
+    '7PP profile must select Motion V2 and reversal-V2 equal approach.'
 Assert-True ($profile -match 'SCURVE40_ABSOLUTE_TICK_V2' -and
-        $profile -match 'SCURVE_LOCK_V2') `
+        $profile -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2') `
     '7PP profile identity does not describe the selected Motion V2 protocol.'
 Assert-True ($profile -match '#define\s+TEST_EXPECTED_MA600_REG_1F\s+0x3CU' -and
         $profile -match 'MA600_PRODUCTID_0x3C') `
     '7PP profile must require the observed MA600 PRODUCTID 0x3C.'
 Assert-True ($profile -match '#define\s+ENABLE_B0B_APPROACH_CREEP\s+0' -and
         $profile -match '#define\s+ENABLE_B0B_APPROACH_FEEDFORWARD\s+0' -and
+        $profile -match '#define\s+ENABLE_B0B_APPROACH_SOFT_START\s+0' -and
         $profile -match '#define\s+ENABLE_SWEEP_RAMP_SOFT_START\s+0') `
-    'Experimental motion controls must remain disabled for first movement.'
+    'Bias, creep, and soft-start controls must remain disabled for B0-B isolation.'
 Assert-True ($geometry -match '#define\s+MOTOR_POLE_PAIRS\s+\(MOTOR_NUM_POLSE\s*/\s*2U\)') `
     'Pole pairs are not derived from physical pole count.'
 Assert-True ($geometry -match 'MOTOR_COUNT_PER_ELECTRICAL_CYCLE\s+!=\s+9363U') `
@@ -65,4 +67,4 @@ Assert-True ($appMode -match '#define\s+JIG_APP_PROFILE_ID\s+TEST_PROFILE_ID') `
 Assert-True (($project | Select-String -AllMatches 'JIG_APP_MODE=2').Matches.Count -eq 2) `
     'Debug and Release must both build the measurement application.'
 
-Write-Host '[ OK ] 7PP Motion V2/DMA one-run geometry/profile/manifest contract passed.'
+Write-Host '[ OK ] 7PP B0-B reversal V2/DMA one-run geometry/profile/manifest contract passed.'

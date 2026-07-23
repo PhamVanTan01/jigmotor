@@ -51,12 +51,13 @@
 #if (TEST_RUNS_PER_BUTTON != 1U) || ENABLE_AUTO_BATCH_TEST
 #error "7PP movement smoke profile must run exactly once per button press"
 #endif
-#if ENABLE_CCW_ENGINEERING_TEST || (NL_MOTION_PROFILE != 2) || (NL_APPROACH_MODE != 0)
-#error "7PP profile requires CW S-curve V2 with lock-only approach"
+#if ENABLE_CCW_ENGINEERING_TEST || (NL_MOTION_PROFILE != 2) || \
+    (NL_APPROACH_MODE != 1) || !ENABLE_B0B_EQUAL_APPROACH
+#error "7PP B0-B profile requires CW S-curve V2 with reversal-V2 equal approach"
 #endif
 #if ENABLE_SWEEP_RAMP_SOFT_START || ENABLE_B0B_APPROACH_SOFT_START || \
     ENABLE_B0B_APPROACH_CREEP || ENABLE_B0B_APPROACH_FEEDFORWARD
-#error "7PP first-movement profile must not enable experimental motion controls"
+#error "7PP B0-B isolation profile must not enable bias, creep, or soft-start controls"
 #endif
 #if TEST_EXPECTED_MA600_REG_1F != 0x3CU
 #error "7PP 1807 profile requires MA600 PRODUCTID 0x3C at register 0x1F"

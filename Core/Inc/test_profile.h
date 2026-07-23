@@ -1,4 +1,4 @@
-/* Build identity for the dedicated 7-pole-pair engineering smoke test.
+/* Build identity for the dedicated 7-pole-pair B0-B engineering test.
  *
  * This branch intentionally produces a one-sweep-per-button build. It is not
  * a production/QC profile and must not be used to qualify MA600A accuracy.
@@ -8,10 +8,10 @@
 #define __TEST_PROFILE_H
 
 #define TEST_PROFILE_7PP_ENGINEERING 1
-#define TEST_PROFILE_ID            "7PP_ENGINEERING_MOTION_V2_DMA_LOCK_ONLY_1RUN_V1"
-#define TEST_BUILD_LABEL           "motor-7pp-motion-v2-dma-lock-only-1run-v1"
+#define TEST_PROFILE_ID            "7PP_ENGINEERING_B0B_REVERSAL_V2_1RUN_V1"
+#define TEST_BUILD_LABEL           "motor-7pp-b0b-reversal-v2-1run-v1"
 #define TEST_RESULT_CLASS          "ENGINEERING_ONLY"
-#define TEST_APPROACH_PROTOCOL     "SCURVE_LOCK_V2"
+#define TEST_APPROACH_PROTOCOL     "SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2"
 #define TEST_MOTION_PROFILE        "SCURVE40_ABSOLUTE_TICK_V2"
 #define TEST_SENSOR_IDENTITY       "MA600_PRODUCTID_0x3C"
 
@@ -41,16 +41,19 @@
 
 /* Motion Control V2 + DMA baseline selected from
  * codex/motion-control-v2-dma. Values match the selectors local to
- * nonlinear_test.c: S-curve V2=2 and lock-only approach=0. */
+ * nonlinear_test.c: S-curve V2=2 and reversal approach V2=1. */
 #ifndef NL_MOTION_PROFILE
 #define NL_MOTION_PROFILE          2
 #endif
 #ifndef NL_APPROACH_MODE
-#define NL_APPROACH_MODE           0
+#define NL_APPROACH_MODE           1
+#endif
+#ifndef ENABLE_B0B_EQUAL_APPROACH
+#define ENABLE_B0B_EQUAL_APPROACH  1
 #endif
 
-/* Keep observation enabled, but do not combine the first movement check
- * with any experimental control behavior. */
+/* Isolate the equal-approach B0-B protocol. Do not reuse the 6PP-specific
+ * 79/126 feedforward bias or combine it with creep/soft-start controls. */
 #ifndef ENABLE_SWEEP_RAMP_STEP_DIAG
 #define ENABLE_SWEEP_RAMP_STEP_DIAG 1
 #endif
