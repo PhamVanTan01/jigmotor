@@ -38,6 +38,10 @@ try {
         'Motor identity provenance fields are missing.'
     Assert-True ($analyzerSource -match "004C003A3034510B31363339'\s*=\s*'JIG3'") `
         'Host UID registry is missing JIG3.'
+    Assert-True ($source -match '(?s)0x0049003A,\s*0x3034510B,\s*0x31363339,\s*"JIG4".*?\{\s*0x00D5,\s*0x00,\s*0x0C,\s*0x00,\s*0x80,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the locked JIG4 profile.'
+    Assert-True ($analyzerSource -match "0049003A3034510B31363339'\s*=\s*'JIG4'") `
+        'Host UID registry is missing JIG4.'
 
     & (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1') -Path $fixture -OutCsv $csv | Out-Null
     $rows = @(Import-Csv $csv)

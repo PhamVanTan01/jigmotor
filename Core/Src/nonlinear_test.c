@@ -385,6 +385,14 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
         0x004C003A, 0x3034510B, 0x31363339, "JIG3",
         { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=004C003A3034510B31363339 */
+    {
+        /* JIG4 carries the audited legacy MA600 profile observed during its
+         * 2026-07-24 bring-up. Keep the exact per-UID values locked: accepting
+         * this board must not weaken Policy A for JIG1/JIG2/JIG3 or silently
+         * accept a later configuration change on JIG4. */
+        0x0049003A, 0x3034510B, 0x31363339, "JIG4",
+        { 0x00D5, 0x00, 0x0C, 0x00, 0x80, 0x00, 0x190A55AD }
+    }, /* MCU_UID=0049003A3034510B31363339 */
 };
 
 static const NlKnownJig_t *FindKnownJigByUid(void)
