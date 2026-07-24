@@ -1,0 +1,11 @@
+SavedAtLocal=2026-07-24
+Configuration=Release
+MotorModel=1807
+MotorPolePairs=7
+GitBranch=codex/motor-7pp-engineering-test
+GitCommit=d24ca7c
+Profile=7PP_ENGINEERING_V32_SHIFTED_REVERSAL_1RUN_V1
+Protocol=SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2
+RunsPerButton=1
+Artifact=jigmotor.hex
+HexSHA256=2F1995EDD5525EB89B8398A095DF2C0DE72536A367DDE92D9A72832CF23E3A8E
