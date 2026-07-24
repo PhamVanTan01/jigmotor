@@ -28,7 +28,8 @@ Assert-True ($nl -match '#define\s+NL_MOTION_PROFILE\s+NL_MOTION_PROFILE_SCURVE_
         $nl -match '#define\s+NL_SCURVE_SEGMENT_TICKS\s+40U' -and
         $nl -match 'SCURVE40_ABSOLUTE_TICK_V2') `
     'The default S-curve profile is incomplete.'
-$rampFn = [regex]::Match($nl, '(?s)static MA600_Result_t RampCommandToTarget\(.*?\n\}').Value
+$rampFn = [regex]::Match($nl,
+    '(?s)static MA600_Result_t RampCommandToTarget(?:Traced)?\(.*?\n\}').Value
 Assert-True ($rampFn -match 'NlSmoothstepCommandRaw' -and
         $rampFn -match '\*pos\s*=\s*targetPos;\s*/\* exact measurement target' -and
         $rampFn -match 'osDelayUntil\(deadline\)' -and

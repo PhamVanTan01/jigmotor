@@ -224,6 +224,32 @@ Gate software:
 - test chứng minh motion constants giống baseline;
 - build mới có profile ID và artifact riêng.
 
+### Trạng thái triển khai 2026-07-24
+
+Đã implement profile `7PP_STUTTER_DIAG_P135_160_1RUN_V1`:
+
+- giữ nguyên power, Motion V2 40 tick × 1 ms, grid, approach V3.2 và toàn bộ
+  settle gate;
+- buffer cố định trong CCM RAM, không dùng heap và không cấp phát trace trên
+  task stack;
+- ghi đủ 40 ramp sample cho từng point 135..160;
+- ghi mọi settle poll, kể cả chuỗi tới timeout 100 ms;
+- chỉ phát `STUTTER_*` từ `PrintSweepLog()` sau `Motor_Disable()`;
+- `STUTTER_TRACE_META,Status=VALID` chỉ khi đủ 1040 ramp record, mỗi point có
+  settle record hoàn tất và không overflow.
+
+Phân tích log:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/analyze_7pp_stutter_trace.ps1 `
+  ".\ten-log.txt" `
+  -OutSummaryCsv ".\analysis-out\7pp-stutter-summary.csv" `
+  -OutPointCsv ".\analysis-out\7pp-stutter-points.csv"
+```
+
+Tool xuất longest near-zero-progress sequence, ramp lag, backtrack, settle
+correction/elapsed/error và phân lớp sơ bộ `S`, `R`, `E` hoặc `MIXED`.
+
 ## 8. P7-AB2 — Tái hiện có kiểm soát
 
 Cùng motor, JIG3 và lần gá:

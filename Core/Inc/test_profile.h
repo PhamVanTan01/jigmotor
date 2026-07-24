@@ -8,8 +8,8 @@
 #define __TEST_PROFILE_H
 
 #define TEST_PROFILE_7PP_ENGINEERING 1
-#define TEST_PROFILE_ID            "7PP_ENGINEERING_V32_SHIFTED_REVERSAL_1RUN_V1"
-#define TEST_BUILD_LABEL           "motor-7pp-v32-shifted-reversal-1run-v1"
+#define TEST_PROFILE_ID            "7PP_STUTTER_DIAG_P135_160_1RUN_V1"
+#define TEST_BUILD_LABEL           "motor-7pp-stutter-diag-p135-160-1run-v1"
 #define TEST_RESULT_CLASS          "ENGINEERING_ONLY"
 #define TEST_APPROACH_PROTOCOL     "SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2"
 #define TEST_MOTION_PROFILE        "SCURVE40_ABSOLUTE_TICK_V2"
@@ -55,6 +55,12 @@
  * bias or combine it with creep/soft-start controls. */
 #ifndef ENABLE_SWEEP_RAMP_STEP_DIAG
 #define ENABLE_SWEEP_RAMP_STEP_DIAG 1
+#endif
+/* P7-AB1 is observation-only. It records every S-curve tick and settle poll
+ * for points 135..160 into bounded CCM RAM, then prints the records only
+ * after Motor_Disable(). It must not alter any motion or settle constant. */
+#ifndef ENABLE_7PP_STUTTER_TRACE
+#define ENABLE_7PP_STUTTER_TRACE   1
 #endif
 #ifndef ENABLE_SWEEP_RAMP_SOFT_START
 #define ENABLE_SWEEP_RAMP_SOFT_START 0

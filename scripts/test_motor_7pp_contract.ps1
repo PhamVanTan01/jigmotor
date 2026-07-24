@@ -20,6 +20,9 @@ Assert-True ($profile -match '#define\s+TEST_RUNS_PER_BUTTON\s+1U') `
     '7PP profile is not one run per button.'
 Assert-True ($profile -match '#define\s+ENABLE_AUTO_BATCH_TEST\s+0') `
     'Automatic batch must be disabled for the smoke test.'
+Assert-True ($profile -match 'TEST_PROFILE_ID\s+"7PP_STUTTER_DIAG_P135_160_1RUN_V1"' -and
+        $profile -match '#define\s+ENABLE_7PP_STUTTER_TRACE\s+1') `
+    'P7-AB1 profile identity or stutter trace enable is missing.'
 Assert-True ($profile -match '#define\s+NL_MOTION_PROFILE\s+2' -and
         $profile -match '#define\s+NL_APPROACH_MODE\s+3' -and
         $profile -match '#define\s+ENABLE_B0B_EQUAL_APPROACH\s+1') `
@@ -62,6 +65,21 @@ Assert-True ($nonlinear -match 'NL_MOTION_PROFILE_SCURVE_V2' -and
         $nonlinear -match 'NL_SCURVE_SEGMENT_TICKS\s+40U' -and
         $nonlinear -match 'NL_GRID_PROTOCOL_ID\s+"UNIFORM_1_DEG_ROUNDED_RAW_V1"') `
     'Motion V2 or one-degree measurement grid is missing.'
+Assert-True ($nonlinear -match 'NL_STUTTER_POINT_FIRST\s+135U' -and
+        $nonlinear -match 'NL_STUTTER_POINT_LAST\s+160U' -and
+        $nonlinear -match 'NL_STUTTER_RAMP_SAMPLE_CAPACITY\s+NL_SCURVE_SEGMENT_TICKS') `
+    'P7-AB1 point window or full 40-tick trace bound changed.'
+Assert-True ($nonlinear -match 'NL_POINT_SETTLE_ERROR_RAW\s+9LL' -and
+        $nonlinear -match 'NL_SETTLE_TARGET_TOLERANCE_RAW\s+910LL' -and
+        $nonlinear -match 'NL_POINT_SETTLE_TIMEOUT_MS\s+100') `
+    'P7-AB1 must preserve the baseline settle contract.'
+Assert-True ($nonlinear -match 'STUTTER_TRACE_META' -and
+        $nonlinear -match 'STUTTER_RAMP_STEP' -and
+        $nonlinear -match 'STUTTER_SETTLE_SAMPLE' -and
+        $nonlinear -match 'LagSign=OBSERVED_MINUS_COMMAND') `
+    'P7-AB1 deferred trace record contract is incomplete.'
+Assert-True ($nonlinear -match 'static\s+NlStutterTrace_t\s+nlStutterTrace[\s\S]*?ccmram_bss') `
+    'P7-AB1 static trace buffer is missing.'
 Assert-True (($nonlinear | Select-String -AllMatches `
         'TEST_EXPECTED_MA600_REG_1F').Matches.Count -eq 3) `
     'Every known jig profile must use the 7PP sensor identity expectation.'

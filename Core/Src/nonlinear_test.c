@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 extern UART_HandleTypeDef huart3;
@@ -533,6 +534,40 @@ static const char *ResolveJigId(bool *outKnown)
 #if ENABLE_SWEEP_RAMP_STEP_DIAG
 #define NL_SWEEP_RAMP_DIAG_MAX_STEPS  NL_MOTION_COMMANDS_PER_DEG
 #define NL_SWEEP_RAMP_DIAG_COUNT      3U  /* log the ramps toward point 1, 2, 3 */
+#endif
+
+/* P7-AB1 bounded, deferred stutter trace. The trace is deliberately separate
+ * from the older first-three-ramp diagnostic above: this one captures the
+ * known 7PP symptom window and includes command/timing plus every settle
+ * poll. No UART is touched until PrintSweepLog(), after Motor_Disable(). */
+#ifndef ENABLE_7PP_STUTTER_TRACE
+#define ENABLE_7PP_STUTTER_TRACE       0
+#endif
+#define NL_STUTTER_POINT_FIRST         135U
+#define NL_STUTTER_POINT_LAST          160U
+#define NL_STUTTER_POINT_COUNT         \
+    (NL_STUTTER_POINT_LAST - NL_STUTTER_POINT_FIRST + 1U)
+#define NL_STUTTER_RAMP_SAMPLE_CAPACITY NL_SCURVE_SEGMENT_TICKS
+/* WaitForPointSettle records one immediate sample, then at most one sample
+ * per millisecond until the 100-ms timeout. Two spare slots make the bound
+ * explicit even if the RTOS tick crosses at the edge of the timeout. */
+#define NL_STUTTER_SETTLE_SAMPLE_CAPACITY \
+    (NL_POINT_SETTLE_TIMEOUT_MS / NL_POINT_SETTLE_POLL_MS + 2U)
+
+#if ENABLE_7PP_STUTTER_TRACE
+#if !TEST_PROFILE_7PP_ENGINEERING || (MOTOR_POLE_PAIRS != 7U)
+#error "P7-AB1 stutter trace is restricted to the dedicated 7PP engineering profile"
+#endif
+#if NL_TEST_COUNT != 1 || ENABLE_CCW_ENGINEERING_TEST
+#error "P7-AB1 trace storage supports exactly one CW sweep per button"
+#endif
+#if NL_MOTION_PROFILE != NL_MOTION_PROFILE_SCURVE_V2 || \
+    NL_MOTION_COMMANDS_PER_DEG != 40U || NL_RAMP_STEP_DELAY_MS != 1U
+#error "P7-AB1 must preserve the 40-tick, 1-ms Motion V2 profile"
+#endif
+#if NL_STUTTER_POINT_LAST >= NL_MAX_SWEEP_POINTS
+#error "P7-AB1 point window exceeds sweep storage"
+#endif
 #endif
 
 /* Soft-start experiment: measured (via ENABLE_SWEEP_RAMP_STEP_DIAG) that the
@@ -1643,6 +1678,104 @@ typedef struct
     uint32_t maxObservedBacktrackRaw;
 } NlMotionDiagnostics_t;
 
+/* Compact P7-AB1 storage. Target error, observed delta, lag, and rolling
+ * settle-window P2P are derived while printing, so active motion only stores
+ * the irreducible observations. This keeps the complete worst-case trace
+ * below CCM RAM capacity without dropping or decimating a poll. */
+typedef struct
+{
+    bool enabled;
+    bool valid;
+    bool overflow;
+    uint32_t testId;
+    uint32_t sweepId;
+
+    uint8_t rampSampleCount[NL_STUTTER_POINT_COUNT];
+    int32_t rampStartObservedRaw[NL_STUTTER_POINT_COUNT];
+    int32_t rampCommandRaw[NL_STUTTER_POINT_COUNT]
+        [NL_STUTTER_RAMP_SAMPLE_CAPACITY];
+    int32_t rampObservedRaw[NL_STUTTER_POINT_COUNT]
+        [NL_STUTTER_RAMP_SAMPLE_CAPACITY];
+    uint16_t rampLatenessTicks[NL_STUTTER_POINT_COUNT]
+        [NL_STUTTER_RAMP_SAMPLE_CAPACITY];
+    uint8_t rampAcquisitionResult[NL_STUTTER_POINT_COUNT]
+        [NL_STUTTER_RAMP_SAMPLE_CAPACITY];
+
+    uint8_t settleSampleCount[NL_STUTTER_POINT_COUNT];
+    bool settleComplete[NL_STUTTER_POINT_COUNT];
+    int64_t settleExpectedTargetRaw[NL_STUTTER_POINT_COUNT];
+    int32_t settleObservedRaw[NL_STUTTER_POINT_COUNT]
+        [NL_STUTTER_SETTLE_SAMPLE_CAPACITY];
+    uint16_t settleElapsedMs[NL_STUTTER_POINT_COUNT]
+        [NL_STUTTER_SETTLE_SAMPLE_CAPACITY];
+    uint8_t settleFinalResult[NL_STUTTER_POINT_COUNT];
+} NlStutterTrace_t;
+
+static bool NlI64FitsI32(int64_t value)
+{
+    return value >= (int64_t)INT32_MIN && value <= (int64_t)INT32_MAX;
+}
+
+static void RecordStutterRampSample(NlStutterTrace_t *trace,
+    uint32_t pointSlot, int64_t commandRaw, int64_t observedRaw,
+    MA600_Result_t acquisitionResult, uint32_t latenessTicks)
+{
+    if (trace == NULL || !trace->enabled || pointSlot >= NL_STUTTER_POINT_COUNT)
+    {
+        return;
+    }
+    uint32_t sampleIndex = trace->rampSampleCount[pointSlot];
+    if (sampleIndex >= NL_STUTTER_RAMP_SAMPLE_CAPACITY
+            || !NlI64FitsI32(commandRaw)
+            || (acquisitionResult == MA600_RESULT_OK && !NlI64FitsI32(observedRaw))
+            || latenessTicks > UINT16_MAX)
+    {
+        trace->overflow = true;
+        trace->valid = false;
+        return;
+    }
+    trace->rampCommandRaw[pointSlot][sampleIndex] = (int32_t)commandRaw;
+    trace->rampObservedRaw[pointSlot][sampleIndex] =
+        (acquisitionResult == MA600_RESULT_OK) ? (int32_t)observedRaw : 0;
+    trace->rampLatenessTicks[pointSlot][sampleIndex] = (uint16_t)latenessTicks;
+    trace->rampAcquisitionResult[pointSlot][sampleIndex] =
+        (uint8_t)acquisitionResult;
+    trace->rampSampleCount[pointSlot] = (uint8_t)(sampleIndex + 1U);
+}
+
+static void RecordStutterSettleSample(NlStutterTrace_t *trace,
+    uint32_t pointSlot, int64_t expectedTargetRaw, int64_t observedRaw,
+    uint32_t elapsedMs)
+{
+    if (trace == NULL || !trace->enabled || pointSlot >= NL_STUTTER_POINT_COUNT)
+    {
+        return;
+    }
+    uint32_t sampleIndex = trace->settleSampleCount[pointSlot];
+    if (sampleIndex >= NL_STUTTER_SETTLE_SAMPLE_CAPACITY
+            || !NlI64FitsI32(observedRaw) || elapsedMs > UINT16_MAX)
+    {
+        trace->overflow = true;
+        trace->valid = false;
+        return;
+    }
+    trace->settleExpectedTargetRaw[pointSlot] = expectedTargetRaw;
+    trace->settleObservedRaw[pointSlot][sampleIndex] = (int32_t)observedRaw;
+    trace->settleElapsedMs[pointSlot][sampleIndex] = (uint16_t)elapsedMs;
+    trace->settleSampleCount[pointSlot] = (uint8_t)(sampleIndex + 1U);
+}
+
+static void CompleteStutterSettleTrace(NlStutterTrace_t *trace,
+    uint32_t pointSlot, NlSettleResult_t result)
+{
+    if (trace == NULL || !trace->enabled || pointSlot >= NL_STUTTER_POINT_COUNT)
+    {
+        return;
+    }
+    trace->settleFinalResult[pointSlot] = (uint8_t)result;
+    trace->settleComplete[pointSlot] = true;
+}
+
 static NlAcquisitionCounters_t SnapshotAcquisitionCounters(
     const MA600_AcquisitionContext_t *ctx)
 {
@@ -1700,10 +1833,12 @@ static void AccumulateCounterDelta(const MA600_AcquisitionContext_t *ctx,
  * profile chậm hơn cho MỘT ramp cụ thể mà không đổi các ramp khác. Mọi call
  * site hiện có truyền tường minh NL_RAMP_STEP_DELAY_MS -- hành vi không đổi
  * trừ khi caller chủ động chọn giá trị khác. */
-static MA600_Result_t RampCommandToTarget(
+static MA600_Result_t RampCommandToTargetTraced(
     MA600_AcquisitionContext_t *sweepAcquisition, int32_t *pos, int32_t targetPos,
     uint32_t *stepsExecuted, int64_t *stepUnwrappedRawLog, uint8_t stepLogCapacity,
-    uint32_t stepDelayMs, NlMotionDiagnostics_t *motionDiag)
+    uint32_t stepDelayMs, NlMotionDiagnostics_t *motionDiag,
+    NlStutterTrace_t *stutterTrace, uint32_t stutterPointSlot,
+    int64_t commandOriginUnwrapped)
 {
 #if NL_MOTION_PROFILE == NL_MOTION_PROFILE_SCURVE_V2
     int32_t startPos = *pos;
@@ -1713,10 +1848,26 @@ static MA600_Result_t RampCommandToTarget(
     int64_t lastObservedRaw = 0;
     bool haveLastObserved = false;
     if (motionDiag != NULL) motionDiag->segmentCount++;
+    if (stutterTrace != NULL && stutterTrace->enabled
+            && stutterPointSlot < NL_STUTTER_POINT_COUNT)
+    {
+        int64_t rampStartObserved = sweepAcquisition->unwrap.unwrappedRaw;
+        if (NlI64FitsI32(rampStartObserved))
+        {
+            stutterTrace->rampStartObservedRaw[stutterPointSlot] =
+                (int32_t)rampStartObserved;
+        }
+        else
+        {
+            stutterTrace->valid = false;
+            stutterTrace->overflow = true;
+        }
+    }
 
     for (uint32_t commandIndex = 1U;
             commandIndex <= NL_SCURVE_SEGMENT_TICKS; commandIndex++)
     {
+        uint32_t commandLatenessTicks = 0U;
         if (commandIndex > 1U)
         {
             deadline += stepDelayMs;
@@ -1728,6 +1879,7 @@ static MA600_Result_t RampCommandToTarget(
             else if ((int32_t)(now - deadline) > 0)
             {
                 uint32_t lateness = now - deadline;
+                commandLatenessTicks = lateness;
                 if (motionDiag != NULL)
                 {
                     motionDiag->timingOverrunCount++;
@@ -1750,6 +1902,10 @@ static MA600_Result_t RampCommandToTarget(
             NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &rampSample);
         steps++;
         if (motionDiag != NULL) motionDiag->commandCount++;
+        RecordStutterRampSample(stutterTrace, stutterPointSlot,
+            commandOriginUnwrapped + (int64_t)*pos,
+            (r == MA600_RESULT_OK) ? rampSample.unwrappedRaw : 0,
+            r, commandLatenessTicks);
         if (r != MA600_RESULT_OK)
         {
             if (stepsExecuted != NULL) { *stepsExecuted = steps; }
@@ -1781,6 +1937,9 @@ static MA600_Result_t RampCommandToTarget(
         }
     }
 #else
+    (void)stutterTrace;
+    (void)stutterPointSlot;
+    (void)commandOriginUnwrapped;
     int32_t step = (targetPos >= *pos) ? NL_RAMP_STEP : -NL_RAMP_STEP;
     uint32_t steps = 0;
     if (motionDiag != NULL) motionDiag->segmentCount++;
@@ -1811,6 +1970,16 @@ static MA600_Result_t RampCommandToTarget(
 #endif
     if (stepsExecuted != NULL) { *stepsExecuted = steps; }
     return MA600_RESULT_OK;
+}
+
+static MA600_Result_t RampCommandToTarget(
+    MA600_AcquisitionContext_t *sweepAcquisition, int32_t *pos, int32_t targetPos,
+    uint32_t *stepsExecuted, int64_t *stepUnwrappedRawLog, uint8_t stepLogCapacity,
+    uint32_t stepDelayMs, NlMotionDiagnostics_t *motionDiag)
+{
+    return RampCommandToTargetTraced(sweepAcquisition, pos, targetPos,
+        stepsExecuted, stepUnwrappedRawLog, stepLogCapacity, stepDelayMs,
+        motionDiag, NULL, 0U, 0);
 }
 
 static uint64_t AbsI64ToU64(int64_t value)
@@ -1938,11 +2107,13 @@ static void FormatI64PipeList(const int64_t *values, uint8_t count,
  * hold together for one complete consecutive window. No context is created
  * or reacquired here, so wrap history remains continuous through ramp,
  * settle, and point capture. */
-static NlSettleResult_t WaitForPointSettle(
+static NlSettleResult_t WaitForPointSettleTraced(
     MA600_AcquisitionContext_t *sweepAcquisition,
     int64_t expectedTargetUnwrapped,
     bool targetRequired,
-    NlSettleObservation_t *out)
+    NlSettleObservation_t *out,
+    NlStutterTrace_t *stutterTrace,
+    uint32_t stutterPointSlot)
 {
     if (sweepAcquisition == NULL || out == NULL)
     {
@@ -1958,6 +2129,8 @@ static NlSettleResult_t WaitForPointSettle(
     if (result != MA600_RESULT_OK)
     {
         out->acquisitionResult = result;
+        CompleteStutterSettleTrace(stutterTrace, stutterPointSlot,
+            NL_SETTLE_ACQUISITION_ERROR);
         return NL_SETTLE_ACQUISITION_ERROR;
     }
     out->finalSample = sample;
@@ -1966,6 +2139,8 @@ static NlSettleResult_t WaitForPointSettle(
     uint32_t stableConsecutive = 0U;
     uint32_t combinedConsecutive = 0U;
     uint32_t startTick = HAL_GetTick();
+    RecordStutterSettleSample(stutterTrace, stutterPointSlot,
+        expectedTargetUnwrapped, sample.unwrappedRaw, 0U);
 
     for (;;)
     {
@@ -1976,10 +2151,15 @@ static NlSettleResult_t WaitForPointSettle(
         {
             out->acquisitionResult = result;
             out->result = NL_SETTLE_ACQUISITION_ERROR;
+            CompleteStutterSettleTrace(stutterTrace, stutterPointSlot,
+                NL_SETTLE_ACQUISITION_ERROR);
             return NL_SETTLE_ACQUISITION_ERROR;
         }
         out->finalSample = sample;
         out->pollCount++;
+        RecordStutterSettleSample(stutterTrace, stutterPointSlot,
+            expectedTargetUnwrapped, sample.unwrappedRaw,
+            HAL_GetTick() - startTick);
         uint64_t deltaRaw = AbsI64ToU64(sample.unwrappedRaw - lastUnwrapped);
         lastUnwrapped = sample.unwrappedRaw;
         out->positionErrorRaw = sample.unwrappedRaw - expectedTargetUnwrapped;
@@ -2016,6 +2196,8 @@ static NlSettleResult_t WaitForPointSettle(
         {
             out->valid = true;
             out->result = NL_SETTLE_OK;
+            CompleteStutterSettleTrace(stutterTrace, stutterPointSlot,
+                NL_SETTLE_OK);
             return NL_SETTLE_OK;
         }
 
@@ -2025,12 +2207,26 @@ static NlSettleResult_t WaitForPointSettle(
             if (out->stabilityValid && !out->targetProximityValid)
             {
                 out->result = NL_SETTLE_WRONG_POSITION;
+                CompleteStutterSettleTrace(stutterTrace, stutterPointSlot,
+                    NL_SETTLE_WRONG_POSITION);
                 return NL_SETTLE_WRONG_POSITION;
             }
             out->result = NL_SETTLE_TIMEOUT;
+            CompleteStutterSettleTrace(stutterTrace, stutterPointSlot,
+                NL_SETTLE_TIMEOUT);
             return NL_SETTLE_TIMEOUT;
         }
     }
+}
+
+static NlSettleResult_t WaitForPointSettle(
+    MA600_AcquisitionContext_t *sweepAcquisition,
+    int64_t expectedTargetUnwrapped,
+    bool targetRequired,
+    NlSettleObservation_t *out)
+{
+    return WaitForPointSettleTraced(sweepAcquisition,
+        expectedTargetUnwrapped, targetRequired, out, NULL, 0U);
 }
 
 #if ENABLE_B0B_APPROACH_CREEP
@@ -2572,6 +2768,12 @@ typedef struct
 static NlSweepCapture_t nlCaptures[NL_MAX_SWEEPS_PER_TEST];
 static NlShadowPointStorage_t nlShadowPointStorage[NL_MAX_SWEEPS_PER_TEST]
     __attribute__((section(".ccmram_bss")));
+#if ENABLE_7PP_STUTTER_TRACE
+/* Single-sweep storage is enforced by the compile guard above. CCM keeps
+ * this diagnostic payload away from the FreeRTOS heap and task stack. */
+static NlStutterTrace_t nlStutterTrace
+    __attribute__((section(".ccmram_bss")));
+#endif
 static float nlSortScratch[NL_MAX_SWEEP_POINTS];
 /* MAD-filter sample scratch, point-0 and point-360 only: reused
  * sequentially (single-threaded test task, never concurrent) rather than
@@ -3084,7 +3286,14 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     NlShadowPointStorage_t *shadowPoints = (captureSlot < NL_MAX_SWEEPS_PER_TEST)
         ? &nlShadowPointStorage[captureSlot]
         : NULL;
+    NlStutterTrace_t *stutterTrace = NULL;
     memset(out, 0, sizeof(*out));
+#if ENABLE_7PP_STUTTER_TRACE
+    memset(&nlStutterTrace, 0, sizeof(nlStutterTrace));
+    nlStutterTrace.enabled = true;
+    nlStutterTrace.valid = true;
+    stutterTrace = &nlStutterTrace;
+#endif
     if (shadowPoints != NULL)
     {
         memset(shadowPoints, 0, sizeof(*shadowPoints));
@@ -3100,6 +3309,10 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     out->direction = direction;
     out->testId = testId;
     out->sweepId = ++nlSweepIdCounter;
+#if ENABLE_7PP_STUTTER_TRACE
+    stutterTrace->testId = out->testId;
+    stutterTrace->sweepId = out->sweepId;
+#endif
     out->lockDurationMs = nlLastLockDurationMs;
     out->lockCommandCount = nlLastLockCommandCount;
     out->lockTimingOverruns = nlLastLockTimingOverruns;
@@ -4192,6 +4405,16 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             rampStepDelayMs = NL_SWEEP_RAMP_SOFT_START_DELAY_MS;
         }
 #endif
+        NlStutterTrace_t *pointStutterTrace = NULL;
+        uint32_t stutterPointSlot = 0U;
+#if ENABLE_7PP_STUTTER_TRACE
+        if ((uint32_t)pointIndex >= NL_STUTTER_POINT_FIRST
+                && (uint32_t)pointIndex <= NL_STUTTER_POINT_LAST)
+        {
+            pointStutterTrace = stutterTrace;
+            stutterPointSlot = (uint32_t)pointIndex - NL_STUTTER_POINT_FIRST;
+        }
+#endif
 #if ENABLE_SWEEP_RAMP_STEP_DIAG
         int64_t *rampDiagBuf = NULL;
         uint8_t rampDiagCapacity = 0U;
@@ -4202,16 +4425,19 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             rampDiagCapacity = NL_SWEEP_RAMP_DIAG_MAX_STEPS;
         }
         uint32_t rampDiagSteps = 0U;
-        acquisitionResult = RampCommandToTarget(&sweepAcquisition, &pos, targetPos,
+        acquisitionResult = RampCommandToTargetTraced(&sweepAcquisition, &pos, targetPos,
             rampDiagThisRamp ? &rampDiagSteps : NULL, rampDiagBuf, rampDiagCapacity,
-            rampStepDelayMs, &out->motionDiagnostics);
+            rampStepDelayMs, &out->motionDiagnostics, pointStutterTrace,
+            stutterPointSlot, sweepOriginUnwrapped);
         if (rampDiagThisRamp)
         {
             out->sweepRampStepCount[pointIndex - 1] = (uint8_t)rampDiagSteps;
         }
 #else
-        acquisitionResult = RampCommandToTarget(&sweepAcquisition, &pos, targetPos, NULL, NULL, 0,
-            rampStepDelayMs, &out->motionDiagnostics);
+        acquisitionResult = RampCommandToTargetTraced(&sweepAcquisition, &pos,
+            targetPos, NULL, NULL, 0, rampStepDelayMs,
+            &out->motionDiagnostics, pointStutterTrace, stutterPointSlot,
+            sweepOriginUnwrapped);
 #endif
         AccumulateCounterDelta(&sweepAcquisition, &rampBefore, &out->rampAcquisition);
         if (acquisitionResult != MA600_RESULT_OK)
@@ -4226,8 +4452,9 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         SetEngineState(NL_ENGINE_SETTLE);
         settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
         int64_t expectedTargetUnwrapped = sweepOriginUnwrapped + (int64_t)pos;
-        settleResult = WaitForPointSettle(&sweepAcquisition,
-            expectedTargetUnwrapped, true, &settleObservation);
+        settleResult = WaitForPointSettleTraced(&sweepAcquisition,
+            expectedTargetUnwrapped, true, &settleObservation,
+            pointStutterTrace, stutterPointSlot);
         AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
             &out->settleAcquisition);
         if (settleResult == NL_SETTLE_ACQUISITION_ERROR)
@@ -4611,6 +4838,136 @@ static void PrintClosureProbeLog(const NlSweepCapture_t *c, const char *jigId,
         (unsigned long)c->closureProbeValidStageCount,
         c->postTurnTimingComparable ? 1 : 0,
         MA600_ResultName(c->closureProbeAcquisitionResult), status);
+}
+
+static void PrintStutterTraceLog(const NlSweepCapture_t *c, const char *jigId,
+                                 const char *direction)
+{
+#if ENABLE_7PP_STUTTER_TRACE
+    const NlStutterTrace_t *trace = &nlStutterTrace;
+    if (!trace->enabled || trace->testId != c->testId
+            || trace->sweepId != c->sweepId)
+    {
+        return;
+    }
+
+    bool complete = trace->valid && !trace->overflow;
+    uint32_t rampRecordCount = 0U;
+    uint32_t settleRecordCount = 0U;
+    for (uint32_t slot = 0U; slot < NL_STUTTER_POINT_COUNT; slot++)
+    {
+        rampRecordCount += trace->rampSampleCount[slot];
+        settleRecordCount += trace->settleSampleCount[slot];
+        if (trace->rampSampleCount[slot] != NL_STUTTER_RAMP_SAMPLE_CAPACITY
+                || trace->settleSampleCount[slot] == 0U
+                || !trace->settleComplete[slot])
+        {
+            complete = false;
+        }
+    }
+
+    LogLineLarge(
+        "STUTTER_TRACE_META,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,Official=0,Profile=%s,PointFirst=%u,PointLast=%u,"
+        "ExpectedRampRecords=%lu,RampRecords=%lu,SettleRecords=%lu,"
+        "RampTicksPerPoint=%u,RampDelayMs=%u,SettleStableDeltaRaw=%ld,"
+        "SettleConsecutive=%u,SettleToleranceRaw=%ld,SettleTimeoutMs=%u,"
+        "LagSign=OBSERVED_MINUS_COMMAND,Overflow=%d,Complete=%d,Status=%s\r\n",
+        NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+        (unsigned long)c->sweepId, jigId, MOTOR_ID, direction,
+        TEST_PROFILE_ID, (unsigned)NL_STUTTER_POINT_FIRST,
+        (unsigned)NL_STUTTER_POINT_LAST,
+        (unsigned long)(NL_STUTTER_POINT_COUNT
+            * NL_STUTTER_RAMP_SAMPLE_CAPACITY),
+        (unsigned long)rampRecordCount, (unsigned long)settleRecordCount,
+        (unsigned)NL_STUTTER_RAMP_SAMPLE_CAPACITY,
+        (unsigned)NL_RAMP_STEP_DELAY_MS, (long)NL_POINT_SETTLE_ERROR_RAW,
+        (unsigned)NL_POINT_SETTLE_CONSECUTIVE,
+        (long)NL_SETTLE_TARGET_TOLERANCE_RAW,
+        (unsigned)NL_POINT_SETTLE_TIMEOUT_MS,
+        trace->overflow ? 1 : 0, complete ? 1 : 0,
+        complete ? "VALID" : "INVALID");
+
+    for (uint32_t slot = 0U; slot < NL_STUTTER_POINT_COUNT; slot++)
+    {
+        uint32_t point = NL_STUTTER_POINT_FIRST + slot;
+        int64_t previousObserved = trace->rampStartObservedRaw[slot];
+        for (uint32_t i = 0U; i < trace->rampSampleCount[slot]; i++)
+        {
+            MA600_Result_t acquisitionResult =
+                (MA600_Result_t)trace->rampAcquisitionResult[slot][i];
+            char observedBuf[24], deltaBuf[24], lagBuf[24];
+            if (acquisitionResult == MA600_RESULT_OK)
+            {
+                int64_t observed = trace->rampObservedRaw[slot][i];
+                FormatI64(observed, observedBuf, sizeof(observedBuf));
+                FormatI64(observed - previousObserved,
+                    deltaBuf, sizeof(deltaBuf));
+                FormatI64(observed - trace->rampCommandRaw[slot][i],
+                    lagBuf, sizeof(lagBuf));
+                previousObserved = observed;
+            }
+            else
+            {
+                snprintf(observedBuf, sizeof(observedBuf), "NA");
+                snprintf(deltaBuf, sizeof(deltaBuf), "NA");
+                snprintf(lagBuf, sizeof(lagBuf), "NA");
+            }
+            LogLineLarge(
+                "STUTTER_RAMP_STEP,SchemaVersion=%d,TestID=%lu,SweepID=%lu,"
+                "JigID=%s,MotorID=%s,Direction=%s,Official=0,Point=%lu,"
+                "Tick=%lu,CommandRaw=%ld,ObservedRaw=%s,ObservedDeltaRaw=%s,"
+                "LagRaw=%s,AcquisitionResult=%s,LatenessTicks=%u\r\n",
+                NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+                (unsigned long)c->sweepId, jigId, MOTOR_ID, direction,
+                (unsigned long)point, (unsigned long)(i + 1U),
+                (long)trace->rampCommandRaw[slot][i],
+                observedBuf, deltaBuf, lagBuf,
+                MA600_ResultName(acquisitionResult),
+                (unsigned)trace->rampLatenessTicks[slot][i]);
+        }
+
+        for (uint32_t i = 0U; i < trace->settleSampleCount[slot]; i++)
+        {
+            uint32_t first = (i > NL_POINT_SETTLE_CONSECUTIVE)
+                ? (i - NL_POINT_SETTLE_CONSECUTIVE) : 0U;
+            int32_t minRaw = trace->settleObservedRaw[slot][first];
+            int32_t maxRaw = minRaw;
+            for (uint32_t windowIndex = first;
+                    windowIndex <= i; windowIndex++)
+            {
+                int32_t value = trace->settleObservedRaw[slot][windowIndex];
+                if (value < minRaw) minRaw = value;
+                if (value > maxRaw) maxRaw = value;
+            }
+            char observedBuf[24], targetErrorBuf[24], windowP2PBuf[24];
+            int64_t observed = trace->settleObservedRaw[slot][i];
+            FormatI64(observed, observedBuf, sizeof(observedBuf));
+            FormatI64(observed - trace->settleExpectedTargetRaw[slot],
+                targetErrorBuf, sizeof(targetErrorBuf));
+            FormatI64((int64_t)maxRaw - minRaw,
+                windowP2PBuf, sizeof(windowP2PBuf));
+            LogLineLarge(
+                "STUTTER_SETTLE_SAMPLE,SchemaVersion=%d,TestID=%lu,SweepID=%lu,"
+                "JigID=%s,MotorID=%s,Direction=%s,Official=0,Point=%lu,"
+                "Poll=%lu,ElapsedMs=%u,ObservedRaw=%s,TargetErrorRaw=%s,"
+                "WindowP2PRaw=%s,FinalSettleResult=%s\r\n",
+                NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+                (unsigned long)c->sweepId, jigId, MOTOR_ID, direction,
+                (unsigned long)point, (unsigned long)(i + 1U),
+                (unsigned)trace->settleElapsedMs[slot][i],
+                observedBuf, targetErrorBuf, windowP2PBuf,
+                trace->settleComplete[slot]
+                    ? SettleResultName((NlSettleResult_t)
+                        trace->settleFinalResult[slot])
+                    : "INCOMPLETE");
+        }
+    }
+#else
+    (void)c;
+    (void)jigId;
+    (void)direction;
+#endif
 }
 
 static void PrintSweepLog(const NlSweepCapture_t *c)
@@ -5545,6 +5902,9 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             (unsigned)c->sweepRampStepCount[rampDiagIdx], rampStepsBuf);
     }
 #endif
+
+    /* P7-AB1 trace is emitted only from this motor-off logging phase. */
+    PrintStutterTraceLog(c, jigId, dirStr);
 
     LogLineLarge(
         "SHADOW_END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
