@@ -677,6 +677,148 @@ việc thay motor. Ghi rõ có tháo/lắp lại hay không.
 V3.1 dùng baseline V2 hiện có để đánh giá hiệu quả thực dụng. Nó chưa phải
 phép chứng minh nhân quả tuyệt đối vì V2 còn bias còn V3 không bias.
 
+**Kết quả đã chạy (P03 + P06, khóa lại — không hồi tố):**
+
+```text
+V3.1 = MIXED / CALIBRATION
+
+Data integrity:       PASS  (10/10 clean cả 2 product)
+Closure:               PASS  (range P03<->P06 = 0.057 deg, so baseline = 0.399 deg)
+Post-turn residual:    PASS  (giảm 63-67% trên WorstProduct P03)
+Motion repeatability:  PASS  (error lặp lại rất chặt, SD nhỏ, cùng chiều 20/20 run)
+Motion absolute gate:  FAIL  theo ngưỡng +-16 raw hiện tại (0/10 cả 2 product)
+NL integrity:          SECTOR_CONFOUNDED (vượt repeatability limit nhưng
+                        A36 gần như không đổi -- xem mục 7.4)
+Overall:               MIXED -- calibration evidence, KHÔNG PASS, KHÔNG FAIL toàn phần
+```
+
+Không được nâng cấp batch này thành PASS dù kết quả V3.1a-DIAG/V3.2 sau này
+nghiêng về "sector, không phải approach" — theo quy tắc chống
+calibration-trên-chính-batch-dùng-để-PASS (mục 4b), quyết định PASS chính
+thức chỉ áp dụng cho batch xác nhận độc lập chạy sau khi khóa gate.
+
+### V3.1a-DIAG — chẩn đoán cơ chế motion trước khi sửa bất cứ gì
+
+**Lý do cần bước này:** dữ liệu V3.1 cho thấy `FinalTargetErrorRaw`
+(−54..−74 raw) cùng dấu và cùng độ lớn với sai số điểm-1 của chính sweep
+chính (P03: 78–93 raw, P06: 85–95 raw, cùng cơ chế "1 bước mở vòng sau khi
+vừa settle") — nghi ngờ hợp lý rằng gate `±16 raw` tuyệt đối không tương
+thích với một hệ đo NL thật (~2.7-3.0°), chứ không phải bằng chứng pre-roll
+"mất đồng bộ". Trước khi đổi bất kỳ tham số chuyển động nào (delay, settle
+định kỳ), cần phân biệt rạch ròi hai khả năng: (a) còn dynamics/lag chưa
+hội tụ lúc settle trigger, hay (b) đã tới điểm cân bằng tĩnh (equilibrium)
+đúng theo đường cong NL/sector, chỉ là gate đang đo nhầm nó thành lỗi motion.
+
+**Ràng buộc bắt buộc — giữ nguyên tuyệt đối, không thêm SPI read/delay:**
+
+- power, 1 ms/tick, 40 tick/segment, settle threshold — không đổi;
+- pre-roll 59 bước, final 1 bước, sector capture — không đổi;
+- công thức đo (NL/Closure/harmonic) — không đổi;
+- checkpoint đọc từ mẫu encoder cuối cùng context đã có sẵn sau mỗi
+  `RampCommandToTarget()` (`sweepAcquisition.unwrap.unwrappedRaw`), không
+  chèn acquisition mới, không đổi cadence.
+
+**Field mới cần thêm** (record riêng `PREROLL_CHECKPOINT`, Official=0,
+diagnostic-only, không gate bất kỳ giá trị chính thức nào):
+
+```text
+PREROLL_CHECKPOINT,SchemaVersion=...,TestID=...,SweepID=...,
+    Point=10|20|30|40|50|59,RampEndTargetErrorRaw=...
+
+PreRollRampEndTargetErrorRaw
+PreRollSettledTargetErrorRaw
+PreRollSettleCorrectionRaw
+PreRollSettlePollCount
+
+FinalRampEndAbsoluteTargetErrorRaw
+FinalSettledAbsoluteTargetErrorRaw
+FinalSettleCorrectionRaw
+FinalSettlePollCount
+```
+
+Công thức:
+
+```text
+CheckpointTargetError = observedAtRampEnd - (initialAnchorUnwrapped + targetForCheckpoint)
+SettleCorrection       = settledPosition - rampEndPosition
+```
+
+`targetForCheckpoint` dùng đúng `NlTargetRawMagnitudeForPoint(point)`, cùng
+nguồn rounded-grid đã khóa cho pre-roll/final ở mục 3.1 — không hard-code
+riêng.
+
+**Quy mô hardware test:** 1 precondition + 3 official trên P03 và P06 (đủ
+để phân loại cơ chế, chưa phải batch xác nhận).
+
+**Cách đọc kết quả:**
+
+```text
+Settle correction cùng chiều đưa rotor gần target hơn, lớn hơn nhiễu, lặp
+lại trên cả 2 motor
+    => tồn tại thành phần dynamics thật. Thử tăng delay 1ms->2ms như MỘT
+       thay đổi duy nhất (chưa thêm periodic settle).
+
+Ramp-end error ~= settled error (settle correction nhỏ, trong nhiễu)
+    => static equilibrium / đặc trưng NL tại sector đó. KHÔNG giảm tốc,
+       KHÔNG thêm settle -- chuyển OriginShiftTargetErrorRaw/FinalTargetErrorRaw
+       từ gate tuyệt đối +-16 raw sang gate đúng-sector + repeatability
+       (định nghĩa cụ thể sau khi có dữ liệu diag).
+
+Checkpoint error tăng dần theo quãng đường rồi giảm mạnh lúc settle
+    => mới cân nhắc periodic settle giữa pre-roll.
+
+Checkpoint error dao động không đơn điệu theo góc (không phải tăng dần)
+    => đang đọc đường NL/harmonic tại các điểm khác nhau, không phải tích
+       lũy lag -- củng cố thêm giả thuyết SECTOR_CONFOUNDED ở mục 7.4.
+```
+
+**Kết quả đã chạy (P03 n=6, P06 n=5 official — vượt mức tối thiểu 3, khóa
+lại):**
+
+```text
+                            P03 (n=6)         P06 (n=5)
+PreRoll settle correction  3.3 +/- 3.8 raw   0.6 +/- 2.3 raw
+Final settle correction    1.7 +/- 3.8 raw   0.4 +/- 2.5 raw
+Settle poll count           9, SD=0           9, SD=0   (ca 2 giai doan,
+                                                          ca 2 motor)
+```
+
+Settle correction ~1-3% tổng sai số (261/201 raw ở P03, 304/232 raw ở
+P06), dấu đổi qua lại giữa các run (không cùng chiều nhất quán) -- đúng
+dấu hiệu "trong nhiễu", không phải dynamics đang kéo rotor về gần target.
+Poll count đúng bằng số poll tối thiểu (`NL_POINT_SETTLE_CONSECUTIVE=8` +
+1) tuyệt đối không đổi trên toàn bộ 11 run của cả 2 motor -- nếu còn
+dynamics chưa hội tụ, poll count phải dao động run-to-run. Hình dạng
+đường checkpoint cũng khác nhau về CHẤT giữa 2 motor (P03 plateau ở
+P40-P50 trước khi nhảy vọt tại P59; P06 có dip tại P30 mà P03 không có) --
+nếu là dynamics chung (hằng số thời gian điện/cơ), kỳ vọng hình dạng
+tương tự nhau giữa các motor cùng thiết kế, chỉ khác biên độ.
+
+```text
+KHÓA: Nhánh B -- Static equilibrium / sector NL, xác nhận trên cả 2 motor.
+KHÔNG giảm tốc pre-roll, KHÔNG thêm settle định kỳ.
+```
+
+**Lưu ý trung thực, chưa ảnh hưởng phân loại:** `OriginShiftTargetErrorRaw`
+của P03 nhất quán giữa batch V3.1 screening (test 24, mean 205.1) và batch
+V3.1a-DIAG (test 25, mean 202.5), nhưng P06 lệch đáng kể giữa hai batch
+(256.0 → 232.4, ~9%). Bằng chứng dynamics-vs-equilibrium (settle
+correction, poll count) độc lập với con số tuyệt đối này nên không bị ảnh
+hưởng. Định nghĩa gate cụ thể và kết quả xác nhận số cho từng product —
+xem mục 7.3.
+
+Batch V3.1 screening (test 24, n=10/product) dùng làm **calibration**, batch
+V3.1a-DIAG (test 25) dùng làm **confirmation độc lập** — hợp lệ tái dùng vì
+test 25 được thu thập cho mục đích khác (phân loại cơ chế), chưa từng dùng
+để suy ra ngưỡng nào, và không đổi bất kỳ tham số chuyển động nào so với
+build V3-B thường. Không cần chạy phần cứng mới cho P03. P06
+`OriginShiftTargetErrorRaw` không xác nhận được qua cách này (mục 7.3) —
+cần một batch P06 độc lập mới trước khi khóa production cho product này.
+Sau đó mới chuyển sang V3.2 — ưu tiên P03 (đã CONFIRMED ở mục 7.3, đồng
+thời residual improvement và NL delta đều lớn nhất, đúng tiêu chí mục 7.5)
+để xác nhận reversal hay sector là nguyên nhân thật của cả Closure/Residual
+lẫn NL.
+
 ### V3.2 — xác nhận nguyên nhân khi V3.1 có triển vọng
 
 **Confound bắt buộc phải sửa trước khi build:** A0 (reversal hiện tại,
@@ -757,6 +899,24 @@ xem mục 7 cuối):
 Mỗi leg giữ 1 precondition + 10 official. Đây mới là phép tách riêng biến
 `reversal` khỏi biến `bias`, biến `sector cơ khí`, và drift thời gian.
 
+**Điều kiện kẹp cố định (khóa, không thử lực khác):**
+
+```text
+ClampForce = 0.16 N
+Motor = không tháo/lắp giữa các leg (A0-before, B, A0-after)
+Không xoay trục bằng tay
+Giữ nguyên vị trí và hướng tiếp xúc kẹp
+```
+
+Không thử lực kẹp thấp hơn. Dữ liệu lực chỉ dùng để chuẩn hóa setup (xác
+nhận kẹp không đổi giữa các leg), **không dùng để hiệu chỉnh NL**. `H2`
+(bậc harmonic thứ 2, gắn với lệch tâm/kẹp cơ khí) được theo dõi dưới dạng
+`(C2, S2)` — không chỉ biên độ — trong suốt A0-before/B/A0-after để làm
+bằng chứng phụ rằng setup cơ khí không đổi giữa 3 leg; đây là kiểm tra bổ
+sung cho gate sector ở `AnalysisStartRaw` dưới đây, không thay thế nó.
+Reference `H2` đo trên P06 (nếu có) **không được áp trực tiếp cho P03** —
+mỗi product có `H2` baseline riêng theo lệch tâm/kẹp cơ khí của chính nó.
+
 **Gate bắt buộc trước khi đọc kết quả nhân quả — xác nhận cả 3 leg thực sự
 cùng sector tuyệt đối:** `expectedPoint60 = initialAnchorUnwrapped +
 target60` đúng *trong từng run riêng lẻ*, nhưng `initialAnchorUnwrapped`
@@ -815,6 +975,35 @@ trị nào ở từng bước, không để analyzer tự chọn mean hay per-ru
    các gate motion khác ở mục 7.3 đều tính theo tỉ lệ run đạt, không theo
    mean)
 ```
+
+**Đã implement** (`scripts/analyze_nonlinear_logs.ps1`): `Get-CircularDeltaRaw`
+(bước 2/3, xử lý đúng wrap 65535→0 bằng double-mod thay vì `%` của
+PowerShell/.NET vốn có thể trả số âm), `Get-CircularMeanRaw` (bước 1, vector
+mean thay vì mean số học thường — sai nếu cụm giá trị nằm vắt qua biên
+wrap), và `Get-V32SectorGateResult` (gộp cả 4 bước, nhận mảng
+AnalysisStartRaw/timestamp của 3 leg + `SectorToleranceRaw`, trả về
+`SectorErrorRaw`/`Pass` theo từng run B và `GatePass` tổng). Có test hồi quy
+hand-computed (kể cả một case wrap và một case B fail có chủ đích để chứng
+minh gate thực sự phân biệt được) trong `scripts/test_analyze_nonlinear_logs.ps1`.
+`AnalysisStartRaw` cũng đã thêm vào CSV export của analyzer.
+
+**Khoảng trống chưa giải quyết — trục thời gian chung giữa 3 leg:** công
+thức trên cần `timestamp_B[k]`/`t_A0_before_ref`/`t_A0_after_ref` trên
+**cùng một trục thời gian liên tục cả 3 leg**. Log UART hiện tại **không có
+trường wall-clock tuyệt đối** nào dùng được xuyên suốt 3 leg — mỗi leg là
+một file/phiên nạp firmware riêng (A0/B/A0 dùng 3 build `NL_APPROACH_MODE`
+khác nhau), nên không có đồng hồ MCU liên tục bắc cầu giữa chúng; chỉ có
+`TimeSincePreviousRunMs` (tương đối, trong-leg) và `MotorActiveDurationMs`.
+`Get-V32SectorGateResult` nhận `timestamp` như một tham số chung chung, đúng
+chủ đích — **không tự chế trục thời gian** để tránh giả định sai. Trước khi
+chạy hardware test V3.2, cần chốt một trong hai:
+
+- ghi lại wall-clock PC lúc nhận từng dòng log (nếu tool capture UART phía
+  PC có hỗ trợ) làm trục thời gian thật; hoặc
+- dùng chỉ số thứ tự run (1..10 mỗi leg, cộng dồn xuyên 3 leg) làm xấp xỉ,
+  **chỉ hợp lệ nếu** thời lượng mỗi run tương đối ổn định (giả định hợp lý
+  theo protocol batch cố định hiện tại, nhưng là xấp xỉ, không phải đo
+  thật) — phải ghi rõ trong báo cáo kết quả V3.2 nếu dùng cách này.
 
 `SectorToleranceRaw` phải khóa **trước** khi xem dữ liệu P03/P06 dùng để
 kết luận — nếu hiệu chỉnh bằng chính dữ liệu pilot, áp dụng cùng quy tắc
@@ -983,15 +1172,6 @@ tương tự cho residual): dừng nhánh reversal, chuyển hướng phân tíc
 
 ### 7.3. Motion success
 
-```text
-abs(FinalTargetErrorRaw) <= 16 raw ở >= 9/10 run
-abs(OriginShiftTargetErrorRaw) <= 16 raw ở >= 9/10 run
-
-ExpectedReversalCount theo protocol (không dùng ngưỡng chung — xem mục 7.1):
-    B  = 0 ở 10/10 run
-    A0 = 2 ở 10/10 run
-```
-
 **`OriginShiftTargetErrorRaw` không còn diagnostic-only — đây là gate bắt
 buộc, song song và độc lập với `FinalTargetErrorRaw`.** Lý do: settle hiện
 dùng dung sai target-proximity rất rộng (`NL_SETTLE_TARGET_TOLERANCE_RAW =
@@ -1001,9 +1181,71 @@ dùng dung sai target-proximity rất rộng (`NL_SETTLE_TARGET_TOLERANCE_RAW =
 một cách tình cờ vì capture rơi đúng sector nhưng sai vị trí tuyệt đối bên
 trong sector đó. `FinalTargetErrorRaw` kiểm tra đúng đoạn cuối;
 `OriginShiftTargetErrorRaw` kiểm tra toàn bộ hành trình từ initial anchor —
-hai gate bổ sung cho nhau, không thay thế nhau. Ngưỡng ±16 raw dùng tạm
-theo cùng chuẩn `FinalTargetErrorRaw`; hiệu chỉnh lại sau khi có dữ liệu
-P03/P06 thật nếu cần (không đoán trước — xem mục 4b).
+hai gate bổ sung cho nhau, không thay thế nhau.
+
+Ngưỡng tuyệt đối `±16 raw` ban đầu bị chính dữ liệu V3.1 bác bỏ (cả hai
+field đo được 200-330 raw trên cả 2 motor, xem mục "V3.1a-DIAG") — không
+phải motion lỗi, mà vì gate tuyệt đối không tương thích với biên độ NL thật.
+Thay bằng **gate đúng-sector + repeatability**:
+
+```text
+Cho từng field (FinalTargetErrorRaw, OriginShiftTargetErrorRaw), tính riêng
+theo product:
+
+  |mean_confirm - mean_calib| <= 2.77 * SD_calib
+
+  calib   = batch V3.1 screening (test 24, n=10/product) — khóa trước,
+            không tính lại sau khi đã biết confirm.
+  confirm = batch độc lập, thu thập cho mục đích khác calib (không dùng để
+            suy ra calib hay hệ số 2.77 — hệ số này là quy ước repeatability
+            2.77×SD dùng xuyên suốt plan, không tune riêng cho gate này).
+
+ExpectedReversalCount theo protocol (không dùng ngưỡng chung — xem mục 7.1):
+    B  = 0 ở 10/10 run
+    A0 = 2 ở 10/10 run
+```
+
+**Kết quả xác nhận** (calib = test 24, confirm = test 25/V3.1a-DIAG, tái
+dùng dữ liệu đã có, không chạy phần cứng mới):
+
+```text
+                            P03 (n=6)              P06 (n=5)
+FinalTargetErrorRaw         |1.17| <= 14.24 PASS    |1.50| <= 7.04  PASS
+OriginShiftTargetErrorRaw   |2.60| <= 12.22 PASS    |23.60| <= 19.11 FAIL
+                                                     (diff/SE = 9.8, không
+                                                      phải nhiễu)
+```
+
+`OriginShiftTargetErrorRaw` P06 fail thật, không phải fail nhẹ: lệch nằm
+gần hết ở pre-roll (`PreRollTargetErrorRaw` test24→test25 −22.1 raw), final
+leg vẫn ổn định (diff/SE = 0.7). Trùng thời điểm, `AnalysisStartRaw` (anchor
+đầu sweep) dịch −381.5 raw (≈ −2.10°) giữa hai batch; tương quan pooled
+n=15 giữa `AnalysisStartRaw` và `OriginShiftTargetErrorRaw` là r=0.898 (re-
+verify trực tiếp từ log gốc). Với chỉ 2 batch, r này gần như phản ánh 2
+cụm tách biệt chứ chưa chứng minh quan hệ liên tục/nhân quả — nhưng đưa ra
+cơ chế vật lý hợp lý (home/anchor dịch sang sector NL khác), nên nhãn phù
+hợp là **BATCH/SECTOR EFFECT DETECTED**, không phải "motion approach lỗi".
+
+**Không hồi tố theo chiều nới lỏng:** không được gộp test24+test25 để tính
+lại ngưỡng "chính thức" sau khi đã biết test25 fail — đó là nới lỏng gate
+sau khi thấy fail, vi phạm cùng nguyên tắc chống calibration-trên-chính-
+batch ở mục 4b (chiều ngược lại: thay vì tune ngưỡng để tự PASS bằng batch
+đang xét, mở rộng ngưỡng bằng chính batch đã fail để nó thành PASS). Số gộp
+(mean=248.13, SD=12.83 raw, 2.77×SD=35.55 — trong đó 80.5% tổng phương sai
+đến từ khác-biệt-giữa-batch chứ không phải nhiễu trong-batch) chỉ dùng để
+mô tả biên độ trôi, đánh dấu `DEVELOPMENT_ONLY / NOT INDEPENDENTLY
+VALIDATED`, không phải ngưỡng PASS.
+
+```text
+KHÓA:
+  P03  FinalTargetErrorRaw + OriginShiftTargetErrorRaw — CONFIRMED bằng dữ
+       liệu đã có, không cần chạy phần cứng mới, đủ điều kiện vào V3.2.
+  P06  FinalTargetErrorRaw — CONFIRMED.
+  P06  OriginShiftTargetErrorRaw — CHƯA CONFIRMED (BATCH/SECTOR EFFECT
+       DETECTED). Trước khi duyệt production cho P06: (a) định nghĩa gate
+       có điều kiện theo AnalysisStartRaw/sector, (b) xác nhận bằng một
+       batch P06 độc lập mới (không dùng lại test24/test25 để tự PASS).
+```
 
 Pre-roll target error được report riêng. Không cho phép Closure nhỏ do
 pre-roll/final sai ngược chiều tự triệt tiêu.
@@ -1012,12 +1254,51 @@ pre-roll/final sai ngược chiều tự triệt tiêu.
 
 So với baseline cùng product:
 
-- Robust NL không đổi quá repeatability limit `2.77 * SD` đã đo;
+- Robust NL không đổi quá repeatability limit `2.77 * SD` đã đo, **trừ khi
+  thay đổi được chứng minh là do dịch sector chứ không phải do approach**
+  (xem dưới) — cùng ngoại lệ như H36, không chỉ riêng harmonic;
 - H36 amplitude và các harmonic ratio chính không đổi quá 3%, trừ khi thay
   đổi được lặp lại trong V3.2 A-B-A và được chứng minh là do approach;
 - acquisition và 12-order reconstruction không xấu đi;
 - motor-active duration không tăng quá 15%;
 - không thêm drift NL có slope CI95 loại trừ 0 theo chiều xấu.
+
+**Kết quả thực nghiệm V3.1 (P03/P06, docs này mục 6 — screening batch, xem
+`SECTOR_CONFOUNDED` dưới):** Robust NL lệch vượt `2.77×SD` ở cả 3 phép so
+sánh baseline (P03: 3.02806°→2.74483°, Δ−9.35%, giới hạn 0.0483°; P06 R1:
+3.02973°→2.94531°, Δ−2.79%, giới hạn 0.0447°; P06 R2: 3.08527°→2.94531°,
+Δ−4.54%, giới hạn 0.0367°) — cả 3 đều vượt xa giới hạn. Đồng thời `ShadowA36`
+(sóng hài điện, gắn với cực từ, không phụ thuộc sector cơ khí cục bộ) hầu
+như không đổi (P03 −1.67%, P06 +0.59%). NL đổi nhiều trong khi A36 gần như
+không đổi là dấu hiệu ủng hộ giả thuyết **dịch sector** (mục 3.1: point-0
+của V3 lệch ~+60° so với V1/V2, nên chạm vào biên dạng cơ khí cục bộ khác —
+lệch tâm, harmonic bậc thấp như H18 — vốn dĩ thay đổi theo sector một cách
+tự nhiên, không cần approach "làm hỏng" gì cả) hơn là giả thuyết "approach
+V3 làm sai phép đo".
+
+```text
+Kết quả gate Robust-NL trên batch V3.1 (P03/P06) = SECTOR_CONFOUNDED
+
+Ý nghĩa: số liệu lệch vượt repeatability limit là THẬT, nhưng KHÔNG được
+diễn giải là "V3 làm sai phép đo NL" chỉ dựa trên batch V3.1 -- V3.1 đo ở
+sector khác V2 baseline nên không tách được dịch-sector khỏi ảnh hưởng
+approach. Nhãn này chỉ mang tính MÔ TẢ, không phải PASS và không phải FAIL.
+```
+
+**Gate quyết định chuyển sang V3.2** (mục 6, A0-B-A0 cùng sector, xem mục
+6.2): so `Residual_B`/`NL_B` với bracket `A0-before`/`A0-after` — cùng
+sector với B, loại được biến sector khỏi phép so sánh. Chỉ khi V3.2 lặp lại
+cùng hướng thay đổi NL/harmonic mới được kết luận là do approach (đúng
+ngoại lệ đã có sẵn cho H36); nếu V3.2 KHÔNG lặp lại (tức A0 cùng sector
+cũng cho NL khác V1/V2 tương tự B) thì xác nhận là do sector, gate Robust-NL
+coi như đã thỏa mãn theo ngoại lệ.
+
+**Không hồi tố:** batch V3.1 (P03/P06) hiện có **không được** nâng cấp
+thành PASS dù kết quả `SECTOR_CONFOUNDED` cuối cùng nghiêng về sector sau
+V3.2 — đây vẫn là **batch calibration/screening**, quyết định PASS chính
+thức chỉ áp dụng cho batch xác nhận độc lập chạy sau khi khóa cách hiểu và
+gate (đúng quy tắc chống calibration-trên-chính-batch-dùng-để-PASS ở mục
+4b).
 
 ### 7.5. Tiêu chí chọn motor cho V3.2
 
@@ -1097,11 +1378,22 @@ PASS ở đây nghĩa là đạt **cả** gate Closure (7.2) **và** gate residu
 
 ### Hardware
 
-- [ ] P03 V3.1 log.
-- [ ] P06 V3.1 log.
-- [ ] Báo cáo so với V2 baseline.
-- [ ] Quyết định PASS/MIXED/FAIL.
-- [ ] A0-B-A0 confirmation nếu V3.1 PASS.
+- [x] P03 V3.1 log (test 24, n=10 official).
+- [x] P06 V3.1 log (test 24, n=10 official).
+- [x] Báo cáo so với V2 baseline.
+- [x] Quyết định PASS/MIXED/FAIL — MIXED/CALIBRATION (mục 6).
+- [x] V3.1a-DIAG P03 (test 25, n=6 official) — Nhánh B, static
+  equilibrium/sector NL.
+- [x] V3.1a-DIAG P06 (test 25, n=5 official) — Nhánh B, static
+  equilibrium/sector NL.
+- [x] Gate đúng-sector + repeatability (mục 7.3), xác nhận qua tái dùng
+  test24 (calib)/test25 (confirm): P03 CONFIRMED cả hai field; P06
+  FinalTargetErrorRaw CONFIRMED; P06 OriginShiftTargetErrorRaw CHƯA
+  CONFIRMED (BATCH/SECTOR EFFECT DETECTED).
+- [ ] A0-B-A0 confirmation (V3.2) trên P03 — đủ điều kiện tiến hành ngay.
+- [ ] Batch P06 độc lập mới để xác nhận `OriginShiftTargetErrorRaw` (không
+  dùng lại test24/test25 để tự PASS), kèm gate có điều kiện theo
+  `AnalysisStartRaw`/sector.
 - [ ] P02/P04/P05 expansion nếu confirmation PASS.
 
 ## 10. Điều kiện hoàn thành V3

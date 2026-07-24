@@ -116,6 +116,130 @@ function Get-StdDev {
     return [math]::Sqrt($sum / ($numbers.Count - 1))
 }
 
+# docs/b0b-v3-no-reversal-plan.md muc 6.2 (V3.2 sector gate): reduces
+# (Value - Reference) to the range [-32768, 32767] on the 16-bit raw circle,
+# correctly handling the 65535->0 wrap. Uses an explicit double-mod (not
+# PowerShell's/.NET's truncating %, which can return a negative remainder for
+# a negative dividend) so the intermediate wrap is always a proper
+# non-negative floor-mod before the final -32768 shift.
+function Get-CircularDeltaRaw {
+    param(
+        [Parameter(Mandatory)][double]$Value,
+        [Parameter(Mandatory)][double]$Reference
+    )
+
+    $diff = $Value - $Reference + 32768.0
+    $wrapped = (($diff % 65536.0) + 65536.0) % 65536.0
+    return $wrapped - 32768.0
+}
+
+# Circular (vector) mean of raw 16-bit encoder values on the 0..65536 circle
+# -- a naive arithmetic mean is wrong for any cluster straddling the
+# 65535->0 wrap (e.g. {65530, 5} naively averages to ~32767, the opposite
+# side of the circle, instead of the correct ~1.5). Returned in [0, 65536).
+function Get-CircularMeanRaw {
+    param([Parameter(Mandatory)][double[]]$Values)
+
+    $numbers = @($Values | Where-Object { $null -ne $_ } | ForEach-Object { [double]$_ })
+    if ($numbers.Count -eq 0) {
+        throw 'Get-CircularMeanRaw requires at least one value.'
+    }
+
+    $sumSin = 0.0
+    $sumCos = 0.0
+    foreach ($v in $numbers) {
+        $angle = ($v / 65536.0) * 2.0 * [Math]::PI
+        $sumSin += [Math]::Sin($angle)
+        $sumCos += [Math]::Cos($angle)
+    }
+    $meanAngle = [Math]::Atan2($sumSin, $sumCos)
+    if ($meanAngle -lt 0) { $meanAngle += 2.0 * [Math]::PI }
+    return ($meanAngle / (2.0 * [Math]::PI)) * 65536.0
+}
+
+# docs/b0b-v3-no-reversal-plan.md muc 6.2, "Khoa cong thuc circular + noi suy
+# theo thoi gian" -- per-run sector gate for the B leg of a V3.2 A0-B-A0
+# batch. *Timestamp arrays are a common, monotonic time axis across all three
+# legs; the raw UART log format captured by this project does NOT include an
+# absolute wall-clock field usable across three separately-flashed/rebooted
+# firmware sessions (see AnalysisStartRaw's per-line META timestamp gap noted
+# in the plan) -- callers must supply one from outside this function (e.g. a
+# PC-side receive timestamp recorded by the log-capture tool, or -- as a
+# documented approximation only, valid if per-run duration is roughly
+# constant -- the run's 1-based sequence index within its leg). This function
+# does not fabricate a timestamp axis on its own.
+function Get-V32SectorGateResult {
+    param(
+        [Parameter(Mandatory)][double[]]$A0BeforeAnalysisStartRaw,
+        [Parameter(Mandatory)][double[]]$A0BeforeTimestamp,
+        [Parameter(Mandatory)][double[]]$A0AfterAnalysisStartRaw,
+        [Parameter(Mandatory)][double[]]$A0AfterTimestamp,
+        [Parameter(Mandatory)][double[]]$BAnalysisStartRaw,
+        [Parameter(Mandatory)][double[]]$BTimestamp,
+        [Parameter(Mandatory)][double]$SectorToleranceRaw
+    )
+
+    if ($A0BeforeAnalysisStartRaw.Count -ne $A0BeforeTimestamp.Count) {
+        throw 'A0BeforeAnalysisStartRaw and A0BeforeTimestamp must have the same count.'
+    }
+    if ($A0AfterAnalysisStartRaw.Count -ne $A0AfterTimestamp.Count) {
+        throw 'A0AfterAnalysisStartRaw and A0AfterTimestamp must have the same count.'
+    }
+    if ($BAnalysisStartRaw.Count -ne $BTimestamp.Count) {
+        throw 'BAnalysisStartRaw and BTimestamp must have the same count.'
+    }
+    if ($BAnalysisStartRaw.Count -eq 0) {
+        throw 'Get-V32SectorGateResult requires at least one B run.'
+    }
+
+    # Step 1: circular mean AnalysisStartRaw + mean timestamp per bracket leg.
+    $a0BeforeRef = Get-CircularMeanRaw -Values $A0BeforeAnalysisStartRaw
+    $tA0BeforeRef = Get-Mean $A0BeforeTimestamp
+    $a0AfterRefRaw = Get-CircularMeanRaw -Values $A0AfterAnalysisStartRaw
+    $tA0AfterRef = Get-Mean $A0AfterTimestamp
+
+    # Step 2: "unwrap" the after-bracket mean onto a continuous axis around
+    # the before-bracket mean.
+    $a0AfterUnwrapped = $a0BeforeRef + (Get-CircularDeltaRaw -Value $a0AfterRefRaw -Reference $a0BeforeRef)
+
+    $tSpan = $tA0AfterRef - $tA0BeforeRef
+    if ($tSpan -eq 0) {
+        throw 'A0-before and A0-after mean timestamps are identical -- cannot interpolate (check the supplied timestamp axis).'
+    }
+
+    # Step 3-4: per-run linear-interpolated expected sector + circular error,
+    # gated per-run (not on the batch mean) at >=90% of runs passing --
+    # ceil(0.9*n) so n=10 reproduces the plan's literal ">=9/10".
+    $perRun = @()
+    $passCount = 0
+    for ($k = 0; $k -lt $BAnalysisStartRaw.Count; $k++) {
+        $frac = ($BTimestamp[$k] - $tA0BeforeRef) / $tSpan
+        $expectedB = $a0BeforeRef + ($a0AfterUnwrapped - $a0BeforeRef) * $frac
+        $sectorError = Get-CircularDeltaRaw -Value $BAnalysisStartRaw[$k] -Reference $expectedB
+        $pass = [Math]::Abs($sectorError) -le $SectorToleranceRaw
+        if ($pass) { $passCount++ }
+        $perRun += [PSCustomObject]@{
+            RunIndex                 = $k + 1
+            ExpectedAnalysisStartRaw = $expectedB
+            ObservedAnalysisStartRaw = $BAnalysisStartRaw[$k]
+            SectorErrorRaw           = $sectorError
+            Pass                     = $pass
+        }
+    }
+
+    $n = $BAnalysisStartRaw.Count
+    $requiredPassCount = [Math]::Ceiling(0.9 * $n)
+    return [PSCustomObject]@{
+        A0BeforeRef          = $a0BeforeRef
+        A0AfterRefUnwrapped  = $a0AfterUnwrapped
+        PerRun               = $perRun
+        PassCount            = $passCount
+        RequiredPassCount    = $requiredPassCount
+        TotalCount           = $n
+        GatePass             = ($passCount -ge $requiredPassCount)
+    }
+}
+
 function Get-SourceMetadata {
     param([string]$FilePath)
 
@@ -981,6 +1105,28 @@ foreach ($inputPath in $Path) {
                 BackoffObservedDeltaRaw = if ($approachResult.ContainsKey('BackoffObservedDeltaRaw')) { $approachResult['BackoffObservedDeltaRaw'] } else { "" }
                 BackoffTargetErrorRaw = if ($approachResult.ContainsKey('BackoffTargetErrorRaw')) { $approachResult['BackoffTargetErrorRaw'] } else { "" }
                 ApproachMotionQualification = if ($approachResult.ContainsKey('ApproachMotionQualification')) { $approachResult['ApproachMotionQualification'] } else { "" }
+                # V3 no-reversal (NL_APPROACH_MODE_NO_REVERSAL_V3, docs/b0b-v3-no-reversal-plan.md
+                # muc 4b) fields -- empty/"" for V1/V2 logs (field absent from APPROACH_RESULT there).
+                ApproachPath = if ($approachResult.ContainsKey('ApproachPath')) { $approachResult['ApproachPath'] } else { "" }
+                ReversalCount = if ($approachResult.ContainsKey('ReversalCount')) { $approachResult['ReversalCount'] } else { "" }
+                PreRollCommandDeltaRaw = if ($approachResult.ContainsKey('PreRollCommandDeltaRaw')) { Convert-ToNullableDouble $approachResult['PreRollCommandDeltaRaw'] } else { $null }
+                PreRollObservedDeltaRaw = if ($approachResult.ContainsKey('PreRollObservedDeltaRaw')) { Convert-ToNullableDouble $approachResult['PreRollObservedDeltaRaw'] } else { $null }
+                PreRollTargetErrorRaw = if ($approachResult.ContainsKey('PreRollTargetErrorRaw')) { Convert-ToNullableDouble $approachResult['PreRollTargetErrorRaw'] } else { $null }
+                PreRollDurationMs = if ($approachResult.ContainsKey('PreRollDurationMs')) { $approachResult['PreRollDurationMs'] } else { "" }
+                FinalCommandDeltaRaw = if ($approachResult.ContainsKey('FinalCommandDeltaRaw')) { Convert-ToNullableDouble $approachResult['FinalCommandDeltaRaw'] } else { $null }
+                FinalObservedDeltaRaw = if ($approachResult.ContainsKey('FinalObservedDeltaRaw')) { Convert-ToNullableDouble $approachResult['FinalObservedDeltaRaw'] } else { $null }
+                FinalTargetErrorRaw = if ($approachResult.ContainsKey('FinalTargetErrorRaw')) { Convert-ToNullableDouble $approachResult['FinalTargetErrorRaw'] } else { $null }
+                FinalDurationMs = if ($approachResult.ContainsKey('FinalDurationMs')) { $approachResult['FinalDurationMs'] } else { "" }
+                OriginShiftObservedRaw = if ($approachResult.ContainsKey('OriginShiftObservedRaw')) { Convert-ToNullableDouble $approachResult['OriginShiftObservedRaw'] } else { $null }
+                OriginShiftTargetErrorRaw = if ($approachResult.ContainsKey('OriginShiftTargetErrorRaw')) { Convert-ToNullableDouble $approachResult['OriginShiftTargetErrorRaw'] } else { $null }
+                InitialSettleResult = if ($approachResult.ContainsKey('InitialSettleResult')) { $approachResult['InitialSettleResult'] } else { "" }
+                PreRollSettleResult = if ($approachResult.ContainsKey('PreRollSettleResult')) { $approachResult['PreRollSettleResult'] } else { "" }
+                FinalSettleResult = if ($approachResult.ContainsKey('FinalSettleResult')) { $approachResult['FinalSettleResult'] } else { "" }
+                ApproachReadAttempts = if ($approachResult.ContainsKey('ApproachReadAttempts')) { $approachResult['ApproachReadAttempts'] } else { "" }
+                ApproachRetries = if ($approachResult.ContainsKey('ApproachRetries')) { $approachResult['ApproachRetries'] } else { "" }
+                ApproachTransportErrors = if ($approachResult.ContainsKey('ApproachTransportErrors')) { $approachResult['ApproachTransportErrors'] } else { "" }
+                ApproachJumpRejects = if ($approachResult.ContainsKey('ApproachJumpRejects')) { $approachResult['ApproachJumpRejects'] } else { "" }
+                ApproachFailedSamples = if ($approachResult.ContainsKey('ApproachFailedSamples')) { $approachResult['ApproachFailedSamples'] } else { "" }
                 OfficialMeasurementValid = $officialValid
                 OfficialInvalidReasonMask = if ($meta.ContainsKey('OfficialInvalidReasonMask')) { $meta['OfficialInvalidReasonMask'] } else { "" }
                 TrackingValid = if ($meta.ContainsKey('TrackingValid')) { $meta['TrackingValid'] } else { "" }
@@ -1008,6 +1154,7 @@ foreach ($inputPath in $Path) {
                 ClosureNormalizedDeltaRMSDeg = $closureNormalizedDeltaRmsDeg
                 ClosureNormalizedDeltaMaxAbsDeg = $closureNormalizedDeltaMaxAbsDeg
                 PostTurnAnalysisValid = $postTurnAnalysisValid
+                AnalysisStartRaw = if ($meta.ContainsKey('AnalysisStartRaw')) { Convert-ToNullableDouble $meta['AnalysisStartRaw'] } else { $null }
                 AcquisitionResult = if ($meta.ContainsKey('AcquisitionResult')) { $meta['AcquisitionResult'] } else { "" }
                 EndStatus = if ($end.ContainsKey('Status')) { $end['Status'] } else { "" }
                 MotorOffset1 = $motorOffset1

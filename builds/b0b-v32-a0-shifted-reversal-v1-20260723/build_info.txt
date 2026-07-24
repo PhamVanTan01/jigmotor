@@ -1,0 +1,53 @@
+SavedAtUtc=2026-07-23T10:20:54Z
+Configuration=Release
+GitCommit=734402ea37b3819496f2659321a780551e586984
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (V3.2 NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
+    implementation), docs/b0b-v3-no-reversal-plan.md (V3.2 sector-gate
+    implementation status + clamp-force lock + gate-reuse conclusion),
+    scripts/analyze_nonlinear_logs.ps1 (AnalysisStartRaw export +
+    Get-CircularDeltaRaw/Get-CircularMeanRaw/Get-V32SectorGateResult),
+    scripts/test_analyze_nonlinear_logs.ps1 +
+    scripts/fixtures/schema-v5-postturn-residual-p03-jig1.txt (sector-gate
+    regression tests), not yet committed
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0)
+ApproachProtocol=SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1
+ApproachPath=CW_CCW_CW
+ExpectedReversalCount=2
+PrePositionGridPoints=1..60 (60 x RampCommandToTarget, 40 tick each, no
+    settle between, settle once at point-60)
+LocalBackoffGridPoint=60->59 (1 x RampCommandToTarget, 40 tick, CCW, settle
+    at point-59 -- intentional, ReversalCount contributor 1 of 2)
+FinalGridPoint=59->60 (1 x RampCommandToTarget, 40 tick, CW, per-tick
+    logged, settle at point-60 = point-0 candidate -- ReversalCount
+    contributor 2 of 2)
+ExpectedPrePositionCommands=2400
+ExpectedLocalBackoffCommands=40
+ExpectedFinalCommands=40
+AllSettleTargetsAbsoluteFromInitialAnchor=1 (no chained/intermediate anchors,
+    per plan muc 3.1/6.2 -- expectedPoint60/expectedPoint59 computed once
+    from initialAnchorUnwrapped, reused across all 3 settle stages)
+FeedforwardEnabled=0
+CreepEnabled=0
+SoftStartEnabled=0
+MotorPolePairsRequired=6
+ClampForce=0.16 N (locked, see plan muc "V3.2", do not remount/hand-rotate
+    between A0-before/B/A0-after legs)
+Plan=docs/b0b-v3-no-reversal-plan.md, muc "V3.2 -- xac nhan nguyen nhan"
+BuildLabel=b0b-v32-a0-shifted-reversal-v1
+HardwareTestStage=V3.2 leg 1 and 3/3 (A0-before, then A0-after -- P03, jig1,
+    1 precondition + 10 official per leg, same build both times, no motor
+    removal between legs)
+NewApproachResultOutcome=NL_APPROACH_PREPOSITION_SETTLE_FAILED (distinct
+    from NL_APPROACH_BACKOFF_SETTLE_FAILED, which A0 reuses for its
+    local-backoff CCW settle failure -- see enum comment)
+NewLogFields=on APPROACH_RESULT: PrePositionSettleResult, LocalBackoffSettleResult,
+    LocalBackoffCommandDeltaRaw, LocalBackoffObservedDeltaRaw,
+    LocalBackoffTargetErrorRaw, LocalBackoffDurationMs (real values under A0;
+    PreRollSettleResult=NA under A0, PrePosition/LocalBackoff fields=NA under
+    B/V2 -- fixed-shape record, docs muc 4b). V3.1a-DIAG's 8 checkpoint-scheme
+    scalars are intentionally NOT emitted under A0 (that instrumentation was
+    scoped to B only).
+HexSHA256=088AD4DDBF1EC134AA6AF84A51E09691E892A26176635F0EB22EF4983547C27C
+ElfSHA256=28B898EE5E8BBB21C00F74D4E6C7EAA64B088AB1770EDBD9729A654D4E9A65DD

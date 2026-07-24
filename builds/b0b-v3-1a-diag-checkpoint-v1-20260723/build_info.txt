@@ -1,0 +1,34 @@
+SavedAtLocal=2026-07-23T10:50:13+07:00
+SavedAtUtc=2026-07-23T03:50:12Z
+Configuration=Release
+GitCommit=734402ea37b3819496f2659321a780551e586984
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (V3.1a-DIAG checkpoint instrumentation, not yet committed)
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=2 (NL_APPROACH_MODE_NO_REVERSAL_V3)
+ApproachProtocol=SCURVE_CW_PREROLL_NO_REVERSAL_V1
+BatchRunCount=10 (NL_TEST_REPEAT_10_RUNS -- 3-run mode blocked by an
+    existing #error guard requiring 10-run batches for
+    ONE_FULL_SWEEP_120S_V1; plan's "1 precondition + 3 official" minimum
+    is still satisfied by the first 3 official runs of a 10-run batch,
+    diagnostic classification does not require stopping early)
+Purpose=V3.1a-DIAG mechanism classification (dynamics-lag vs static
+    equilibrium) before deciding whether to change pre-roll delay/settle
+Plan=docs/b0b-v3-no-reversal-plan.md, muc "V3.1a-DIAG"
+NewLogFields=PREROLL_CHECKPOINT (Point=10|20|30|40|50|59,
+    RampEndTargetErrorRaw), plus on APPROACH_RESULT:
+    PreRollRampEndTargetErrorRaw, PreRollSettledTargetErrorRaw,
+    PreRollSettleCorrectionRaw, PreRollSettlePollCount,
+    FinalRampEndAbsoluteTargetErrorRaw, FinalSettledAbsoluteTargetErrorRaw,
+    FinalSettleCorrectionRaw, FinalSettlePollCount
+DiagnosticOnly=1 (khong gate bat ky gia tri chinh thuc nao, khong doi
+    power/1ms-tick/40-tick-segment/settle-threshold/pre-roll-59/final-1/
+    sector-capture/measurement-formula)
+FeedforwardEnabled=0
+CreepEnabled=0
+SoftStartEnabled=0
+MotorPolePairsRequired=6
+HardwareTestStage=V3.1a-DIAG (P03 va P06, chi can 3 run dau cua batch de
+    phan loai co che)
+HexSHA256=C84B2A33CFDF3196D2798A920336435708C5113602F6BE91AF31FF4009439AB7
+ElfSHA256=13D6AC5CE7DC5C15DB84548D349012ADF286072CFCFC391D7144042F8DB5DD6B

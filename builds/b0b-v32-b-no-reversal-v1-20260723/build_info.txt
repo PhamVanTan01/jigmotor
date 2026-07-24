@@ -1,0 +1,38 @@
+SavedAtUtc=2026-07-23T10:20:54Z
+Configuration=Release
+GitCommit=734402ea37b3819496f2659321a780551e586984
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (V3.2 NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
+    implementation added alongside B; B's own maneuver body unchanged),
+    docs/b0b-v3-no-reversal-plan.md (V3.2 sector-gate implementation status +
+    clamp-force lock + gate-reuse conclusion), scripts/analyze_nonlinear_logs.ps1
+    (AnalysisStartRaw export + Get-CircularDeltaRaw/Get-CircularMeanRaw/
+    Get-V32SectorGateResult), scripts/test_analyze_nonlinear_logs.ps1 +
+    scripts/fixtures/schema-v5-postturn-residual-p03-jig1.txt (sector-gate
+    regression tests), not yet committed
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=2 (NL_APPROACH_MODE_NO_REVERSAL_V3)
+ApproachProtocol=SCURVE_CW_PREROLL_NO_REVERSAL_V1
+ApproachPath=CW_ONLY
+ExpectedReversalCount=0
+PreRollGridPoints=1..59 (59 x RampCommandToTarget, 40 tick each, no settle between)
+FinalGridPoint=59->60 (1 x RampCommandToTarget, 40 tick, per-tick logged)
+ExpectedPreRollCommands=2360
+ExpectedFinalCommands=40
+FeedforwardEnabled=0
+CreepEnabled=0
+SoftStartEnabled=0
+MotorPolePairsRequired=6
+ClampForce=0.16 N (locked, see plan muc "V3.2", do not remount/hand-rotate
+    between A0-before/B/A0-after legs)
+Plan=docs/b0b-v3-no-reversal-plan.md, muc "V3.2 -- xac nhan nguyen nhan"
+BuildLabel=b0b-v32-b-no-reversal-v1
+HardwareTestStage=V3.2 leg 2/3 (A0-before, B, A0-after -- P03, jig1, 1
+    precondition + 10 official per leg, no motor removal between legs)
+Note=Functionally identical maneuver to the earlier
+    b0b-v3-cw-preroll-no-reversal-v1-20260722 build (B's own code path was
+    not touched by the A0 addition) -- repackaged from current source purely
+    so this artifact's git-dirty-file list and SHA are traceable to the same
+    commit as the paired A0 build below, for a clean V3.2 A0-B-A0 record.
+HexSHA256=A5FED9B93DA80A2270DCFBF24BCEB38A1E295A791EC25341BCECA8AA75F42AB8
+ElfSHA256=EA8ECC90AD0054C03B750D380FB77B345C0E3D366B00CBA18EB782CB6835F83C
