@@ -115,7 +115,7 @@ typedef enum
 
 typedef struct
 {
-    bool             valid;         /* false if any register read below failed */
+    bool             valid;         /* false if a read failed or snapshots did not stabilize */
     uint16_t         zero;          /* ZERO0(0x00) | ZERO1(0x01)<<8 */
     uint8_t          dir;           /* DIR (0x09) */
     uint8_t          filt;          /* FILT (0x0D) -- FW bits */
@@ -128,6 +128,9 @@ typedef struct
     MA600_CalState_t calState;
 } MA600_Config_t;
 
+/* Reads bounded repeated snapshots and accepts only two consecutive identical
+ * snapshots. This rejects unstable SPI/config data while tolerating one
+ * transient first response after sensor power-up. */
 MA600_Result_t   MA600_ReadConfiguration(MA600_Config_t *out);
 
 typedef struct

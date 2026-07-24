@@ -13,14 +13,17 @@
 #define TEST_RESULT_CLASS          "ENGINEERING_ONLY"
 #define TEST_APPROACH_PROTOCOL     "SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2"
 #define TEST_MOTION_PROFILE        "SCURVE40_ABSOLUTE_TICK_V2"
-#define TEST_SENSOR_IDENTITY       "MA600_PRODUCTID_0x3C"
+#define TEST_SENSOR_IDENTITY       "UID_LOCKED_MA600_VARIANT_V1"
+#define TEST_SENSOR_REG_1F_POLICY  "PER_JIG_PROFILE"
 
 /* Register 0x1F is PRODUCTID on the original MA600 and reads 60 decimal
  * (0x3C). On MA600A the same address is RMAPID/SUFFIXID and defaults to
- * 0x00. The 1807/7PP hardware log repeatedly reports 0x3C, so this
- * engineering profile requires that exact identity instead of disabling
- * the configuration gate. */
-#define TEST_EXPECTED_MA600_REG_1F 0x3CU
+ * 0x00. JIG1..JIG3 use the original-MA600 expectation retained from the
+ * 1807/7PP JIG3 evidence; JIG4 is explicitly locked to the MA600A value
+ * observed on its own UID. This supports both sensor variants without
+ * weakening the per-jig configuration gate. */
+#define TEST_EXPECTED_MA600_REG_1F_MA600  0x3CU
+#define TEST_EXPECTED_MA600_REG_1F_MA600A 0x00U
 
 /* MOTOR_NUM_POLSE is the physical pole count, not the pole-pair count. */
 #ifndef MOTOR_NUM_POLSE

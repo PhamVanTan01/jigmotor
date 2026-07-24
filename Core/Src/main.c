@@ -831,7 +831,7 @@ void StartDefaultTask(void *argument)
       "SourceId=%s,ProfileFingerprint=0x%08lX,SystemClockHz=%lu,Transport=%s,"
       "BuildLabel=%s,ResultClass=%s,MotorPoleCount=%u,MotorPolePairs=%u,"
       "ElectricalCycleRaw=%u,ElectricalRippleOrder=%u,Approach=%s,Motion=%s,"
-      "SensorIdentity=%s,ExpectedSensorReg1F=0x%02X,"
+      "SensorIdentity=%s,ExpectedSensorReg1F=%s,"
       "AutoBatch=%u,RunsPerButton=%u\r\n",
       AppEngine_ModeId(), AppEngine_ProfileId(), AppEngine_SourceId(),
       AppEngine_ProfileFingerprint(),
@@ -841,7 +841,7 @@ void StartDefaultTask(void *argument)
       (unsigned)MOTOR_COUNT_PER_ELECTRICAL_CYCLE,
       (unsigned)MOTOR_ELECTRICAL_RIPPLE_ORDER, TEST_APPROACH_PROTOCOL,
       TEST_MOTION_PROFILE, TEST_SENSOR_IDENTITY,
-      (unsigned)TEST_EXPECTED_MA600_REG_1F,
+      TEST_SENSOR_REG_1F_POLICY,
       (unsigned)ENABLE_AUTO_BATCH_TEST,
       (unsigned)TEST_RUNS_PER_BUTTON);
   if (manifestLen >= (int)sizeof(manifestLine))

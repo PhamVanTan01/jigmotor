@@ -9,6 +9,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $profile = Get-Content -Raw (Join-Path $root 'Core\Inc\test_profile.h')
 $geometry = Get-Content -Raw (Join-Path $root 'Core\Inc\motor_config.h')
 $motor = Get-Content -Raw (Join-Path $root 'Core\Src\motor.c')
+$ma600 = Get-Content -Raw (Join-Path $root 'Core\Src\ma600.c')
 $nonlinear = Get-Content -Raw (Join-Path $root 'Core\Src\nonlinear_test.c')
 $main = Get-Content -Raw (Join-Path $root 'Core\Src\main.c')
 $appMode = Get-Content -Raw (Join-Path $root 'Core\Inc\app_mode.h')
@@ -30,9 +31,11 @@ Assert-True ($profile -match '#define\s+NL_MOTION_PROFILE\s+2' -and
 Assert-True ($profile -match 'SCURVE40_ABSOLUTE_TICK_V2' -and
         $profile -match 'SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2') `
     '7PP profile identity does not describe the selected Motion V2 protocol.'
-Assert-True ($profile -match '#define\s+TEST_EXPECTED_MA600_REG_1F\s+0x3CU' -and
-        $profile -match 'MA600_PRODUCTID_0x3C') `
-    '7PP profile must require the observed MA600 PRODUCTID 0x3C.'
+Assert-True ($profile -match '#define\s+TEST_EXPECTED_MA600_REG_1F_MA600\s+0x3CU' -and
+        $profile -match '#define\s+TEST_EXPECTED_MA600_REG_1F_MA600A\s+0x00U' -and
+        $profile -match 'UID_LOCKED_MA600_VARIANT_V1' -and
+        $profile -match 'TEST_SENSOR_REG_1F_POLICY\s+"PER_JIG_PROFILE"') `
+    '7PP profile must lock original-MA600 and MA600A register 0x1F identities per jig.'
 Assert-True ($profile -match '#define\s+ENABLE_B0B_APPROACH_CREEP\s+0' -and
         $profile -match '#define\s+ENABLE_B0B_APPROACH_FEEDFORWARD\s+0' -and
         $profile -match '#define\s+ENABLE_B0B_APPROACH_SOFT_START\s+0' -and
@@ -81,12 +84,18 @@ Assert-True ($nonlinear -match 'STUTTER_TRACE_META' -and
 Assert-True ($nonlinear -match 'static\s+NlStutterTrace_t\s+nlStutterTrace[\s\S]*?ccmram_bss') `
     'P7-AB1 static trace buffer is missing.'
 Assert-True (($nonlinear | Select-String -AllMatches `
-        'TEST_EXPECTED_MA600_REG_1F').Matches.Count -eq 3) `
-    'Every known jig profile must use the 7PP sensor identity expectation.'
+        'TEST_EXPECTED_MA600_REG_1F_MA600').Matches.Count -eq 4 -and
+        $nonlinear -match '0x0027002E,\s*0x32344704,\s*0x38353535,\s*"JIG4"[\s\S]*?TEST_EXPECTED_MA600_REG_1F_MA600A') `
+    'Known jig profiles do not preserve the UID-locked MA600/MA600A identity mapping.'
+Assert-True ($ma600 -match 'MA600_ReadConfigurationSnapshot' -and
+        $ma600 -match 'MA600_ConfigurationSnapshotsEqual' -and
+        $ma600 -match 'attempt\s*=\s*1U;\s*attempt\s*<\s*3U' -and
+        $ma600 -match 'out->valid\s*=\s*false;\s*[\r\n\s]*out->calState\s*=\s*MA600_CAL_UNKNOWN') `
+    'Configuration audit must require two consecutive equal snapshots and fail closed if unstable.'
 Assert-True ($main -match 'BUILD_MANIFEST' -and
         $main -match 'char\s+manifestLine\[768\]' -and
         $main -match 'MotorPolePairs=%u' -and
-        $main -match 'ExpectedSensorReg1F=0x%02X' -and
+        $main -match 'ExpectedSensorReg1F=%s' -and
         $main -match 'RunsPerButton=%u' -and
         $main -match 'Transport=%s') `
     'Boot manifest does not identify the one-run 7PP build.'

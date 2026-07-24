@@ -377,16 +377,20 @@ typedef struct
 static const NlKnownJig_t NL_KNOWN_JIGS[] = {
     {
         0x003C0027, 0x32344704, 0x38353535, "JIG1",
-        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F, 0x190A55AD }
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F_MA600, 0x190A55AD }
     }, /* MCU_UID=003C00273234470438353535 */
     {
         0x0025002C, 0x32344704, 0x38353535, "JIG2",
-        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F, 0x190A55AD }
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F_MA600, 0x190A55AD }
     }, /* MCU_UID=0025002C3234470438353535 */
     {
         0x004C003A, 0x3034510B, 0x31363339, "JIG3",
-        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F, 0x190A55AD }
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F_MA600, 0x190A55AD }
     }, /* MCU_UID=004C003A3034510B31363339 */
+    {
+        0x0027002E, 0x32344704, 0x38353535, "JIG4",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F_MA600A, 0x190A55AD }
+    }, /* MCU_UID=0027002E3234470438353535 */
 };
 
 static const NlKnownJig_t *FindKnownJigByUid(void)
@@ -6141,9 +6145,9 @@ static void RunNlMathSelfTest(void)
 }
 #endif /* ENABLE_NL_MATH_SELF_TEST */
 
-/* Phase-1 Policy-A locked gate. Both known jig UIDs independently reported
- * the same read-only profile on 2026-07-13. A physical UID must now select an
- * expected profile, and every audited field must match before motor enable. */
+/* Phase-1 Policy-A locked gate. A physical UID selects an exact expected
+ * profile, including the sensor-variant-specific meaning of register 0x1F,
+ * and every audited field must match before motor enable. */
 static bool ReadLogAndGateConfiguration(const char *configContext)
 {
     if (configContext == NULL)

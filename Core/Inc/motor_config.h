@@ -59,8 +59,9 @@
     ENABLE_B0B_APPROACH_CREEP || ENABLE_B0B_APPROACH_FEEDFORWARD
 #error "7PP V3.2 isolation profile must not enable bias, creep, or soft-start controls"
 #endif
-#if TEST_EXPECTED_MA600_REG_1F != 0x3CU
-#error "7PP 1807 profile requires MA600 PRODUCTID 0x3C at register 0x1F"
+#if (TEST_EXPECTED_MA600_REG_1F_MA600 != 0x3CU) || \
+    (TEST_EXPECTED_MA600_REG_1F_MA600A != 0x00U)
+#error "7PP sensor variants must retain their UID-locked register 0x1F identities"
 #endif
 #endif
 

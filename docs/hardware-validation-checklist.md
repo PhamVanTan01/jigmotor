@@ -23,6 +23,7 @@ log filename:
 | JIG1 | `003C00273234470438353535` |
 | JIG2 | `0025002C3234470438353535` |
 | JIG3 | `004C003A3034510B31363339` |
+| JIG4 | `0027002E3234470438353535` |
 
 The firmware table in `Core/Src/nonlinear_test.c` must use this exact mapping.
 An unknown UID must remain `UNKNOWN_JIG`; never infer a jig number from a file
@@ -38,6 +39,7 @@ failure that occurs before `META` remains self-identifying.
 | JIG1 / `003C00273234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG2 / `0025002C3234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG3 / `004C003A3034510B31363339` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
+| JIG4 / `0027002E3234470438353535` | Provisional observation 2026-07-24; locked smoke pending | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 
 Both rows were supplied with explicit operator jig labels from the audit build
 that preceded self-identifying CONFIG records. Their profiles match exactly.
@@ -50,13 +52,20 @@ Phase 1 is closed for JIG1/JIG3 by passing locked, self-identified CONFIG
 records. JIG2 requires the same locked smoke record before reuse in production
 scope.
 
-The dedicated 1807/7PP engineering profile is a separate hardware identity:
-its sensor repeatedly reported register `0x1F = 0x3C` on JIG3 on 2026-07-23.
-That value is the original MA600 `PRODUCTID` default (60 decimal), whereas
-MA600A uses the same address for `RMAPID/SUFFIXID` with default `0x00`.
-`TEST_EXPECTED_MA600_REG_1F` therefore locks the 7PP build to `0x3C`; it does
-not weaken the remaining Policy-A checks or change the historical MA600A
-audit records above.
+The dedicated 1807/7PP engineering profile supports two explicitly locked
+sensor identities. JIG1..JIG3 retain register `0x1F = 0x3C`, observed
+repeatedly on JIG3 on 2026-07-23; that is the original MA600 `PRODUCTID`
+default (60 decimal). JIG4 reported `0x1F = 0x00` on 2026-07-24, matching the
+MA600A `RMAPID/SUFFIXID` default. The firmware selects the exact expectation
+by physical MCU UID; it does not accept either value generically and does not
+weaken the remaining Policy-A checks.
+
+The first JIG4 `BOOT_SMOKE` capture also returned a one-shot
+`ZERO=0x00DB`, followed by repeated `ZERO=0x0000` records without any
+configuration write. Configuration reads therefore require two consecutive
+identical full snapshots, with a maximum of three attempts. A single startup
+transient may be displaced by two stable reads; continuing or alternating
+values produce `CONFIG_READ_FAILED` and keep the motor disabled.
 
 The Phase-2B canonical-shadow run matrix is tracked separately in
 `docs/phase2b-shadow-checklist.md`.

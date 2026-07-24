@@ -442,7 +442,7 @@ static uint32_t Crc32IsoHdlc(const uint8_t *data, uint32_t len)
     return crc ^ 0xFFFFFFFFu;
 }
 
-MA600_Result_t MA600_ReadConfiguration(MA600_Config_t *out)
+static MA600_Result_t MA600_ReadConfigurationSnapshot(MA600_Config_t *out)
 {
     if (out == NULL)
     {
@@ -494,6 +494,65 @@ MA600_Result_t MA600_ReadConfiguration(MA600_Config_t *out)
      * MA600_LUT_ENABLED=0 -- so the expected state is always ZERO_TABLE. */
     out->calState = (out->corrNonZeroCount == 0) ? MA600_CAL_ZERO_TABLE : MA600_CAL_ACTIVE_TABLE;
     return MA600_RESULT_OK;
+}
+
+static bool MA600_ConfigurationSnapshotsEqual(
+    const MA600_Config_t *a, const MA600_Config_t *b)
+{
+    return a->valid && b->valid
+        && a->zero == b->zero
+        && a->dir == b->dir
+        && a->filt == b->filt
+        && a->status == b->status
+        && a->prt == b->prt
+        && a->rmapId == b->rmapId
+        && a->corrNonZeroCount == b->corrNonZeroCount
+        && a->corrCrc32 == b->corrCrc32
+        && a->calState == b->calState
+        && memcmp(a->corr, b->corr, MA600_CORR_COUNT) == 0;
+}
+
+MA600_Result_t MA600_ReadConfiguration(MA600_Config_t *out)
+{
+    if (out == NULL)
+    {
+        return MA600_RESULT_INVALID_ARG;
+    }
+
+    /* BOOT_SMOKE on a newly added MA600A jig produced one transient ZERO0
+     * response followed by stable 0x0000 reads, even though this driver never
+     * writes ZERO0/ZERO1. Require two consecutive identical full snapshots:
+     * at most one transient snapshot is tolerated, while persistent or
+     * alternating data remains fail-closed. */
+    MA600_Config_t previous;
+    MA600_Config_t current;
+    MA600_Result_t result = MA600_ReadConfigurationSnapshot(&previous);
+    if (result != MA600_RESULT_OK)
+    {
+        *out = previous;
+        return result;
+    }
+
+    for (uint32_t attempt = 1U; attempt < 3U; attempt++)
+    {
+        result = MA600_ReadConfigurationSnapshot(&current);
+        if (result != MA600_RESULT_OK)
+        {
+            *out = current;
+            return result;
+        }
+        if (MA600_ConfigurationSnapshotsEqual(&previous, &current))
+        {
+            *out = current;
+            return MA600_RESULT_OK;
+        }
+        previous = current;
+    }
+
+    *out = current;
+    out->valid = false;
+    out->calState = MA600_CAL_UNKNOWN;
+    return MA600_RESULT_CONFIG_ERROR;
 }
 
 MA600_ConfigGateResult_t MA600_ValidateConfigurationSafetyGate(const MA600_Config_t *config)
