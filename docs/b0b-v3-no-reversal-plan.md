@@ -1405,3 +1405,37 @@ NL (7.4, có tính đến giới hạn so sánh do dịch sector ở 6.3) trên 
 product đã test. Closure margin một mình, dù đạt trên mọi product, không
 đủ để coi V3 hoàn thành nếu residual không cải thiện tương ứng.
 
+## 11. Mở rộng V3.2 shifted-reversal cho 7PP
+
+Mode 2 no-reversal V1 vẫn giữ nguyên contract 6PP `point59 -> point60`.
+Không bypass guard mode 2 để chạy 7PP.
+
+Mode 3 shifted-reversal V2 được tổng quát hóa riêng trong miền raw:
+
+```text
+finalTargetRaw   = MOTOR_COUNT_PER_ELECTRICAL_CYCLE
+localStepRaw     = NL_GRID_STEP_RAW_MIN
+backoffTargetRaw = finalTargetRaw - localStepRaw
+```
+
+Với 7PP: `final=9363`, `backoff=9181`, local leg cuối `+182 raw`. Đường
+pre-position phát từng rounded-grid target 1 độ độc lập cho tới trước
+`finalTargetRaw`, rồi chèn tối đa một segment cuối ngắn tới đúng raw target.
+Do đó 7PP chạy point 1..51 (`point51=9284`) rồi thêm `79 raw` tới `9363`;
+không gọi một ramp xa trong 40 tick và không xấp xỉ chu kỳ điện thành 51
+hoặc 52 độ.
+
+Ba settle target của mode 3 đều tuyệt đối theo cùng initial anchor:
+
+```text
+pre-position: initialAnchor + 9363
+local backoff: initialAnchor + 9181
+final:         initialAnchor + 9363
+```
+
+Protocol ID mới là
+`SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2` để log 7PP không bị trộn với
+V3.2 V1 cố định point59/point60. Gate cấu trúc yêu cầu pre-position chỉ có
+delta CW, local backoff `-182`, final `+182`, `ReversalCount=2`, đủ 40 tick
+cho mỗi local leg và acquisition sạch.
+

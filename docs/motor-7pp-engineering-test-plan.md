@@ -79,9 +79,10 @@ Closure hold probe: ON, diagnostic-only
 
 Các ràng buộc:
 
-- Không dùng `NL_APPROACH_MODE_NO_REVERSAL_V3`. V3 hiện cố định pre-roll
-  59°→60° cho motor 6 cặp cực; motor 7 cặp cực có chu kỳ điện 51.428571°.
-- Không tháo hoặc bypass compile guard `MOTOR_POLE_PAIRS != 6U` của V3.
+- Không dùng `NL_APPROACH_MODE_NO_REVERSAL_V3` mode 2: implementation này
+  vẫn cố định pre-roll 59°→60° cho motor 6 cặp cực.
+- V3.2 shifted-reversal mode 3 chỉ được dùng sau khi target đã tổng quát hóa
+  theo raw electrical-cycle; không được thay 59/60 bằng 50/51 một cách xấp xỉ.
 - Không dùng bias B0-B 79/126 raw. Đây là hệ số thực nghiệm của motor/jig 6
   cặp cực, không phải hằng số ma sát phổ quát.
 - Không dùng Control A5 offset 7971 như phép bring-up; offset đó được hiệu
@@ -372,3 +373,45 @@ Gate log của mỗi run:
 4. dùng trường canonical `SHADOW_RESULT.ClosureErrorDeg` để so với mục tiêu
    `<0.2 deg`; `WindowP2P` không được thay thế closure;
 5. thử A-B-A với cooldown cố định trước khi kết luận B0-B có cải thiện closure.
+
+## 10. P7.8 — V3.2 shifted-reversal theo raw electrical cycle
+
+Log P7.7 cho thấy V2 có thể đạt Closure `<0.2 deg`, nhưng hai run sau rơi
+vào nhánh lock khác: `StartRaw` đổi từ khoảng 600 sang khoảng 65500,
+`LockCommands` đổi từ 160 sang 40, settle target fail và Closure tăng lên
+khoảng 3.4 deg. P7.8 dùng shifted-reversal tại zero điện kế tiếp để loại
+bỏ phụ thuộc vào giả định point-59/point-60.
+
+Geometry đã khóa cho 7PP:
+
+```text
+ElectricalCycleRaw = ceil(65536 / 7) = 9363
+FinalTargetRaw     = 9363
+LocalStepRaw       = 182
+BackoffTargetRaw   = 9363 - 182 = 9181
+```
+
+Pre-position CW dùng các target rounded-grid 1 độ độc lập. Vì 9363 raw
+tương ứng 51.428571 độ, sau target grid 51 độ (`9284 raw`) có thêm một
+segment cuối `79 raw` tới đúng `9363`; không gộp toàn bộ pre-position vào
+một ramp 40 tick. Sau settle tuyệt đối tại `initialAnchor + 9363`, protocol
+lùi CCW đúng 182 raw về `9181`, settle tuyệt đối, rồi tiến CW đúng 182 raw
+trong 40 tick về `9363` và settle lần cuối.
+
+Build pilot:
+
+- `Profile=7PP_ENGINEERING_V32_SHIFTED_REVERSAL_1RUN_V1`
+- `ApproachProtocol=SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2`
+- `NL_APPROACH_MODE=3`, một run mỗi lần nhấn nút
+- `ReversalCount=2`
+- feedforward, creep, mọi soft-start và CCW engineering đều tắt
+
+Gate tối thiểu:
+
+1. `PreRollCommandDeltaRaw=9363`;
+2. `LocalBackoffCommandDeltaRaw=-182`;
+3. `FinalCommandDeltaRaw=182`;
+4. `ReversalCount=2`, `ApproachStructuralValid=1`;
+5. `OriginShiftTargetErrorRaw` trong settle tolerance và acquisition sạch;
+6. `MeasurementValid=1`, sau đó mới đánh giá
+   `abs(SHADOW_RESULT.ClosureErrorDeg) < 0.2`.

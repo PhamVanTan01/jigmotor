@@ -1,4 +1,4 @@
-/* Build identity for the dedicated 7-pole-pair B0-B engineering test.
+/* Build identity for the dedicated 7-pole-pair V3.2 engineering test.
  *
  * This branch intentionally produces a one-sweep-per-button build. It is not
  * a production/QC profile and must not be used to qualify MA600A accuracy.
@@ -8,10 +8,10 @@
 #define __TEST_PROFILE_H
 
 #define TEST_PROFILE_7PP_ENGINEERING 1
-#define TEST_PROFILE_ID            "7PP_ENGINEERING_B0B_REVERSAL_V2_1RUN_V1"
-#define TEST_BUILD_LABEL           "motor-7pp-b0b-reversal-v2-1run-v1"
+#define TEST_PROFILE_ID            "7PP_ENGINEERING_V32_SHIFTED_REVERSAL_1RUN_V1"
+#define TEST_BUILD_LABEL           "motor-7pp-v32-shifted-reversal-1run-v1"
 #define TEST_RESULT_CLASS          "ENGINEERING_ONLY"
-#define TEST_APPROACH_PROTOCOL     "SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2"
+#define TEST_APPROACH_PROTOCOL     "SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2"
 #define TEST_MOTION_PROFILE        "SCURVE40_ABSOLUTE_TICK_V2"
 #define TEST_SENSOR_IDENTITY       "MA600_PRODUCTID_0x3C"
 
@@ -39,21 +39,20 @@
 #define ENABLE_CCW_ENGINEERING_TEST 0
 #endif
 
-/* Motion Control V2 + DMA baseline selected from
- * codex/motion-control-v2-dma. Values match the selectors local to
- * nonlinear_test.c: S-curve V2=2 and reversal approach V2=1. */
+/* Motion Control V2 + DMA with V3.2 shifted reversal generalized to the
+ * 7PP raw electrical cycle: S-curve V2=2, shifted-reversal mode=3. */
 #ifndef NL_MOTION_PROFILE
 #define NL_MOTION_PROFILE          2
 #endif
 #ifndef NL_APPROACH_MODE
-#define NL_APPROACH_MODE           1
+#define NL_APPROACH_MODE           3
 #endif
 #ifndef ENABLE_B0B_EQUAL_APPROACH
 #define ENABLE_B0B_EQUAL_APPROACH  1
 #endif
 
-/* Isolate the equal-approach B0-B protocol. Do not reuse the 6PP-specific
- * 79/126 feedforward bias or combine it with creep/soft-start controls. */
+/* Isolate V3.2 geometry. Do not reuse the 6PP-specific 79/126 feedforward
+ * bias or combine it with creep/soft-start controls. */
 #ifndef ENABLE_SWEEP_RAMP_STEP_DIAG
 #define ENABLE_SWEEP_RAMP_STEP_DIAG 1
 #endif

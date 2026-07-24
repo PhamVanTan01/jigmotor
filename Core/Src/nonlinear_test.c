@@ -464,13 +464,26 @@ static const char *ResolveJigId(bool *outKnown)
     NL_APPROACH_MODE > NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
 #error "Invalid NL_APPROACH_MODE"
 #endif
-/* V3 pre-roll/final target math (docs/b0b-v3-no-reversal-plan.md mục 3.1)
- * hard-codes 59/60 one-degree grid steps derived from 6 pole pairs (one
- * electrical cycle = 360/6 = 60 mechanical degrees). Not valid for any
- * other pole-pair count without re-deriving those two indices from
- * MOTOR_COUNT_PER_ELECTRICAL_CYCLE. */
-#if NL_APPROACH_MODE >= NL_APPROACH_MODE_NO_REVERSAL_V3 && (MOTOR_POLE_PAIRS != 6U)
+/* Mode 2 retains the original fixed point-59/point-60 implementation and
+ * therefore remains 6PP-only. Mode 3 uses raw electrical-cycle geometry:
+ * final=MOTOR_COUNT_PER_ELECTRICAL_CYCLE and backoff=final-182, so its
+ * shifted-reversal maneuver is valid for the separately guarded 6PP/7PP
+ * engineering profiles without pretending 360/p is an integer degree. */
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_NO_REVERSAL_V3 && \
+    (MOTOR_POLE_PAIRS != 6U)
 #error "V3 no-reversal V1 is validated only for 12-pole/6-pole-pair motors"
+#endif
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 && \
+    (MOTOR_POLE_PAIRS != 6U) && (MOTOR_POLE_PAIRS != 7U)
+#error "V3.2 shifted-reversal V2 is validated only for 6PP or 7PP motors"
+#endif
+
+#define NL_V3_ELECTRICAL_ZERO_TARGET_RAW  MOTOR_COUNT_PER_ELECTRICAL_CYCLE
+#define NL_V3_LOCAL_APPROACH_DELTA_RAW    NL_GRID_STEP_RAW_MIN
+#define NL_V3_LOCAL_BACKOFF_TARGET_RAW    \
+    (NL_V3_ELECTRICAL_ZERO_TARGET_RAW - NL_V3_LOCAL_APPROACH_DELTA_RAW)
+#if NL_V3_ELECTRICAL_ZERO_TARGET_RAW <= NL_V3_LOCAL_APPROACH_DELTA_RAW
+#error "Electrical cycle must be larger than the V3 local approach step"
 #endif
 
 #ifndef ENABLE_B0B_EQUAL_APPROACH
@@ -484,7 +497,7 @@ static const char *ResolveJigId(bool *outKnown)
 #if NL_APPROACH_MODE == NL_APPROACH_MODE_NO_REVERSAL_V3
 #define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_CW_PREROLL_NO_REVERSAL_V1"
 #elif NL_APPROACH_MODE == NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
-#define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1"
+#define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_ECYCLE_PREROLL_LOCAL_REVERSAL_V2"
 #else
 #define NL_B0B_APPROACH_PROTOCOL_ID   "SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2"
 #endif
@@ -1864,10 +1877,9 @@ static const char *NlApproachResultName(NlApproachResult_t result)
 }
 #endif
 
-/* APPROACH_RESULT is emitted only by the equal-approach protocol. Keep this
- * formatter under the same guard so the 7PP lock-only build stays warning
- * free while retaining the complete diagnostic when that protocol is on. */
-#if ENABLE_B0B_EQUAL_APPROACH
+/* Creep fields exist only in the reversal-V2 APPROACH_RESULT formatter.
+ * V3/V3.2 forbid creep and use their own fixed-shape records. */
+#if NL_APPROACH_MODE == NL_APPROACH_MODE_REVERSAL_V2
 static const char *NlCreepResultName(NlCreepResult_t result)
 {
     switch (result)
@@ -3646,32 +3658,37 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         && (out->reversalCount == 0U)
         && out->approachStepCountValid
         && out->approachAcquisitionClean;
-#else /* NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- docs/b0b-v3-no-reversal-plan.md muc 6.2/4b */
-    /* 2. Pre-position CW: 60 lệnh RampCommandToTarget() ĐỘC LẬP, mỗi lệnh
-     * đúng 1 grid step (~1 deg), tới point-60 -- cùng lý do KHÔNG gộp thành
-     * một lệnh như B ở mục 3.1 (RampCommandToTarget() luôn chạy đúng
-     * NL_SCURVE_SEGMENT_TICKS tick bất kể khoảng cách target). Không settle
-     * giữa các segment; chỉ settle tại point-60, rồi lùi CCW 1 bước về
-     * point-59, rồi tiến CW 1 bước cuối về lại point-60 -- xem mục 6.2. Dùng
+#else /* NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- V3.2 raw e-cycle geometry */
+    /* 2. Pre-position CW tới đúng electrical zero kế tiếp. Mỗi target grid
+     * 1 độ được gửi bằng một RampCommandToTarget() độc lập; nếu chu kỳ điện
+     * không nằm trên grid nguyên độ (7PP: 9363 raw = 51.43 độ), thêm đúng
+     * một segment cuối ngắn tới raw target chính xác. Nhờ vậy không có lệnh
+     * ramp xa chạy trong chỉ 40 tick và không giả định point-60.
+     *
+     * Sau settle: lùi CCW đúng 182 raw rồi tiến CW đúng 182 raw về cùng
+     * electrical zero. Đoạn cuối vì thế giữ nguyên cadence/command delta
+     * của closure point359->point360 dù pole-pair count thay đổi. Dùng
      * lại field "PreRoll" (approachPreRollAttempted/approachPreRollSettleResult/
      * preRollCommandDeltaRaw/...) đúng ý nghĩa "đoạn CW lớn trước final",
-     * KHÔNG phải NA -- chỉ riêng counter ramp acquisition mới có tên riêng
-     * (approachPrePositionRampAcquisition) để không lẫn với 59-bước của B. */
+     * KHÔNG phải NA -- counter ramp acquisition có tên riêng
+     * approachPrePositionRampAcquisition. */
     SetEngineState(NL_ENGINE_RAMP);
     uint32_t prePositionStageStartTick = HAL_GetTick();
     NlAcquisitionCounters_t approachRampBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
     MA600_Result_t approachAcqResult;
     uint32_t prePositionCommandCount = 0;
+    uint32_t prePositionSegmentCount = 0;
     int32_t prePositionLastDeltaSign = 0;
     int32_t prePositionPrevTarget = 0;
-    for (uint32_t point = 1U; point <= 60U; point++)
+    const int32_t finalTarget = (int32_t)NL_V3_ELECTRICAL_ZERO_TARGET_RAW;
+    const int32_t localBackoffTarget =
+        (int32_t)NL_V3_LOCAL_BACKOFF_TARGET_RAW;
+    for (uint32_t point = 1U; ; point++)
     {
-        /* ReversalCount: chỉ đếm đổi dấu delta giữa các motion segment thực
-         * sự gửi lệnh, bỏ qua delta bằng 0 -- cùng quy tắc như B. Trong đoạn
-         * pre-position này target luôn tăng (toàn CW) nên không tự phát sinh
-         * reversal; hai lần đổi dấu thật sự (CW->CCW rồi CCW->CW) xảy ra ở
-         * bước 4 và bước 6 dưới đây. */
-        int32_t segmentTarget = NlTargetRawMagnitudeForPoint(point);
+        int32_t roundedGridTarget = NlTargetRawMagnitudeForPoint(point);
+        bool isFinalPrePositionSegment = roundedGridTarget >= finalTarget;
+        int32_t segmentTarget = isFinalPrePositionSegment
+            ? finalTarget : roundedGridTarget;
         int32_t segmentDelta = segmentTarget - prePositionPrevTarget;
         if (segmentDelta != 0)
         {
@@ -3689,6 +3706,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             segmentTarget, &segmentSteps, NULL, 0,
             NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->motionDiagnostics);
         prePositionCommandCount += segmentSteps;
+        prePositionSegmentCount++;
         if (approachAcqResult != MA600_RESULT_OK)
         {
             AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
@@ -3698,21 +3716,24 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             FinalizeApproachEarlyExit(out, &sweepAcquisition);
             return approachAcqResult;
         }
+        if (isFinalPrePositionSegment)
+        {
+            break;
+        }
     }
     AccumulateCounterDelta(&sweepAcquisition, &approachRampBefore,
         &out->approachPrePositionRampAcquisition);
 
-    /* 3. Settle tại point-60 (pre-position). Target TUYỆT ĐỐI tính thẳng từ
-     * initialAnchorUnwrapped -- KHÔNG nối chuỗi qua anchor trung gian, cùng
-     * nguyên tắc khóa ở mục 3.1. */
+    /* 3. Settle tại electrical zero kế tiếp. Target tuyệt đối tính thẳng từ
+     * initialAnchorUnwrapped, không nối chuỗi qua anchor trung gian. */
     out->approachPreRollAttempted = true;
     SetEngineState(NL_ENGINE_SETTLE);
-    int64_t expectedPoint60 = initialAnchorUnwrapped
-        + (int64_t)NlTargetRawMagnitudeForPoint(60U);
+    int64_t expectedElectricalZero = initialAnchorUnwrapped
+        + (int64_t)finalTarget;
     NlSettleObservation_t prePositionSettle;
     settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
     out->approachPreRollSettleResult = WaitForPointSettle(&sweepAcquisition,
-        expectedPoint60, true, &prePositionSettle);
+        expectedElectricalZero, true, &prePositionSettle);
     AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
         &out->approachSettleAcquisition);
     if (out->approachPreRollSettleResult != NL_SETTLE_OK)
@@ -3730,18 +3751,15 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         return MA600_RESULT_OK;
     }
     int64_t prePositionFinalUnwrapped = prePositionSettle.finalSample.unwrappedRaw;
-    out->preRollCommandDeltaRaw = (int64_t)NlTargetRawMagnitudeForPoint(60U);
+    out->preRollCommandDeltaRaw = (int64_t)finalTarget;
     out->preRollObservedDeltaRaw = prePositionFinalUnwrapped - initialAnchorUnwrapped;
     out->preRollTargetErrorRaw =
         out->preRollObservedDeltaRaw - out->preRollCommandDeltaRaw;
     out->preRollDurationMs = HAL_GetTick() - prePositionStageStartTick;
 
-    /* 4. Local backoff CCW: 1 lệnh RampCommandToTarget() từ point-60 về
-     * point-59 -- đây là biến `reversal` mà V3.2 chủ đích thêm lại để tách
-     * riêng khỏi B (mục 6.2), không phải lỗi. */
+    /* 4. Local backoff CCW đúng 182 raw từ electrical zero. */
     uint32_t localBackoffStageStartTick = HAL_GetTick();
     SetEngineState(NL_ENGINE_RAMP);
-    int32_t localBackoffTarget = NlTargetRawMagnitudeForPoint(59U);
     {
         int32_t segmentDelta = localBackoffTarget - prePositionPrevTarget;
         if (segmentDelta != 0)
@@ -3769,16 +3787,15 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         return approachAcqResult;
     }
 
-    /* 5. Settle tại point-59 (local backoff). Target tuyệt đối, không nối
-     * chuỗi -- cùng nguyên tắc. */
+    /* 5. Settle tại target local-backoff tuyệt đối. */
     out->approachLocalBackoffAttempted = true;
     SetEngineState(NL_ENGINE_SETTLE);
-    int64_t expectedPoint59 = initialAnchorUnwrapped
-        + (int64_t)NlTargetRawMagnitudeForPoint(59U);
+    int64_t expectedLocalBackoff = initialAnchorUnwrapped
+        + (int64_t)localBackoffTarget;
     NlSettleObservation_t localBackoffSettle;
     settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
     out->approachLocalBackoffSettleResult = WaitForPointSettle(&sweepAcquisition,
-        expectedPoint59, true, &localBackoffSettle);
+        expectedLocalBackoff, true, &localBackoffSettle);
     AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
         &out->approachSettleAcquisition);
     if (out->approachLocalBackoffSettleResult != NL_SETTLE_OK)
@@ -3796,8 +3813,8 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         return MA600_RESULT_OK;
     }
     int64_t localBackoffFinalUnwrapped = localBackoffSettle.finalSample.unwrappedRaw;
-    out->localBackoffCommandDeltaRaw = (int64_t)NlTargetRawMagnitudeForPoint(59U)
-        - (int64_t)NlTargetRawMagnitudeForPoint(60U);
+    out->localBackoffCommandDeltaRaw =
+        (int64_t)localBackoffTarget - (int64_t)finalTarget;
     out->localBackoffObservedDeltaRaw =
         localBackoffFinalUnwrapped - prePositionFinalUnwrapped;
     out->localBackoffTargetErrorRaw =
@@ -3805,13 +3822,11 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     out->localBackoffDurationMs = HAL_GetTick() - localBackoffStageStartTick;
     out->backoffDirectionValid = out->localBackoffObservedDeltaRaw < 0;
 
-    /* 6. Final CW: 1 lệnh RampCommandToTarget() từ point-59 về point-60,
-     * log per-tick đầy đủ -- ĐOẠN SO SÁNH chính mà V3.2 dùng để kiểm định
-     * reversal (cùng vai trò với đoạn cuối của B), tái dùng
+    /* 6. Final CW đúng 182 raw về electrical zero, log per-tick đầy đủ.
+     * Đây là đoạn so sánh chính, tái dùng
      * approachForwardStepUnwrapped/approachForwardRampAcquisition như V2/B. */
     uint32_t finalStageStartTick = HAL_GetTick();
     SetEngineState(NL_ENGINE_RAMP);
-    int32_t finalTarget = NlTargetRawMagnitudeForPoint(60U);
     {
         int32_t segmentDelta = finalTarget - localBackoffTarget;
         if (segmentDelta != 0)
@@ -3841,7 +3856,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         return approachAcqResult;
     }
 
-    /* 7. Settle tại point-60 (final, = point-0 candidate) -- CHÍNH LÀ settle
+    /* 7. Settle tại electrical zero (final, = point-0 candidate) -- là settle
      * điểm 0, thay thế đúng vai trò settle điểm 0 của B/V2/A: counter tính
      * vào out->settleAcquisition CHÍNH (KHÔNG vào approachSettleAcquisition),
      * kèm bản copy CHẨN ĐOÁN riêng cho ApproachAcquisitionClean/aggregate. */
@@ -3850,7 +3865,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
     NlSettleObservation_t finalSettle;
     out->approachPoint0SettleResult = WaitForPointSettle(&sweepAcquisition,
-        expectedPoint60, true, &finalSettle);
+        expectedElectricalZero, true, &finalSettle);
     AccumulateCounterDelta(&sweepAcquisition, &settleBefore, &out->settleAcquisition);
     AccumulateCounterDelta(&sweepAcquisition, &settleBefore,
         &out->approachPoint0SettleAcquisitionDiag);
@@ -3875,13 +3890,9 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     out->approachResult = NL_APPROACH_OK;
     out->finalDurationMs = HAL_GetTick() - finalStageStartTick;
 
-    /* 8. Chẩn đoán đoạn so sánh + origin shift, cùng công thức B/V2.
-     * FinalCommandDeltaRaw dùng point59->point60 (giống B), không phải
-     * localBackoffTarget->finalTarget dù về giá trị chúng bằng nhau (cả hai
-     * đều là point59->point60) -- viết tường minh để không phụ thuộc thứ tự
-     * biến cục bộ. */
+    /* 8. Chẩn đoán đoạn so sánh + origin shift trong miền raw. */
     out->finalCommandDeltaRaw =
-        (int64_t)finalTarget - (int64_t)NlTargetRawMagnitudeForPoint(59U);
+        (int64_t)finalTarget - (int64_t)localBackoffTarget;
     out->finalObservedDeltaRaw = sweepOriginUnwrapped - localBackoffFinalUnwrapped;
     out->finalTargetErrorRaw =
         out->finalObservedDeltaRaw - out->finalCommandDeltaRaw;
@@ -3889,7 +3900,8 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     out->originShiftTargetErrorRaw =
         out->originShiftObservedRaw - (int64_t)finalTarget;
     out->approachStepCountValid =
-        (prePositionCommandCount == 60U * NL_SCURVE_SEGMENT_TICKS)
+        (prePositionCommandCount
+            == prePositionSegmentCount * NL_SCURVE_SEGMENT_TICKS)
         && (localBackoffStepsExecuted == NL_B0B_APPROACH_DIAG_STEPS)
         && (finalStepsExecuted == NL_B0B_APPROACH_DIAG_STEPS);
     /* ApproachAcquisitionClean: 0 retry/transport-error/jump-reject/
