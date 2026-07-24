@@ -53,12 +53,18 @@ records. JIG2 requires the same locked smoke record before reuse in production
 scope.
 
 The dedicated 1807/7PP engineering profile supports two explicitly locked
-sensor identities. JIG1..JIG3 retain register `0x1F = 0x3C`, observed
-repeatedly on JIG3 on 2026-07-23; that is the original MA600 `PRODUCTID`
-default (60 decimal). JIG4 reported `0x1F = 0x00` on 2026-07-24, matching the
-MA600A `RMAPID/SUFFIXID` default. The firmware selects the exact expectation
-by physical MCU UID; it does not accept either value generically and does not
-weaken the remaining Policy-A checks.
+sensor identities. JIG1/JIG2 retain register `0x1F = 0x3C`, the original
+MA600 `PRODUCTID` default (60 decimal). JIG3 also reported `0x3C` during the
+2026-07-23 7PP runs, but its sensor was physically replaced on 2026-07-24.
+The replacement JIG3 sensor and JIG4 both report `0x1F = 0x00`, matching the
+MA600A `RMAPID/SUFFIXID` default. Firmware built after that replacement locks
+JIG3 and JIG4 to `0x00` by physical MCU UID; it does not accept either value
+generically and does not weaken the remaining Policy-A checks.
+
+Treat JIG3 data from before and after the sensor replacement as separate
+fixture revisions. The replacement revision must pass a new locked
+`BOOT_SMOKE`, repeatability run, and cross-jig correlation before its results
+are combined with the historical JIG3 baseline.
 
 The first JIG4 `BOOT_SMOKE` capture also returned a one-shot
 `ZERO=0x00DB`, followed by repeated `ZERO=0x0000` records without any

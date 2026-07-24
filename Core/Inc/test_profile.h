@@ -18,10 +18,10 @@
 
 /* Register 0x1F is PRODUCTID on the original MA600 and reads 60 decimal
  * (0x3C). On MA600A the same address is RMAPID/SUFFIXID and defaults to
- * 0x00. JIG1..JIG3 use the original-MA600 expectation retained from the
- * 1807/7PP JIG3 evidence; JIG4 is explicitly locked to the MA600A value
- * observed on its own UID. This supports both sensor variants without
- * weakening the per-jig configuration gate. */
+ * 0x00. JIG1/JIG2 retain the original-MA600 expectation. JIG3 sensor
+ * revision 2 (replaced 2026-07-24) and JIG4 are explicitly locked to the
+ * MA600A value observed on their own UIDs. This supports both sensor variants
+ * without weakening the per-jig configuration gate. */
 #define TEST_EXPECTED_MA600_REG_1F_MA600  0x3CU
 #define TEST_EXPECTED_MA600_REG_1F_MA600A 0x00U
 

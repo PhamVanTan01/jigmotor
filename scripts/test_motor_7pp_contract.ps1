@@ -83,9 +83,10 @@ Assert-True ($nonlinear -match 'STUTTER_TRACE_META' -and
     'P7-AB1 deferred trace record contract is incomplete.'
 Assert-True ($nonlinear -match 'static\s+NlStutterTrace_t\s+nlStutterTrace[\s\S]*?ccmram_bss') `
     'P7-AB1 static trace buffer is missing.'
-Assert-True (($nonlinear | Select-String -AllMatches `
-        'TEST_EXPECTED_MA600_REG_1F_MA600').Matches.Count -eq 4 -and
-        $nonlinear -match '0x0027002E,\s*0x32344704,\s*0x38353535,\s*"JIG4"[\s\S]*?TEST_EXPECTED_MA600_REG_1F_MA600A') `
+Assert-True ($nonlinear -match '0x003C0027,\s*0x32344704,\s*0x38353535,\s*"JIG1"[\s\S]*?TEST_EXPECTED_MA600_REG_1F_MA600,' -and
+        $nonlinear -match '0x0025002C,\s*0x32344704,\s*0x38353535,\s*"JIG2"[\s\S]*?TEST_EXPECTED_MA600_REG_1F_MA600,' -and
+        $nonlinear -match '0x004C003A,\s*0x3034510B,\s*0x31363339,\s*"JIG3"[\s\S]*?TEST_EXPECTED_MA600_REG_1F_MA600A,' -and
+        $nonlinear -match '0x0027002E,\s*0x32344704,\s*0x38353535,\s*"JIG4"[\s\S]*?TEST_EXPECTED_MA600_REG_1F_MA600A,') `
     'Known jig profiles do not preserve the UID-locked MA600/MA600A identity mapping.'
 Assert-True ($ma600 -match 'MA600_ReadConfigurationSnapshot' -and
         $ma600 -match 'MA600_ConfigurationSnapshotsEqual' -and
