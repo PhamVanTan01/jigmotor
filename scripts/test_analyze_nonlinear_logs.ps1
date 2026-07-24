@@ -151,6 +151,74 @@ try {
         throw "Post-turn residual fixture did not resolve the expected RMS/MaxAbs values (got PostTurnRepeatRMSDeg=$($postTurn.PostTurnRepeatRMSDeg), ClosureNormalizedDeltaRMSDeg=$($postTurn.ClosureNormalizedDeltaRMSDeg), ClosureNormalizedDeltaMaxAbsDeg=$($postTurn.ClosureNormalizedDeltaMaxAbsDeg), PostTurnAnalysisValid=$($postTurn.PostTurnAnalysisValid))."
     }
 
+    # AnalysisStartRaw export (docs/b0b-v3-no-reversal-plan.md muc 6.2 sector
+    # gate needs this column downstream) -- the postturn-residual fixture's
+    # META line was given AnalysisStartRaw=65530 specifically to also double
+    # as a near-wrap-boundary sanity value.
+    if ([double]$postTurn.AnalysisStartRaw -ne 65530) {
+        throw "AnalysisStartRaw did not export correctly (got $($postTurn.AnalysisStartRaw), expected 65530)."
+    }
+
+    # docs/b0b-v3-no-reversal-plan.md muc 6.2: circular-delta/circular-mean/
+    # sector-gate math, dot-sourced so the pure functions are directly
+    # testable against hand-computed values (not just "the analyzer agrees
+    # with itself"). Dot-sourcing re-runs the script's own -Path/-OutCsv
+    # parse over a harmless fixture into a throwaway CSV; only the function
+    # definitions are what this block actually needs.
+    $sectorGateCsv = Join-Path ([System.IO.Path]::GetTempPath()) 'jigmotor-analyzer-sectorgate.csv'
+    try {
+        . $analyzer -Path (Join-Path $fixtures 'schema-v5-postturn-residual-p03-jig1.txt') -OutCsv $sectorGateCsv | Out-Null
+
+        # CircularDelta must handle the 65535->0 wrap: 5 is 11 raw steps CW
+        # past 65530 (65536-65530=6, +5=11), not the naive -65525.
+        $delta = Get-CircularDeltaRaw -Value 5 -Reference 65530
+        if ([Math]::Abs($delta - 11.0) -gt 0.000001) {
+            throw "Get-CircularDeltaRaw wrap case wrong: got $delta, expected 11."
+        }
+        $deltaReverse = Get-CircularDeltaRaw -Value 65530 -Reference 5
+        if ([Math]::Abs($deltaReverse - (-11.0)) -gt 0.000001) {
+            throw "Get-CircularDeltaRaw reverse wrap case wrong: got $deltaReverse, expected -11."
+        }
+
+        # CircularMean of a boundary-straddling, symmetric pair {65534, 2}
+        # (each 2 raw steps from 0 on opposite sides) must land on 0, not the
+        # naive arithmetic mean (~32768, the opposite side of the circle).
+        $circMean = Get-CircularMeanRaw -Values @(65534, 2)
+        if ([Math]::Abs($circMean - 0.0) -gt 0.000001) {
+            throw "Get-CircularMeanRaw wrap case wrong: got $circMean, expected 0."
+        }
+
+        # Full sector gate, hand-computed (no wrap, to isolate the
+        # interpolation/gate logic from the circular-wrap logic already
+        # covered above): A0-before ref=100 @t=5, A0-after ref=200 @t=105 ->
+        # unwrapped after=200 (100+CircularDelta(200,100)=100+100). B run at
+        # t=55 (the exact midpoint) expects 100+(200-100)*0.5=150.
+        #   run1 AnalysisStartRaw=150 (exact)   -> SectorError=0   -> pass
+        #   run2 AnalysisStartRaw=170 (+20 off) -> SectorError=20  -> fail (tolerance=15)
+        # n=2 -> RequiredPassCount=ceil(0.9*2)=2, PassCount=1 -> GatePass=false
+        # (deliberately includes one failing run so this proves the gate
+        # actually discriminates, not just "always true").
+        $gate = Get-V32SectorGateResult `
+            -A0BeforeAnalysisStartRaw @(100, 100) -A0BeforeTimestamp @(0, 10) `
+            -A0AfterAnalysisStartRaw @(200, 200) -A0AfterTimestamp @(100, 110) `
+            -BAnalysisStartRaw @(150, 170) -BTimestamp @(55, 55) `
+            -SectorToleranceRaw 15
+        if ([Math]::Abs($gate.A0BeforeRef - 100.0) -gt 0.000001 -or
+                [Math]::Abs($gate.A0AfterRefUnwrapped - 200.0) -gt 0.000001 -or
+                [Math]::Abs($gate.PerRun[0].SectorErrorRaw - 0.0) -gt 0.000001 -or
+                [Math]::Abs($gate.PerRun[1].SectorErrorRaw - 20.0) -gt 0.000001 -or
+                ($gate.PerRun[0].Pass -ne $true) -or
+                ($gate.PerRun[1].Pass -ne $false) -or
+                ($gate.PassCount -ne 1) -or
+                ($gate.RequiredPassCount -ne 2) -or
+                ($gate.GatePass -ne $false)) {
+            throw "Get-V32SectorGateResult did not match the hand-computed synthetic batch (got PassCount=$($gate.PassCount)/$($gate.RequiredPassCount), GatePass=$($gate.GatePass), errors=[$($gate.PerRun[0].SectorErrorRaw),$($gate.PerRun[1].SectorErrorRaw)])."
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $sectorGateCsv -Force -ErrorAction SilentlyContinue
+    }
+
     Write-Host '[ OK ] Analyzer regression tests passed.'
 }
 finally {

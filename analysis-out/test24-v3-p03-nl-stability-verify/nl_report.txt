@@ -1,0 +1,30 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 10
+Excluded sweeps: 1
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+V3_P03: n=10 mean=2.744829 deg SD=0.023003 CV=0.838% range=0.066082 r(2.77s)=0.063719 deg slope=-0.000919 deg/run R2=0.0146
+ALL: n=10 mean=2.744829 deg SD=0.023003 CV=0.838% range=0.066082 r(2.77s)=0.063719 deg slope=-0.000919 deg/run R2=0.0146
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00463800 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00026841 deg
+max |recomputed A36 - shadow A36| = 0.00028907 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=10 r=+0.6752 R2=0.4558 slope=+0.589738 residualSD=0.017998
+RMS_AC_Deg: n=10 r=+0.3746 R2=0.1403 slope=+6.706821 residualSD=0.022622
+A36_Deg: n=10 r=+0.1499 R2=0.0225 slope=+2.028359 residualSD=0.024123
+ClosureErrorDeg: n=10 r=+0.5104 R2=0.2605 slope=+0.466613 residualSD=0.020982
+AnalysisStartRawCentered: n=10 r=-0.1008 R2=0.0102 slope=-0.000616 residualSD=0.024274
+
+EXCLUSIONS
+----------
+B0-B v3 p03 jig 1 test 24 lần 1.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded

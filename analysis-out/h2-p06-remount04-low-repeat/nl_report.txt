@@ -1,0 +1,32 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 6
+Excluded sweeps: 2
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+Remount04: n=3 mean=3.097391 deg SD=0.013670 CV=0.441% range=0.026620 r(2.77s)=0.037865 deg slope=+0.013310 deg/run R2=0.9481
+Remount04Low: n=3 mean=3.114171 deg SD=0.025092 CV=0.806% range=0.044558 r(2.77s)=0.069504 deg slope=+0.022279 deg/run R2=0.7884
+ALL: n=6 mean=3.105781 deg SD=0.020274 CV=0.653% range=0.044558 r(2.77s)=0.056160 deg slope=+0.008382 deg/run R2=0.5983
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00477200 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00029716 deg
+max |recomputed A36 - shadow A36| = 0.00056099 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=6 r=+0.8506 R2=0.7235 slope=+0.620326 residualSD=0.011919
+RMS_AC_Deg: n=6 r=+0.7889 R2=0.6224 slope=+9.185402 residualSD=0.013929
+A36_Deg: n=6 r=-0.9151 R2=0.8375 slope=-14.195909 residualSD=0.009139
+ClosureErrorDeg: n=6 r=-0.3261 R2=0.1064 slope=-0.329654 residualSD=0.021428
+AnalysisStartRawCentered: n=6 r=-0.4352 R2=0.1894 slope=-0.000346 residualSD=0.020409
+
+EXCLUSIONS
+----------
+H2-p06-jig1-remount04.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+H2-p06-jig1-remount04-low.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded

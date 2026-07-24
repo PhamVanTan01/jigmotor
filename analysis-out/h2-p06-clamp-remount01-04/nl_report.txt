@@ -1,0 +1,36 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 13
+Excluded sweeps: 4
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+Remount01: n=3 mean=3.406970 deg SD=0.007997 CV=0.235% range=0.015776 r(2.77s)=0.022150 deg slope=+0.005081 deg/run R2=0.4037
+Remount02: n=3 mean=3.763475 deg SD=0.003843 CV=0.102% range=0.007442 r(2.77s)=0.010644 deg slope=-0.003721 deg/run R2=0.9377
+Remount03: n=4 mean=3.855125 deg SD=0.016839 CV=0.437% range=0.040808 r(2.77s)=0.046644 deg slope=+0.012311 deg/run R2=0.8908
+Remount04: n=3 mean=3.097391 deg SD=0.013670 CV=0.441% range=0.026620 r(2.77s)=0.037865 deg slope=+0.013310 deg/run R2=0.9481
+ALL: n=13 mean=3.555693 deg SD=0.314380 CV=8.842% range=0.787540 r(2.77s)=0.870832 deg slope=-0.021994 deg/run R2=0.0742
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00458200 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00036850 deg
+max |recomputed A36 - shadow A36| = 0.00059827 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=13 r=+0.9969 R2=0.9939 slope=+0.878310 residualSD=0.025682
+RMS_AC_Deg: n=13 r=+0.9940 R2=0.9880 slope=+6.526219 residualSD=0.035903
+A36_Deg: n=13 r=-0.4647 R2=0.2160 slope=-51.380076 residualSD=0.290744
+ClosureErrorDeg: n=13 r=+0.0073 R2=0.0001 slope=+0.157604 residualSD=0.328350
+AnalysisStartRawCentered: n=13 r=+0.1076 R2=0.0116 slope=+0.000242 residualSD=0.326451
+
+EXCLUSIONS
+----------
+H2-p06-jig1-remount01.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+H2-p06-jig1-remount02.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+H2-p06-jig1-remount03.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+H2-p06-jig1-remount04.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
