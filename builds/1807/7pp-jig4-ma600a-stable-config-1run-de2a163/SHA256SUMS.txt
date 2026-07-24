@@ -1,0 +1,2 @@
+3c3a038b436a90b3904ba403ffdb433a46cc5a3831fcdef0f5a6ad1a701ddaf0  jigmotor-debug.hex
+c781b25b94c70801e441a27d8a1e5f6469bdac802ba369db08b0bf2d97b93619  jigmotor-release.hex
