@@ -56,14 +56,19 @@ foreach ($delta in @(182, 183, -182, -183)) {
 }
 
 # Start alignment: one smooth phase alignment, then equal CW local approach.
-# docs/b0b-v3-no-reversal-plan.md muc 6.2: ENABLE_B0B_EQUAL_APPROACH is now
-# derived from NL_APPROACH_MODE (true for every mode except LOCK_ONLY=0),
-# which itself defaults to NL_APPROACH_MODE_REVERSAL_V2=1 -- same compiled
-# default behavior as the old literal "#define ENABLE_B0B_EQUAL_APPROACH 1".
-Assert-True ($nl -match '#ifndef\s+NL_APPROACH_MODE\s*[\r\n]+#define\s+NL_APPROACH_MODE\s+NL_APPROACH_MODE_REVERSAL_V2' -and
+# docs/b0b-v3-no-reversal-plan.md muc 6.2: ENABLE_B0B_EQUAL_APPROACH is
+# derived from NL_APPROACH_MODE (true for every mode except LOCK_ONLY=0).
+# muc V3.2b/10 (locked 2026-07-24): the compiled default changed from
+# NL_APPROACH_MODE_REVERSAL_V2 to NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 after
+# a same-session V2-vs-A0 sector-isolation test on all 5 products showed A0
+# wins Closure+residual on every product -- intentional, not a regression.
+# The V2 code path (SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2) itself still must
+# exist and compile correctly, just no longer as the default.
+Assert-True ($nl -match '#ifndef\s+NL_APPROACH_MODE\s*[\r\n]+(?:[^\r\n]*[\r\n]+)*?\s*#define\s+NL_APPROACH_MODE\s+NL_APPROACH_MODE_SHIFTED_REVERSAL_A0' -and
         $nl -match '#define\s+ENABLE_B0B_EQUAL_APPROACH\s+\(NL_APPROACH_MODE\s*!=\s*NL_APPROACH_MODE_LOCK_ONLY\)' -and
-        $nl -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2') `
-    'Same-direction point-0 approach is not the Motion-V2 default.'
+        $nl -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2' -and
+        $nl -match 'SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1') `
+    'Shifted-sector A0 approach is not the production default (muc V3.2b/10), or the V2 code path was removed.'
 $lockFn = [regex]::Match($nl, '(?s)static void LockStartPosition\(void\).*?\n\}').Value
 Assert-True ($lockFn -match '#if NL_MOTION_PROFILE == NL_MOTION_PROFILE_SCURVE_V2' -and
         $lockFn -match 'NlSmoothstepCommandRaw' -and

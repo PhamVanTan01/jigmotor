@@ -1,0 +1,47 @@
+V3.2 A0-before study report
+============================================================
+Source file : B0-B v32 jig 1 test 28 A.txt
+Product     : P03 (user-confirmed via filename convention; MotorID=UNKNOWN in raw log)
+Leg         : A0-before (SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1, mode 3)
+Batch       : 1 precondition + 10 official, RunRole/BatchID confirmed COMPLETE
+ClampForce  : 0.16 N (per plan V3.2 lock -- not itself re-verified from this log)
+
+--- Structural / motion gate (muc 7.1/7.3) ---
+ApproachStructuralValid = 1 : 10/10 official runs (precondition also 1)
+ReversalCount = 2           : 10/10 official runs
+
+PrePosition (target 60, command +10923): TargetErrorRaw mean=+183.8 sd=4.8 raw  [min=+176, max=+193]
+LocalBackoff (command -182): TargetErrorRaw mean=+103.1 sd=2.4 raw  [min=+98, max=+106]
+Final (command +182): TargetErrorRaw mean=-101.9 sd=3.3 raw  [min=-107, max=-95]
+OriginShift (net, vs target 10923): TargetErrorRaw mean=+185.0 sd=4.6 raw  [min=+178, max=+194]
+
+--- Closure / Residual / NL (muc 7.2/7.2b) ---
+ClosureErrorDeg: mean=-0.00501 sd=0.01793  [min=-0.03036, max=+0.02121]
+PostTurnRepeatRMSDeg: mean=+0.08317 sd=0.01808  [min=+0.06140, max=+0.11727]
+ClosureNormalizedDeltaRMSDeg (residual): mean=+0.08194 sd=0.01838  [min=+0.05991, max=+0.11527]
+ClosureNormalizedDeltaMaxAbsDeg: mean=+0.18625 sd=0.07215  [min=+0.10874, max=+0.32401]
+NLAvg: mean=+2.75000 sd=0.01826  [min=+2.72000, max=+2.78000]
+ClosureValid = 1 : 10/10 official runs
+
+--- H2 (mechanical eccentricity / clamp harmonic), vector form ---
+Convention: C2 = A2*cos(H2_PhaseSweepDeg), S2 = A2*sin(H2_PhaseSweepDeg)
+Not independently validated against an external phase reference -- use for
+relative comparison across A0-before/B/A0-after (same setup check), not as a
+calibrated absolute angle.
+H2AmplitudeDeg (A2): mean=+0.16889 sd=0.00208  [min=+0.16690, max=+0.17390]
+H2PhaseSweepDeg: mean=-90.86651 sd=0.58424  [min=-91.89080, max=-89.94500]
+H2C: mean=-0.00256 sd=0.00173  [min=-0.00551, max=+0.00016]
+H2S: mean=-0.16886 sd=0.00207  [min=-0.17385, max=-0.16681]
+
+--- Per-run detail ---
+Run PreRollErr    LBErr  FinalErr  OriginErr  ClosureDeg  ResidRMS     NL   H2Amp  H2Phase
+  1        183      102      -102        183    -0.00354   0.08136   2.74  0.1673   -90.74
+  2        182      105      -103        184     0.02121   0.07551   2.72  0.1739   -91.41
+  3        187      106      -105        188    -0.00433   0.11527   2.76  0.1669   -91.89
+  4        193      101      -100        194    -0.01807   0.08434   2.78  0.1696   -91.45
+  5        189      104      -104        189     0.01339   0.08094   2.76  0.1695   -90.61
+  6        183      102      -100        185    -0.01211   0.06317   2.73  0.1677   -90.30
+  7        179      105      -101        183    -0.03036   0.05991   2.75  0.1698   -90.96
+  8        176      104      -102        178    -0.02954   0.06387   2.75  0.1670   -89.94
+  9        183      104      -107        180     0.01465   0.08675   2.77  0.1682   -90.84
+ 10        183       98       -95        186    -0.00140   0.10826   2.74  0.1690   -90.51

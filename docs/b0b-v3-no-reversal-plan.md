@@ -1083,10 +1083,57 @@ V1/V2/baseline hiện có (~+60°, xem mục 3.1/6.2):
 - Phase thay đổi (do dịch sector) không được diễn giải là "NL thay đổi"
   trong mục 7.4.
 
+### V3.2b — xác nhận trực tiếp: sector, không phải reversal (KHÓA)
+
+V3.2 (A0-B-A0) đã loại được giả thuyết gốc: bỏ reversal (B) không cải thiện
+residual so với A0 (mục V3.2, gate FAIL). Nhưng A0-B-A0 chỉ so sánh trong
+nội bộ sector MỚI (A0 vs B, cả hai đều +60°) — chưa cô lập được biến sector
+so với sector CŨ (V2 hiện tại production). Để tách bạch, đã chạy thêm một
+phép so sánh kiểm soát đúng 1 biến, **cùng session, cùng motor, cùng jig,
+không tháo lắp**: build V2 hiện tại (mode 1, sector cũ) chạy trước, build A0
+(mode 3, sector mới) chạy ngay sau, cách nhau ~30 phút, trên cả 2 pilot bắt
+buộc P03 và P06:
+
+```text
+                        P03 V2       P03 A0       P06 V2       P06 A0
+ClosureValid rate         0/10        10/10         0/10        10/10
+ClosureErrorDeg mean   -0.3575°     -0.0209°     -0.4669°     -0.0926°
+Residual RMS mean       0.2708°      0.0881°      0.4333°      0.1033°
+AnalysisStartRaw        ~62461        ~7915       ~64166        ~9700
+```
+
+Chênh lệch sector đo được ~60° cả hai lần (khớp thiết kế +60° mục 3.1).
+Chênh lệch Closure/residual lệch hàng chục lần độ lệch chuẩn (17–90 SE tùy
+chỉ số) — không phải nhiễu thống kê. V2 và A0 khác nhau ở ReversalCount (1
+vs 2), nhưng V3.2 đã đo riêng ảnh hưởng của biến này (A0 vs B, cùng sector)
+chỉ ở mức <40% chênh lệch residual — không đủ giải thích chênh lệch >300%
+và việc Closure lật hẳn từ 0/10 sang 10/10 quan sát được ở đây.
+
+```text
+KHÓA: sector là nguyên nhân chi phối vấn đề Closure/residual, không phải
+reversal-vs-no-reversal. Xác nhận độc lập trên cả 2 pilot bắt buộc
+(P03/P06, hai phía đối lập của Closure baseline), cùng session/cùng motor
+(không lẫn biến ngày/build/nhiệt độ như so sánh với baseline V2 lịch sử ở
+mục 2). Trong 3 protocol đã test (V2 sector cũ, B sector mới không
+reversal, A0 sector mới có reversal đầy đủ) — A0 là protocol tốt nhất đo
+được, KHÔNG PHẢI B như giả thuyết gốc mục 1 của tài liệu này dự kiến.
+```
+
+**Tác động tới phần còn lại của tài liệu**: mục 8 "Trường hợp PASS trên cả
+P03 và P06" viết cho kịch bản "reversal là nguyên nhân" — không còn đúng
+nguyên văn. Điều kiện mở rộng product ("P03 và P06 cùng hội tụ") **đã đạt**,
+nhưng approach dùng để mở rộng ở V3.3 phải là **A0**, không phải B.
+
 ### V3.3 — mở rộng product
 
-Chỉ thực hiện nếu P03 và P06 cùng đạt tiêu chí pilot. Test tiếp P02, P04 và
-P05, mỗi product một batch 10 official. Product nào sát giới hạn phải có
+**Gate đã đạt** (xem V3.2b): P03 và P06 cùng hội tụ dưới A0 (Closure ~0°,
+residual ~0.09–0.10°, so với 0/10 pass và 0.27–0.43° dưới V2 sector cũ).
+Test tiếp P02, P04 và P05, mỗi product một batch 10 official — dùng **A0**
+làm approach chung (không phải B). Khuyến nghị giữ kỷ luật same-session
+V2-vs-A0 (như đã làm với P03/P06) cho từng product thay vì chỉ 1 batch A0
+đơn lẻ so với baseline V2 lịch sử ở mục 2 — so sánh cùng session loại được
+biến ngày/build/nhiệt độ mà so sánh với baseline cũ không loại được. Product
+nào sát giới hạn phải có
 batch thứ hai sau ít nhất 15 phút.
 
 ## 7. Tiêu chí đánh giá
@@ -1390,11 +1437,22 @@ PASS ở đây nghĩa là đạt **cả** gate Closure (7.2) **và** gate residu
   test24 (calib)/test25 (confirm): P03 CONFIRMED cả hai field; P06
   FinalTargetErrorRaw CONFIRMED; P06 OriginShiftTargetErrorRaw CHƯA
   CONFIRMED (BATCH/SECTOR EFFECT DETECTED).
-- [ ] A0-B-A0 confirmation (V3.2) trên P03 — đủ điều kiện tiến hành ngay.
-- [ ] Batch P06 độc lập mới để xác nhận `OriginShiftTargetErrorRaw` (không
-  dùng lại test24/test25 để tự PASS), kèm gate có điều kiện theo
-  `AnalysisStartRaw`/sector.
-- [ ] P02/P04/P05 expansion nếu confirmation PASS.
+- [x] A0-B-A0 confirmation (V3.2) trên P03 (test 28) — gate residual FAIL,
+  B không tốt hơn A0 (mục V3.2).
+- [x] V2-vs-A0 same-session sector-isolation test (V3.2b, test 29) — chạy
+  trên **cả 5 product** (P02/P03/P04/P05/P06), khóa: sector là nguyên nhân
+  chi phối, không phải reversal. A0 thắng Closure+Residual trên toàn bộ
+  5/5 product, tỉ lệ cải thiện residual 3.1×–5.6× (xem
+  `analysis-out/test29-v32-v3.3-all-5-products/summary_report.txt`).
+- [x] P02/P04/P05 expansion (V3.3) — hoàn thành, dùng A0 (không phải B) làm
+  approach chung, theo đúng điều chỉnh ở mục V3.2b.
+- [ ] Khóa tiêu chí pass chính thức Closure+Residual (thay ngưỡng chỉ-Closure
+  hiện tại) trước khi đặt A0 làm production default.
+- [ ] Đặc trưng hóa trôi session/cross-day/cross-jig (đã phát hiện trôi nhẹ
+  trong V3.2, mục V3.2 phần drift) để đặt dung sai thực tế.
+- [ ] Batch P06 `OriginShiftTargetErrorRaw` độc lập (mục 7.3) — vẫn treo,
+  không chặn quyết định A0 vì V3.2b đã xác nhận nguyên nhân bằng con đường
+  khác (Closure+Residual trực tiếp), nhưng nên đóng lại nếu có thời gian.
 
 ## 10. Điều kiện hoàn thành V3
 
@@ -1404,4 +1462,43 @@ thời Closure margin (7.2), **residual hậu vòng margin (7.2b)**, endpoint
 NL (7.4, có tính đến giới hạn so sánh do dịch sector ở 6.3) trên toàn bộ
 product đã test. Closure margin một mình, dù đạt trên mọi product, không
 đủ để coi V3 hoàn thành nếu residual không cải thiện tương ứng.
+
+### KHÓA — A0 là production default (2026-07-24)
+
+Bằng chứng: test V2-vs-A0 same-session, cùng jig, cùng ngày, không tháo
+motor trong mỗi cặp, trên **cả 5 product**:
+
+```text
+Product   V2 Closure   A0 Closure   V2 Residual   A0 Residual   Cải thiện
+P03         0/10          10/10       0.2708°       0.0881°       3.1×
+P06         0/10          10/10       0.4333°       0.1033°       4.2×
+P05         0/10          10/10       0.1776°       0.0549°       3.2×
+P04         7/10          10/10       0.2403°       0.0541°       4.4×
+P02         0/10          10/10       0.4091°       0.0733°       5.6×
+```
+
+A0 thắng cả Closure và Residual trên toàn bộ 5/5 product, không ngoại lệ,
+không case biên cần batch thứ hai. Nguyên nhân đã xác định là **sector**
+(vị trí điểm-0 cơ/điện), không phải reversal-vs-no-reversal (V3.2 A0-vs-B
+đã loại bỏ giả thuyết reversal — B không tốt hơn A0 cùng sector). Chi tiết:
+`analysis-out/test29-v32-v3.3-all-5-products/summary_report.txt` và các
+`analysis-out/test29-v32-v2-vs-a0-p0*/comparison_report.txt`.
+
+**Đã đổi**: `Core/Src/nonlinear_test.c` — `NL_APPROACH_MODE` mặc định
+(`#ifndef`) đổi từ `NL_APPROACH_MODE_REVERSAL_V2` sang
+`NL_APPROACH_MODE_SHIFTED_REVERSAL_A0`. Không cần override khi build —
+`b0b-a0-production-default-v1-20260724` là build mặc định mới, không đổi
+gì khác (feedforward/creep/soft-start vẫn tắt).
+
+**Chưa đóng, không chặn quyết định này** (theo yêu cầu khóa ngay):
+- Chưa có tiêu chí pass chính thức kết hợp Closure+Residual trong code —
+  gate `ClosureValid` hiện tại vẫn chỉ dựa Closure (±0.20°).
+  Residual dùng để so sánh/quyết định nhưng chưa được code hóa thành gate
+  chính thức.
+- Chưa đặc trưng hóa trôi cross-day/cross-jig (V3.2 đã phát hiện trôi nhẹ
+  ~0.065° qua vài giờ cùng session, chưa biết biên độ giữa các ngày khác
+  nhau).
+
+Hai việc trên nên được đóng khi có thời gian, nhưng không giữ quyết định
+production default này ở trạng thái treo.
 

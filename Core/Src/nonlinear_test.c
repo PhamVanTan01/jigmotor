@@ -457,7 +457,13 @@ static const char *ResolveJigId(bool *outKnown)
 #define NL_APPROACH_MODE_NO_REVERSAL_V3          2
 #define NL_APPROACH_MODE_SHIFTED_REVERSAL_A0     3
 #ifndef NL_APPROACH_MODE
-#define NL_APPROACH_MODE NL_APPROACH_MODE_REVERSAL_V2
+/* Production default LOCKED 2026-07-24 (docs/b0b-v3-no-reversal-plan.md muc
+ * V3.2b/10): same-session V2-vs-A0 sector-isolation test on all 5 products
+ * (P02/P03/P04/P05/P06) showed A0 (shifted +60deg sector) wins Closure AND
+ * residual on every product, 3.1x-5.6x residual improvement, no exceptions.
+ * V2 was the default since before this file's B0-B work began; A0
+ * supersedes it as the compiled default from here on. */
+#define NL_APPROACH_MODE NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
 #endif
 #if NL_APPROACH_MODE < NL_APPROACH_MODE_LOCK_ONLY || \
     NL_APPROACH_MODE > NL_APPROACH_MODE_SHIFTED_REVERSAL_A0

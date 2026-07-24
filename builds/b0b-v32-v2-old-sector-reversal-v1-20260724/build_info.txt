@@ -1,0 +1,32 @@
+SavedAtLocal=2026-07-24T17:23:00+07:00
+Configuration=Release
+GitCommit=659be98a59ad4ec477d498311a3a7735263bc980
+GitDirty=no (clean rebuild of committed source, no source overrides)
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=1 (NL_APPROACH_MODE_REVERSAL_V2 -- compiled default, no
+    override needed, #ifndef NL_APPROACH_MODE picks this automatically)
+ApproachProtocol=SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2
+ApproachPath=backoff(CCW ~182 raw) then forward(CW ~182 raw), point-0
+    captured at "zero dien ban dau" (raw ~= 0) -- the OLD/current-production
+    sector, NOT the +60 deg shifted sector used by B/A0.
+ExpectedReversalCount=1 (CCW backoff -> CW forward, single direction change)
+FeedforwardEnabled=0
+CreepEnabled=0
+SoftStartEnabled=0 (plain V2, no bias/creep/soft-start tuning -- matches the
+    A0/B builds' config exactly so this is a clean single-variable
+    (sector-only) comparison against b0b-v32-a0-shifted-reversal-v1-20260723)
+MotorPolePairsRequired=6 (not enforced for mode 1, but same hardware)
+ClampForce=0.16 N (locked, see plan muc "V3.2" -- keep identical to the
+    A0/B/A0-after session: same clamp, no motor removal, same jig)
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-v32-v2-old-sector-reversal-v1
+HardwareTestStage=V2-vs-A0 same-session sector-isolation test (NOT yet in
+    the plan doc as a numbered muc -- ad hoc controlled comparison requested
+    to isolate "sector" as the causal variable, since V3.2's A0-vs-B only
+    varied reversal, both already at the shifted sector). Run THIS build
+    first (1 precondition + 10 official, P03, jig1), then immediately
+    reflash to b0b-v32-a0-shifted-reversal-v1-20260723 and run again, same
+    session, no motor removal -- mirrors the A0-before/B/A0-after protocol
+    already used for V3.2.
+HexSHA256=B3907FE4625056A563ED0CBC5AD5F83EE48982193D39802AA04696B0E58C0B56
+ElfSHA256=E4BEBC12E5ECFD2565BDAB7D978C873D08AF3FC5110F6E51F1CCB282E2163CF3

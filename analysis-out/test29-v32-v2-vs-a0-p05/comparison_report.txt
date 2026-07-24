@@ -1,0 +1,34 @@
+V2 (old sector) vs A0 (new sector) -- P05, sector-isolation test (V3.3 expansion)
+============================================================================================
+V2 file: B0-B-v32-v2-old p05-jig-1-test 29.txt (15:09)
+A0 file: B0-B-v32-a0-p05-jig1-test-29.txt (15:36)
+n=10 official each. *** = |SE|>=2.77, * = |SE|>=2.0
+
+--- Structural ---
+  V2: ApproachStructuralValid=1  10/10
+  A0: ApproachStructuralValid=1  10/10
+
+--- Sector separation check ---
+AnalysisStartRaw               V2(old sector)=+61088.20000(sd= 3.08401)  A0(new sector)=+6531.50000(sd= 2.41523)  diff=-54556.70000  -44042.56SE ***
+  V2 ~61088 raw, A0 ~6532 raw -- separated by ~10979 raw = 60.31 deg
+
+--- PRIMARY RESULT: Closure / Residual / NL ---
+ClosureValid=1 rate: V2 = 0/10   A0 = 10/10
+ClosureErrorDeg                V2(old sector)=  -0.31413(sd= 0.01382)  A0(new sector)=  +0.02872(sd= 0.00873)  diff= +0.34285   +66.35SE ***
+ClosureNormalizedDeltaRMSDeg (residual) V2(old sector)=  +0.17757(sd= 0.00574)  A0(new sector)=  +0.05493(sd= 0.00960)  diff= -0.12264   -34.67SE ***
+NLAvg                          V2(old sector)=  +3.52300(sd= 0.01889)  A0(new sector)=  +3.17800(sd= 0.01033)  diff= -0.34500   -50.68SE ***
+
+============================================================================================
+CROSS-CHECK: all 3 products tested so far under V3.3 (same-session V2-vs-A0)
+Product     V2 ClosureValid  A0 ClosureValid   V2 Residual   A0 Residual
+P03                    0/10            10/10        0.2708        0.0881
+P06                    0/10            10/10        0.4333        0.1033
+P05                    0/10            10/10        0.1776        0.0549
+
+CONCLUSION
+Third product in a row (P05) shows the exact same pattern as P03/P06: Closure flips
+0/10 -> 10/10, residual improves ~3x (0.18 -> 0.055deg). Sector-driven improvement
+holds across all 3 products tested so far under the shifted-sector A0 approach.
+Remaining: P02, P04 to complete the full 5-product V3.3 set before locking A0 as
+production default (muc 8: 'chua dat V3 lam production default truoc khi du nam
+product').

@@ -1,0 +1,16 @@
+V3.3 COMPLETE -- all 5 products, same-session V2-vs-A0 sector-isolation test
+============================================================================================
+Product   V2 Closure  A0 Closure  V2 ClosureDeg  A0 ClosureDeg  V2 Residual  A0 Residual   Ratio
+P03             0/10       10/10        -0.3575        -0.0209       0.2708       0.0881    3.1x
+P06             0/10       10/10        -0.4669        -0.0926       0.4333       0.1033    4.2x
+P05             0/10       10/10        -0.3141         0.0287       0.1776       0.0549    3.2x
+P04             7/10       10/10        -0.1830         0.0308       0.2403       0.0541    4.4x
+P02             0/10       10/10        -0.3843        -0.0398       0.4091       0.0733    5.6x
+
+Worst-case residual improvement ratio across all 5 products: 3.1x (still a clear win)
+
+muc 8 condition met: 'Chua dat V3 lam production default truoc khi du nam product' --
+all 5 products (P02, P03, P04, P05, P06) now tested, same-session V2-vs-A0, same jig,
+same day. A0 (shifted sector, mode 3, SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1) wins
+on both Closure and residual for every single product, with no exceptions and no
+marginal cases needing a second batch.

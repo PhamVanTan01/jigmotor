@@ -1,0 +1,43 @@
+V3.2 A0-after study report
+============================================================
+Source file : B0-B v32 p03 jig 1 test 28 A after.txt
+Product     : P03 (confirmed automatically from filename)
+Leg         : A0-after (SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1, mode 3, same build as A0-before)
+Batch       : 1 precondition + 10 official, RunRole/BatchID confirmed COMPLETE
+ClampForce  : 0.16 N (per plan V3.2 lock -- not itself re-verified from this log)
+
+--- Structural / motion gate (muc 7.1/7.3) ---
+ApproachStructuralValid = 1 : 10/10 official runs
+ReversalCount = 2           : 10/10 official runs
+
+PrePosition (target 60, command +10923): TargetErrorRaw mean=+178.2 sd=3.3 raw  [min=+174, max=+186]
+LocalBackoff (command -182): TargetErrorRaw mean=+103.1 sd=2.8 raw  [min=+99, max=+107]
+Final (command +182): TargetErrorRaw mean=-102.6 sd=3.7 raw  [min=-108, max=-96]
+OriginShift (net, vs target 10923): TargetErrorRaw mean=+178.7 sd=4.4 raw  [min=+173, max=+188]
+
+--- Closure / Residual / NL (muc 7.2/7.2b) ---
+ClosureErrorDeg: mean=-0.01695 sd=0.01651  [min=-0.05146, max=+0.00943]
+PostTurnRepeatRMSDeg: mean=+0.10070 sd=0.01224  [min=+0.07330, max=+0.11617]
+ClosureNormalizedDeltaRMSDeg (residual): mean=+0.09239 sd=0.01294  [min=+0.06385, max=+0.11040]
+ClosureNormalizedDeltaMaxAbsDeg: mean=+0.22217 sd=0.04800  [min=+0.10193, max=+0.27426]
+NLAvg: mean=+2.71300 sd=0.01252  [min=+2.70000, max=+2.74000]
+ClosureValid = 1 : 10/10 official runs
+
+--- H2 (mechanical eccentricity / clamp harmonic), vector form ---
+H2AmplitudeDeg (A2): mean=+0.16723 sd=0.00125  [min=+0.16580, max=+0.16980]
+H2PhaseSweepDeg: mean=-89.29669 sd=0.47672  [min=-89.90030, max=-88.39490]
+H2C: mean=+0.00205 sd=0.00140  [min=+0.00030, max=+0.00471]
+H2S: mean=-0.16721 sd=0.00125  [min=-0.16980, max=-0.16579]
+
+--- Per-run detail ---
+Run PreRollErr    LBErr  FinalErr  OriginErr  ClosureDeg  ResidRMS     NL   H2Amp  H2Phase
+  1        176      102      -103        175    -0.02045   0.09569   2.72  0.1675   -88.83
+  2        174       99       -96        177    -0.05146   0.08049   2.70  0.1661   -89.60
+  3        177      100      -101        176    -0.00797   0.09616   2.74  0.1663   -89.49
+  4        175      105      -107        173    -0.02972   0.08902   2.72  0.1670   -89.16
+  5        180      105      -102        183    -0.02768   0.06385   2.70  0.1671   -88.86
+  6        186      100       -98        188    -0.01145   0.11040   2.72  0.1681   -88.39
+  7        178      107      -105        180    -0.00873   0.09063   2.71  0.1698   -89.90
+  8        178      106      -108        176    -0.00760   0.09735   2.70  0.1658   -89.41
+  9        179      104      -102        181    -0.01389   0.10480   2.71  0.1684   -89.51
+ 10        179      103      -104        178     0.00943   0.09547   2.71  0.1662   -89.80

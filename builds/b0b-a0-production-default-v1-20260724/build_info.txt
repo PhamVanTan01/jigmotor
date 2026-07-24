@@ -1,0 +1,49 @@
+SavedAtLocal=2026-07-24T17:40:00+07:00
+Configuration=Release
+GitCommit=659be98a59ad4ec477d498311a3a7735263bc980
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (NL_APPROACH_MODE compiled default
+    changed REVERSAL_V2 -> SHIFTED_REVERSAL_A0), docs/b0b-v3-no-reversal-plan.md
+    (V3.2b sector-isolation confirmation on 5/5 products, muc 10 production
+    default lock), scripts/test_phase3b0_equal_approach_contract.ps1 +
+    scripts/test_motion_control_v2_contract.ps1 (updated default-value
+    assertions to match), not yet committed at build time
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- NEW COMPILED
+    DEFAULT, no override needed, #ifndef NL_APPROACH_MODE picks this
+    automatically)
+ApproachProtocol=SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1
+ApproachPath=CW_CCW_CW (pre-position 60 x CW, local backoff 1 x CCW, final
+    1 x CW), point-0 captured at "zero dien ke tiep" (~+60 deg shifted
+    sector vs the old V2 default)
+ExpectedReversalCount=2
+FeedforwardEnabled=0
+CreepEnabled=0
+SoftStartEnabled=0
+MotorPolePairsRequired=6
+Plan=docs/b0b-v3-no-reversal-plan.md, muc "V3.2b" / muc 10
+BuildLabel=b0b-a0-production-default-v1
+ProductionDefaultLockedOn=2026-07-24
+ProductionDefaultEvidence=Same-session V2-vs-A0 sector-isolation test on all
+    5 products (P02/P03/P04/P05/P06), same jig, same day, no motor removal
+    within each product's pair. A0 beat V2 on BOTH ClosureValid rate and
+    ClosureNormalizedDeltaRMSDeg (residual) for every single product, no
+    exceptions:
+      P03  Closure 0/10->10/10   Residual 0.2708->0.0881deg (3.1x)
+      P06  Closure 0/10->10/10   Residual 0.4333->0.1033deg (4.2x)
+      P05  Closure 0/10->10/10   Residual 0.1776->0.0549deg (3.2x)
+      P04  Closure 7/10->10/10   Residual 0.2403->0.0541deg (4.4x)
+      P02  Closure 0/10->10/10   Residual 0.4091->0.0733deg (5.6x)
+    Root cause identified as SECTOR (point-0 mechanical/electrical
+    position), not reversal-vs-no-reversal (V3.2 A0-vs-B already ruled that
+    out -- B did not beat A0 within the same sector). See
+    analysis-out/test29-v32-v3.3-all-5-products/summary_report.txt and the
+    per-product comparison_report.txt files under analysis-out/test29-*.
+KnownOpenFollowUps=(1) formal combined Closure+Residual pass/fail spec not
+    yet locked in code (current ClosureValid gate is Closure-only,
+    +/-0.20deg); (2) cross-day/cross-jig repeatability and the session-long
+    drift observed in V3.2 (~0.065deg over a few hours) not yet
+    characterized. Neither blocks this default-lock decision per explicit
+    instruction; tracked as follow-up in plan muc 9 checklist.
+HexSHA256=EECE810A8857502E38032646481D68B5F157B3323401CD9C35EF2E357E35349C
+ElfSHA256=B85E94D54DB8F66D1822A7A4F879BD1E7D80FEA64AE07340B1BF694E9D6C046C

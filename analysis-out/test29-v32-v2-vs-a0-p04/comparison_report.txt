@@ -1,0 +1,38 @@
+V2 (old sector) vs A0 (new sector) -- P04, sector-isolation test (V3.3 expansion)
+============================================================================================
+V2 file: B0-B-v32-v2-old p04-jig-1-test 29.txt
+A0 file: B0-B-v32-a0-p04-jig1-test-29.txt
+n=10 official each. *** = |SE|>=2.77, * = |SE|>=2.0
+
+--- Structural ---
+  V2: ApproachStructuralValid=1  10/10
+  A0: ApproachStructuralValid=1  10/10
+
+--- Sector separation check ---
+AnalysisStartRaw               V2(old sector)=+61009.10000(sd= 3.10734)  A0(new sector)=+6176.60000(sd= 3.06232)  diff=-54832.50000  -39744.83SE ***
+  V2 ~61009 raw, A0 ~6177 raw -- separated by ~10704 raw = 58.80 deg
+
+--- PRIMARY RESULT: Closure / Residual / NL ---
+ClosureValid=1 rate: V2 = 7/10   A0 = 10/10
+  NOTE: unlike P03/P05/P06 (clean 0/10 under V2), P04 is MARGINAL under V2 (7/10),
+  not a clean fail -- ClosureErrorDeg sits close to the +/-0.20deg limit (-0.15 to
+  -0.21deg). Matches the historical note (plan muc 2) that P04 had good Closure
+  under V2+tuned-bias (79/126 raw); this build has NO bias, so V2 here runs closer
+  to the edge instead of clearly failing outright.
+ClosureErrorDeg                V2(old sector)=  -0.18299(sd= 0.02140)  A0(new sector)=  +0.03076(sd= 0.01227)  diff= +0.21376   +27.40SE ***
+ClosureNormalizedDeltaRMSDeg (residual) V2(old sector)=  +0.24033(sd= 0.01558)  A0(new sector)=  +0.05415(sd= 0.01359)  diff= -0.18619   -28.48SE ***
+NLAvg                          V2(old sector)=  +3.27000(sd= 0.01633)  A0(new sector)=  +3.17500(sd= 0.02273)  diff= -0.09500   -10.73SE ***
+
+============================================================================================
+CROSS-CHECK: 4/5 products tested so far under V3.3 (same-session V2-vs-A0)
+Product     V2 ClosureValid  A0 ClosureValid   V2 Residual   A0 Residual
+P03                    0/10            10/10        0.2708        0.0881
+P06                    0/10            10/10        0.4333        0.1033
+P05                    0/10            10/10        0.1776        0.0549
+P04                    7/10            10/10        0.2403        0.0541
+
+CONCLUSION
+A0 residual is lower than V2 for all 4 products tested, by 3-8x. Closure pass rate
+improves (7/10->10/10 for P04; 0/10->10/10 for the other 3). P04 is the one product
+where V2 wasn't a clean failure, but A0 is still unambiguously better on both axes.
+Remaining: P02 to complete the full 5-product V3.3 set.

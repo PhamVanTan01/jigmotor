@@ -20,13 +20,17 @@ $baselineCsv = Join-Path ([System.IO.Path]::GetTempPath()) 'jigmotor-phase3b0-eq
 if ($source -match '#define\s+NL_MOTION_PROFILE\s+NL_MOTION_PROFILE_SCURVE_V2') {
     # docs/b0b-v3-no-reversal-plan.md muc 6.2: NL_APPROACH_MODE (4-way mode
     # selector) replaced the plain ENABLE_B0B_EQUAL_APPROACH=1 literal as the
-    # primary knob; ENABLE_B0B_EQUAL_APPROACH is now DERIVED from it (true for
-    # every mode except NL_APPROACH_MODE_LOCK_ONLY=0), preserving the exact
-    # same default behavior (NL_APPROACH_MODE defaults to
-    # NL_APPROACH_MODE_REVERSAL_V2=1, so ENABLE_B0B_EQUAL_APPROACH still
-    # compiles to true by default) without rewriting every call site.
-    Assert-True ($source -match '#ifndef\s+NL_APPROACH_MODE\s*[\r\n]+#define\s+NL_APPROACH_MODE\s+NL_APPROACH_MODE_REVERSAL_V2') `
-        'NL_APPROACH_MODE must default to NL_APPROACH_MODE_REVERSAL_V2 (equal-approach behavior unchanged by default).'
+    # primary knob; ENABLE_B0B_EQUAL_APPROACH is DERIVED from it (true for
+    # every mode except NL_APPROACH_MODE_LOCK_ONLY=0), so it still compiles
+    # to true regardless of which non-zero mode is the default.
+    # muc V3.2b/10 (locked 2026-07-24): the compiled default itself changed
+    # from NL_APPROACH_MODE_REVERSAL_V2 to NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
+    # after a same-session V2-vs-A0 sector-isolation test on all 5 products
+    # showed A0 wins Closure+residual on every product (3.1x-5.6x residual
+    # improvement) -- this is an intentional production-default change, not
+    # a regression.
+    Assert-True ($source -match '#ifndef\s+NL_APPROACH_MODE\s*[\r\n]+(?:[^\r\n]*[\r\n]+)*?\s*#define\s+NL_APPROACH_MODE\s+NL_APPROACH_MODE_SHIFTED_REVERSAL_A0') `
+        'NL_APPROACH_MODE must default to NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (production default locked 2026-07-24, muc V3.2b/10).'
     Assert-True ($source -match '#ifndef\s+ENABLE_B0B_EQUAL_APPROACH\s*[\r\n]+#define\s+ENABLE_B0B_EQUAL_APPROACH\s+\(NL_APPROACH_MODE\s*!=\s*NL_APPROACH_MODE_LOCK_ONLY\)') `
         'ENABLE_B0B_EQUAL_APPROACH must be derived from NL_APPROACH_MODE (true for every mode except LOCK_ONLY).'
     Assert-True ($source -match 'SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2') `
