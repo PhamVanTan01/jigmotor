@@ -105,7 +105,8 @@ static void SetEngineState(NonlinearEngineState_t state)
  * flat by the midpoint. Point 59 doubles as the pre-roll's own final
  * ramp-end checkpoint (immediately followed by the pre-roll settle). */
 #define NL_B0B_PREROLL_CHECKPOINT_COUNT  6U
-static const uint32_t kNlB0BPreRollCheckpoints[NL_B0B_PREROLL_CHECKPOINT_COUNT] =
+static const uint32_t kNlB0BPreRollCheckpoints[NL_B0B_PREROLL_CHECKPOINT_COUNT]
+    __attribute__((unused)) =
     {10U, 20U, 30U, 40U, 50U, 59U};
 /* Was 20 -- per a MA600A datasheet review, per-position averaging should be as large as
  * practical since it's effectively free here: CaptureSweep()'s sampling loop has no
