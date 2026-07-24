@@ -386,12 +386,21 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
         { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=004C003A3034510B31363339 */
     {
-        /* JIG4 carries the audited legacy MA600 profile observed during its
-         * 2026-07-24 bring-up. Keep the exact per-UID values locked: accepting
-         * this board must not weaken Policy A for JIG1/JIG2/JIG3 or silently
+        /* JIG4: new PCB, MA600A sensor still (same protocol/registers as
+         * JIG1-3, different physical board/mounting -- confirmed with the
+         * operator, 2026-07-24). First boot-smoke read (0x00D5/0x0C/0x80)
+         * was pre-calibration/transient, NOT this board's real profile --
+         * a second read after calibration completed came back
+         * 0x005C/0x05/0x00, matching JIG1-3's Filt/Prt/Status/RmapId
+         * exactly and differing only in Zero (expected: Zero is the
+         * per-unit absolute-position calibration constant, not a shared
+         * sensor-configuration setting). Confirmed by the operator as the
+         * final, stable config -- locked from that second reading, not the
+         * first. Keep the exact per-UID values locked: accepting this
+         * board must not weaken Policy A for JIG1/JIG2/JIG3 or silently
          * accept a later configuration change on JIG4. */
         0x0049003A, 0x3034510B, 0x31363339, "JIG4",
-        { 0x00D5, 0x00, 0x0C, 0x00, 0x80, 0x00, 0x190A55AD }
+        { 0x005C, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=0049003A3034510B31363339 */
 };
 

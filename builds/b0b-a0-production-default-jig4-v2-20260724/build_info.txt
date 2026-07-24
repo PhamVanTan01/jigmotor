@@ -1,0 +1,29 @@
+SavedAtLocal=2026-07-24T18:35:00+07:00
+Configuration=Release
+GitCommit=69fd33f72a77c0333f1a5d44354ab4bea395d430
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (JIG4 NL_KNOWN_JIGS[] profile
+    corrected), docs/hardware-validation-checklist.md (JIG4 row + caveat
+    corrected), scripts/test_phase2b_shadow_contract.ps1 (assertion updated
+    to match), not yet committed at build time
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged)
+Fix=JIG4's locked profile in commit 69fd33f was captured from a
+    pre-calibration/transient boot-smoke read (Zero=0x00D5, Filt=0x0C,
+    Prt=0x80). A second boot on the same physical board (BuildID=Jul 24
+    2026 16:51:35) correctly recognized JigID=JIG4 but the config gate
+    rejected it with ZERO_MISMATCH -- the sensor's REAL config read back as
+    Zero=0x005C, Filt=0x05, Prt=0x00 (Filt/Prt/Status/RmapId now match
+    JIG1/2/3 exactly; only Zero differs, expected since Zero is the
+    per-unit calibration constant). Operator confirmed JIG4 is a new PCB
+    (still MA600A sensor, same protocol) and confirmed this second reading
+    is the final, stable, post-calibration config. Locked profile updated
+    to match; first reading discarded as transient/pre-calibration.
+NewJig=JIG4, MCU_UID=0049003A3034510B31363339, CORRECTED locked profile
+    Zero=0x005C Dir=0x00 Filt=0x05 Status=0x00 Prt=0x00 RmapId=0x00
+    CorrCRC32=0x190A55AD
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-a0-production-default-jig4-v2
+HexSHA256=017AE7983695D15E165D634E243714952C1B488AF1CD8C3647789DE0F7402022
+ElfSHA256=B4CAE89088FE97E0AA8D0B54B5EE7786AE5F5E12E85497B791EA56625ECF84E4

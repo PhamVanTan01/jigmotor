@@ -39,15 +39,20 @@ failure that occurs before `META` remains self-identifying.
 | JIG1 / `003C00273234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG2 / `0025002C3234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG3 / `004C003A3034510B31363339` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
-| JIG4 / `0049003A3034510B31363339` | Observed 2026-07-24 | `0x00D5` | `0x00` | `0x0C` | `0x00` | `0x80` | `0x00` | 0 non-zero | `0x190A55AD` |
+| JIG4 / `0049003A3034510B31363339` | Observed 2026-07-24 | `0x005C` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 
 JIG1/JIG2/JIG3 were supplied with explicit operator jig labels from the audit
 build that preceded self-identifying CONFIG records. Their profiles match.
-JIG4 was added from a self-identifying boot-smoke record and intentionally
-retains a distinct locked legacy profile. Its `FILT=0x0C`, `PRT=0x80`, and
-non-zero `ZERO` make JIG4 a separate sensor-configuration stratum: do not pool
-or directly attribute JIG3-versus-JIG4 numeric differences to jig mechanics
-until both sensors are configured identically.
+JIG4 is a new PCB with the MA600A sensor (same protocol/registers as
+JIG1-3, different physical board) -- its first boot-smoke read
+(`ZERO=0x00D5,FILT=0x0C,PRT=0x80`) was pre-calibration/transient, not this
+board's real profile. The row above is the second read, taken after the
+operator confirmed calibration complete: `FILT`/`PRT`/`STATUS`/`RMAPID`
+match JIG1-3 exactly, and only `ZERO` differs -- expected, since `ZERO` is
+the per-unit absolute-position calibration constant, not a shared
+sensor-configuration setting. No separate sensor-configuration stratum
+concern remains; JIG3-versus-JIG4 numeric comparisons are not blocked by
+this.
 `POLICY_A_LOCKED_V1` therefore locks these values by physical MCU UID and emits
 `AuditFieldsLocked=1`. An unknown UID, missing expected profile, or mismatch in
 ZERO/DIR/FILT/STATUS/PRT/RMAPID/correction CRC rejects motor enable with E510

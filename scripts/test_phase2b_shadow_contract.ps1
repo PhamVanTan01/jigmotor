@@ -38,8 +38,8 @@ try {
         'Motor identity provenance fields are missing.'
     Assert-True ($analyzerSource -match "004C003A3034510B31363339'\s*=\s*'JIG3'") `
         'Host UID registry is missing JIG3.'
-    Assert-True ($source -match '(?s)0x0049003A,\s*0x3034510B,\s*0x31363339,\s*"JIG4".*?\{\s*0x00D5,\s*0x00,\s*0x0C,\s*0x00,\s*0x80,\s*0x00,\s*0x190A55AD\s*\}') `
-        'Firmware UID registry is missing the locked JIG4 profile.'
+    Assert-True ($source -match '(?s)0x0049003A,\s*0x3034510B,\s*0x31363339,\s*"JIG4".*?\{\s*0x005C,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the locked JIG4 profile (second, operator-confirmed-final reading -- not the pre-calibration first read).'
     Assert-True ($analyzerSource -match "0049003A3034510B31363339'\s*=\s*'JIG4'") `
         'Host UID registry is missing JIG4.'
 
