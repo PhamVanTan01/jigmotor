@@ -12,6 +12,9 @@ $NearZeroRaw = 9
 $WrongPositionRaw = 910
 $RampPlateauTicks = 5
 $StableWindowP2PRaw = $NearZeroRaw * 8
+$ActiveCommandDeltaRaw = 3
+$ActiveObservedNearZeroRaw = 2
+$MajorBacktrackRaw = 18
 
 function ConvertFrom-TraceLine {
     param([string]$Line)
@@ -42,14 +45,27 @@ function Get-LongestNearZeroSequence {
 
     $longest = 0
     $current = 0
+    $previousCommand = $null
     foreach ($sample in $Ramp) {
+        $command = Convert-ToInt64 $sample.CommandRaw
         $delta = Convert-ToInt64 $sample.ObservedDeltaRaw
-        if ($null -ne $delta -and [Math]::Abs($delta) -le $NearZeroRaw) {
+        $commandDelta = if ($null -ne $previousCommand -and $null -ne $command) {
+            [Math]::Abs($command - $previousCommand)
+        } else {
+            0
+        }
+        # Ignore the deliberately flat head/tail of the quintic S-curve.
+        # A possible stall requires the command itself to be actively moving
+        # while the encoder makes almost no progress.
+        if ($commandDelta -ge $ActiveCommandDeltaRaw -and
+                $null -ne $delta -and
+                [Math]::Abs($delta) -le $ActiveObservedNearZeroRaw) {
             $current++
             if ($current -gt $longest) { $longest = $current }
         } else {
             $current = 0
         }
+        $previousCommand = $command
     }
     return $longest
 }
@@ -132,6 +148,9 @@ foreach ($trace in $traces.Values) {
             ($backtrackDeltas | ForEach-Object { [Math]::Abs($_) } |
                 Measure-Object -Maximum).Maximum
         } else { 0 }
+        $majorBacktrackCount = @($backtrackDeltas | Where-Object {
+            [Math]::Abs($_) -gt $MajorBacktrackRaw
+        }).Count
 
         $lastSettle = if ($settle.Count) { $settle[-1] } else { $null }
         $finalObserved = if ($null -ne $lastSettle) {
@@ -156,7 +175,7 @@ foreach ($trace in $traces.Values) {
         $nearZeroSequence = Get-LongestNearZeroSequence $validRamp
 
         $classR = $nearZeroSequence -ge $RampPlateauTicks -or
-            $backtrackDeltas.Count -gt 0
+            $majorBacktrackCount -gt 0
         $classE = $settleResult -eq 'WRONG_POSITION' -and
             $null -ne $finalError -and [Math]::Abs($finalError) -gt $WrongPositionRaw -and
             $null -ne $finalP2P -and $finalP2P -le $StableWindowP2PRaw
@@ -180,6 +199,7 @@ foreach ($trace in $traces.Values) {
             LongestNearZeroTicks = $nearZeroSequence
             BacktrackCount = $backtrackDeltas.Count
             MaxBacktrackRaw = $maxBacktrack
+            MajorBacktrackCount = $majorBacktrackCount
             SettlePolls = $settle.Count
             SettleElapsedMs = $settleElapsed
             SettleCorrectionRaw = $settleCorrection
@@ -208,6 +228,8 @@ foreach ($trace in $traces.Values) {
         LongestNearZeroTicks = ($tracePoints.LongestNearZeroTicks |
             Measure-Object -Maximum).Maximum
         TotalBacktracks = ($tracePoints.BacktrackCount | Measure-Object -Sum).Sum
+        TotalMajorBacktracks = ($tracePoints.MajorBacktrackCount |
+            Measure-Object -Sum).Sum
         MaxSettleElapsedMs = ($tracePoints.SettleElapsedMs |
             Measure-Object -Maximum).Maximum
         WrongPositionPoints = @($tracePoints |
