@@ -1,10 +1,21 @@
 # Code implementation plan — test motor 7 cặp cực
 
-Updated: 2026-07-23
+Updated: 2026-07-24
 
 Branch: `codex/motor-7pp-engineering-test`
 
-Status: **READY FOR IMPLEMENTATION PLAN — chưa được phép flash/chạy motor**
+Status: **HISTORICAL INITIAL BRING-UP PLAN — superseded**
+
+Plan này ghi lại thiết kế lock-only ban đầu trước khi V3.2 mode 3 được tổng
+quát hóa cho 7PP. Các yêu cầu trong tài liệu về việc cấm mọi V3+7PP, profile
+`LOCK_ONLY` và negative build V3+14 pole không còn mô tả firmware hiện hành.
+Không dùng tài liệu này để chọn profile hoặc build test mới.
+
+Plan đang có hiệu lực:
+
+- `docs/motor-7pp-a-b-evidence-derived-test-plan.md`
+- `docs/motor-7pp-stutter-diagnostic-plan.md`
+- `docs/motor-7pp-engineering-test-plan.md`, mục P7.8 trở đi
 
 Nguồn yêu cầu:
 `D:\tanpham\QAtoool\jigtest\motor\jigmotor\docs\motor-7pp-engineering-test-plan.md`

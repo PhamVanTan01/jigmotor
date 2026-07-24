@@ -1,9 +1,9 @@
 # Plan thử nghiệm motor 7 cặp cực
 
-Updated: 2026-07-22
+Updated: 2026-07-24
 
-Status: **READY FOR IMPLEMENTATION — engineering trial, chưa phải tiêu chuẩn
-PASS/FAIL sản phẩm**
+Status: **ACTIVE ENGINEERING DIAGNOSTIC — P7.8 implemented; P7.9/P7.10 active;
+chưa phải tiêu chuẩn PASS/FAIL sản phẩm**
 
 ## 1. Mục tiêu
 
@@ -266,11 +266,11 @@ Khi đó tạo A/B riêng:
 Không đưa direct-Q16 vào cùng build bring-up đầu tiên; nếu thay geometry và
 thuật toán ánh xạ cùng lúc sẽ không biết biến nào gây khác biệt.
 
-### P7.6 — Mở rộng V3, chưa thuộc lần test đầu
+### P7.6 — Mở rộng V3, yêu cầu lịch sử trước implementation P7.8
 
-Chỉ xem xét sau khi P7.3/P7.5 đã chốt mapping và repeatability. Muốn hỗ trợ V3
-cho 7PP phải thiết kế lại target theo raw/electrical phase; không thể thay 60
-thành một số độ nguyên vì 51.428571° không nằm trên lưới 1°.
+Phần này ghi lại yêu cầu thiết kế trước khi P7.8 được implement. V3 cho 7PP
+phải thiết kế target theo raw/electrical phase; không thể thay 60 thành một số
+độ nguyên vì 51.428571° không nằm trên lưới 1°.
 
 Yêu cầu tối thiểu của V3-7PP tương lai:
 
@@ -325,7 +325,8 @@ Chỉ sau khi mapping + repeatability pass
 - [x] `MOTOR_NUM_POLSE=14U` suy ra đúng 7 pole-pair.
 - [x] Firmware có log pole count/pole pairs/ripple order động.
 - [x] `AElectrical6` có thể tính động tại order 42.
-- [x] Guard hiện tại chặn V3 6PP khi build cho 7PP.
+- [x] Mode 2 no-reversal 59°→60° vẫn bị chặn cho 7PP; mode 3
+  shifted-reversal đã được tổng quát hóa theo chu kỳ điện 9363 raw tại P7.8.
 - [x] Đã nhận diện giới hạn integer-cycle 9,363 raw.
 - [ ] Tạo build profile/script 7PP độc lập và manifest đầy đủ.
 - [ ] Chạy build/negative-build contract.
@@ -426,3 +427,14 @@ phân loại được ramp stall và settle-induced pause.
 Plan thực thi độc lập:
 
 - `docs/motor-7pp-stutter-diagnostic-plan.md`
+
+## 12. P7.10 — Plan tích hợp từ chuỗi A→B
+
+Chuỗi thử nghiệm A2→A5, Motion V2 và B0-B chứa các bằng chứng về fixed-phase
+power, stick-slip, phase trajectory, encoder-seeded drag, noise MA600,
+soft-start, creep, feedforward và precondition. Việc chuyển các bài học này
+sang 7PP phải tách rõ cơ chế tái sử dụng được khỏi hằng số riêng của motor 6PP.
+
+Plan điều phối và ma trận chuyển giao:
+
+- `docs/motor-7pp-a-b-evidence-derived-test-plan.md`

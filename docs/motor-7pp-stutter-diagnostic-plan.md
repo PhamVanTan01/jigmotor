@@ -4,6 +4,11 @@ Updated: 2026-07-24
 
 Status: **READY FOR IMPLEMENTATION — engineering diagnostic only**
 
+Plan này là nhánh chẩn đoán chi tiết của
+`docs/motor-7pp-a-b-evidence-derived-test-plan.md`. Các bài học A2→A5/B0-B,
+ma trận chuyển giao 6PP→7PP và thứ tự qualification tổng thể được khóa trong
+tài liệu điều phối đó.
+
 ## 1. Mục tiêu
 
 Xác định nguyên nhân motor 1807 7 cặp cực có lúc khựng và làm phép đo
