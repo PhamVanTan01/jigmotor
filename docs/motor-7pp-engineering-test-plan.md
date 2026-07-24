@@ -415,3 +415,14 @@ Gate tối thiểu:
 5. `OriginShiftTargetErrorRaw` trong settle tolerance và acquisition sạch;
 6. `MeasurementValid=1`, sau đó mới đánh giá
    `abs(SHADOW_RESULT.ClosureErrorDeg) < 0.2`.
+
+## 11. P7.9 — Chẩn đoán hiện tượng khựng tại point 143–148
+
+Log `1807-test 6.txt` đã tái hiện các run luân phiên VALID/INVALID, trong đó
+run lỗi có `WRONG_POSITION`, `PollCount=101` và position error vượt 910 raw tại
+point 143–148. Không nới settle tolerance hoặc chuyển sang batch trước khi
+phân loại được ramp stall và settle-induced pause.
+
+Plan thực thi độc lập:
+
+- `docs/motor-7pp-stutter-diagnostic-plan.md`
