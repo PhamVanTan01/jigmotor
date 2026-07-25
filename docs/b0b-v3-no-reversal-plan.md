@@ -1502,3 +1502,52 @@ gì khác (feedforward/creep/soft-start vẫn tắt).
 Hai việc trên nên được đóng khi có thời gian, nhưng không giữ quyết định
 production default này ở trạng thái treo.
 
+### MATLAB deep audit — Test 28 + Test 29 (2026-07-24)
+
+Đã bổ sung pipeline MATLAB đọc lại **raw UART log**, không lấy số đã tổng
+hợp sẵn từ report PowerShell:
+
+```text
+analysis/matlab/b0b/
+  extract_b0b_method_runs.m
+  compare_b0b_a0_v3.m
+  analyze_b0b_a0_v3_method.m
+  analyze_b0b_v2_a0_multimotor.m
+  run_b0b_measurement_method_study.m
+```
+
+Chạy toàn bộ study:
+
+```powershell
+& 'E:\matlab\bin\matlab.exe' -batch `
+  "addpath('analysis/matlab/b0b'); run_b0b_measurement_method_study;"
+```
+
+Analyzer bắt buộc đúng `EligibleForStatistics`, `MeasurementValid`,
+`END.Status=VALID`, đủ DATA 0..370, acquisition sạch, đúng protocol/path
+và đúng reversal count. `ClosureErrorDeg` canonical lấy từ
+`SHADOW_RESULT`; residual hậu vòng được tái tính riêng từ DATA theo công
+thức đã khóa ở mục 7.2b. Hai giá trị này không bị trộn pipeline.
+
+Kết quả 20.000 bootstrap:
+
+- Test 28 có 30/30 official run hợp lệ. V3 residual cao hơn A0 bracket
+  `+0.02304°`; bootstrap 95% `[+0.00965°, +0.03619°]`. Gate đã khóa yêu
+  cầu V3 `< 0.03959°`, trong khi V3 đạt `0.11021°`: **FAIL**.
+- V3 cũng không cải thiện `|canonical closure|` (`+0.01542°` so với A0
+  bracket). NL A0/V3 vẫn nằm trong repeatability envelope.
+- Test 29 có 100/100 official run hợp lệ trên P02–P06. A0 giảm residual
+  và `|closure|` trên 5/5 product; từng product đều có bootstrap 95% không
+  cắt 0. Exact one-sided sign test trên 5 product là `p=0.03125`.
+
+Kết luận MATLAB độc lập khớp quyết định đã khóa: **giữ A0 production,
+dừng V3 no-reversal**. Test 29 là bằng chứng sector (V2 và A0 đều có
+reversal); Test 28 mới là bằng chứng reversal (A0 và V3 cùng sector).
+Report tổng:
+`analysis-out/b0b-measurement-method-matlab/measurement_method_decision.md`.
+
+Giới hạn vẫn giữ nguyên: sector gate per-run của Test 28 dùng cumulative
+run index làm trục thời gian xấp xỉ vì ba file không có wall-clock chung.
+Nó đạt mô tả 10/10 trong ±91 raw (max 9.56 raw), nhưng không được nâng
+thành causal timestamp proof.
+

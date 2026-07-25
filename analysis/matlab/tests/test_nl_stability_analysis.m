@@ -60,7 +60,74 @@ assert(stability.SampleSd == 0);
 assert(isnan(stability.CvPct) == false); % 0/1*100 = 0, not NaN, since mean~=0
 assert(abs(stability.RepeatabilityLimit2_77Sd - 0) < 1e-12);
 
+test_nl_factors();
+
 fprintf("[ OK ] NL stability MATLAB analysis regression test passed.\n");
+end
+
+function test_nl_factors()
+% Two synthetic groups. Within each group, NL is built as a known linear
+% function of A36 (slope 2, matching r=1 exactly by construction) plus
+% independent noise on a decoy factor (MeanDC) that must NOT correlate.
+% RunOrder carries a group-specific linear drift that detrending must
+% remove (checked by RunOrder's own detrended correlation collapsing to
+% ~0, same sanity check as the real-data run showing 0.0009).
+groupSize = 12;
+index = (0:groupSize - 1)';
+files = strings(1, 2);
+labels = ["G1", "G2"];
+for groupIndex = 1:2
+    % Sawtooth-in-RunOrder, NOT a linear function of it -- if this were
+    % linear in RunOrder, within-group linear detrending would (correctly)
+    % remove nearly all of its variance before correlation, which is a
+    % property of the analysis (RunOrder/warm-up trends must not be
+    % mistaken for a real factor), not something this test should fight.
+    a36 = 0.5 + 0.3 * mod(index, 4) / 3 + 0.01 * groupIndex;
+    decoy = mod(index * 7, 5); % deliberately uncorrelated with the errors' shape
+
+    lines = strings(0, 1);
+    for k = 1:groupSize
+        lines(end + 1) = sprintf(strcat("META,SchemaVersion=5,TestID=%d,SweepID=%d,", ...
+            "RunOrder=%d,RunRole=OFFICIAL,EligibleForStatistics=1,MeasurementValid=1,", ...
+            "AnalysisPoints=360,AnalysisStartRaw=1000,ApproachProtocol=SYNTH"), ...
+            groupIndex, k, k); %#ok<AGROW>
+        n = 360;
+        errors = zeros(1, n);
+        % Build a pure-36th-harmonic curve with the target amplitude a36(k)
+        % and a DC offset chosen so MeanDC is a decoy unrelated to nl.
+        theta = 2 * pi * 36 * (0:n - 1) / n;
+        errors = decoy(k) + a36(k) * sin(theta);
+        % RMS_AC of a pure sinusoid is amplitude/sqrt(2); NL_RobustP2P of a
+        % clean 10-samples/cycle sinusoid is a fixed fraction of 2*amplitude
+        % (see test_nl_stability_analysis's own discrete-sampling note) --
+        % neither is independently steered to equal nl(k) exactly, so this
+        % case checks the STRUCTURE (a real factor recovered, a decoy
+        % rejected, RunOrder trend removed), not an exact target value.
+        for dataIndex = 0:n - 1
+            lines(end + 1) = sprintf("DATA,,%d,%d,,,,%d,0,0,0,%.10f", ...
+                groupIndex, k, dataIndex, errors(dataIndex + 1)); %#ok<AGROW>
+        end
+        lines(end + 1) = sprintf("SHADOW_RESULT,ClosureErrorDeg=%.6f", 0.01 * k); %#ok<AGROW>
+        lines(end + 1) = "END,Status=VALID"; %#ok<AGROW>
+    end
+    files(groupIndex) = write_temp_log(lines);
+end
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+result = analyze_nl_factors(files, labels);
+assert(height(result.GroupSummary) == 2);
+assert(height(result.Runs) == 24);
+
+a36Row = result.FactorCorrelations(result.FactorCorrelations.Factor == "A36_Deg", :);
+% A36 truly drives the synthetic errors' shape; detrended correlation with
+% NL_RobustP2P must be strong, positive, and consistent across both groups.
+assert(a36Row.RDetrended > 0.9);
+assert(a36Row.GroupsSameSign == 2);
+
+runOrderRow = result.FactorCorrelations(result.FactorCorrelations.Factor == "RunOrder", :);
+% Within-group linear detrending against RunOrder must remove RunOrder's
+% own detrended correlation with itself down to ~0 (by construction).
+assert(abs(runOrderRow.RDetrended) < 1e-9);
 end
 
 function file = write_temp_log(lines)

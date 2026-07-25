@@ -1,0 +1,5 @@
+Metric,ProductCount,A0LowerProductCount,A0LowerWithConfidenceProductCount,MeanProductDeltaA0MinusV2,MedianProductDeltaA0MinusV2,OneSidedExactSignP,AllProductsSameDirection
+ClosureNormalizedDeltaRMSDeg,5,5,5,-0.231473920240419,-0.1861872843835,0.03125,1
+AbsCanonicalClosureErrorDeg,5,5,5,-0.296962,-0.32808,0.03125,1
+NL_RobustP2P_Deg,5,4,4,-0.14629012,-0.208322,0.1875,0
+RMS_AC_Deg,5,4,3,-0.0081909689020675,-0.00983188143155933,0.1875,0

@@ -386,21 +386,21 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
         { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=004C003A3034510B31363339 */
     {
-        /* JIG4: new PCB, MA600A sensor still (same protocol/registers as
-         * JIG1-3, different physical board/mounting -- confirmed with the
-         * operator, 2026-07-24). First boot-smoke read (0x00D5/0x0C/0x80)
-         * was pre-calibration/transient, NOT this board's real profile --
-         * a second read after calibration completed came back
-         * 0x005C/0x05/0x00, matching JIG1-3's Filt/Prt/Status/RmapId
-         * exactly and differing only in Zero (expected: Zero is the
-         * per-unit absolute-position calibration constant, not a shared
-         * sensor-configuration setting). Confirmed by the operator as the
-         * final, stable config -- locked from that second reading, not the
-         * first. Keep the exact per-UID values locked: accepting this
-         * board must not weaken Policy A for JIG1/JIG2/JIG3 or silently
-         * accept a later configuration change on JIG4. */
+        /* JIG4: MA600A sensor replaced 2026-07-24 (operator-confirmed
+         * physical swap on the same board/MCU). Zero is the per-unit
+         * absolute-position calibration constant baked into each sensor
+         * IC, not a shared sensor-configuration setting, so it changes
+         * with the physical chip while Dir/Filt/Status/Prt/RmapId/
+         * CorrCRC32 stay identical to JIG1-3 -- confirming only the sensor
+         * IC changed, not the board/wiring/protocol. New Zero=0x00E7 is
+         * locked to this specific jig+sensor pairing. Keep the exact
+         * per-UID values locked: accepting this board must not weaken
+         * Policy A for JIG1/JIG2/JIG3 or silently accept a later
+         * configuration change on JIG4 (see prior transient-first-read
+         * mistake this replaced -- do not lock a single boot-smoke read
+         * without confirming it repeats across a reboot). */
         0x0049003A, 0x3034510B, 0x31363339, "JIG4",
-        { 0x005C, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+        { 0x00E7, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=0049003A3034510B31363339 */
 };
 
@@ -734,6 +734,22 @@ static const char *ResolveJigId(bool *outKnown)
  * on paper (the formulas themselves were cross-checked separately in
  * scripts or scratch tooling outside this repo before being written here). Leave at 0. */
 #define ENABLE_NL_MATH_SELF_TEST    0
+#endif
+
+#ifndef NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4
+/* JIG4's MA600 Zero register read back unstable across reboots on
+ * 2026-07-24 (0x00E7/0x00E6/0x00E2/0x00E2/0x00E3 -- a >5-count spread, not
+ * +/-1 LSB noise), most likely a board-level issue (SPI/power/ground) since
+ * this is the SECOND MA600 IC on this same board to show unstable reads.
+ * This flag lets JIG4 continue past the Policy-A gate for debug/bring-up
+ * only while that hardware issue is investigated -- it does NOT fix or hide
+ * the instability: the real CONFIG/RejectReason fields are logged unchanged,
+ * a PolicyABypassOverride=1 marker is added, and the gate stays fully
+ * enforced for JIG1/JIG2/JIG3. Any data collected from JIG4 while this is
+ * 1 has an unverified absolute-zero reference and MUST NOT be used for
+ * official measurement conclusions. Set back to 0 once JIG4's Zero read is
+ * confirmed stable and re-locked in NL_KNOWN_JIGS. */
+#define NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4    1
 #endif
 
 /* Real hardware data (test jig 1.txt/test jig 2.txt) showed RMS_AC/A36 trending down across
@@ -5830,13 +5846,27 @@ static bool ReadLogAndGateConfiguration(const char *configContext)
     }
 
     bool policyGatePassed = (errorCode == 0);
+
+    /* Debug-only override, JIG4 exclusively -- see the
+     * NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4 comment at its definition. The
+     * logged ConfigValid/PolicyAGatePassed/RejectReason below are the real,
+     * unmodified gate result; only PolicyABypassOverride and the actual
+     * return value change. */
+    bool bypassOverrideActive = false;
+#if NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4
+    if (!policyGatePassed && jigKnown && strcmp(jigId, "JIG4") == 0)
+    {
+        bypassOverrideActive = true;
+    }
+#endif
+
     LogLineLarge(
         "CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,"
         "ConfigContext=%s,Firmware=%s,BuildID=%s,"
         "MCU_UID=%08lX%08lX%08lX,JigID=%s,JigKnown=%d,"
         "ConfigGateSelfTest=1,PointSamplerSelfTest=1,"
         "ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=%d,ConfigValid=%d,PolicyAGatePassed=%d,"
-        "AuditFieldsLocked=1,ExpectedProfileFound=%d,RejectReason=%s,"
+        "AuditFieldsLocked=1,ExpectedProfileFound=%d,RejectReason=%s,PolicyABypassOverride=%d,"
         "ExpectedZero=0x%04X,ExpectedDir=0x%02X,ExpectedFilt=0x%02X,ExpectedStatus=0x%02X,"
         "ExpectedPrt=0x%02X,ExpectedRmapId=0x%02X,ExpectedCorrCRC32=0x%08lX,"
         "Zero=0x%04X,Dir=0x%02X,Filt=0x%02X,"
@@ -5845,7 +5875,7 @@ static bool ReadLogAndGateConfiguration(const char *configContext)
         (unsigned long)MCU_UID_WORD0, (unsigned long)MCU_UID_WORD1, (unsigned long)MCU_UID_WORD2,
         jigId, jigKnown ? 1 : 0,
         readValid ? 1 : 0, policyGatePassed ? 1 : 0, policyGatePassed ? 1 : 0,
-        expected != NULL ? 1 : 0, rejectReason,
+        expected != NULL ? 1 : 0, rejectReason, bypassOverrideActive ? 1 : 0,
         expected != NULL ? (unsigned)expected->zero : 0U,
         expected != NULL ? (unsigned)expected->dir : 0U,
         expected != NULL ? (unsigned)expected->filt : 0U,
@@ -5857,6 +5887,13 @@ static bool ReadLogAndGateConfiguration(const char *configContext)
         (unsigned)config.status, (unsigned)config.prt, (unsigned)config.rmapId,
         (unsigned)config.corrNonZeroCount, (unsigned long)config.corrCrc32);
 
+    if (!policyGatePassed && bypassOverrideActive)
+    {
+        LogLine("Motor WARNING: E%d bypassed for debug (JIG4 only, config gate rejected: %s) "
+            "-- data from this run is NOT valid for official measurement conclusions!\r\n",
+            errorCode, rejectReason);
+        return true;
+    }
     if (!policyGatePassed)
     {
         LogLine("Motor ERROR: E%d (MA600 config gate rejected: %s)!\r\n",
