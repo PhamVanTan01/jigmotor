@@ -40,7 +40,7 @@ failure that occurs before `META` remains self-identifying.
 | JIG1 / `003C00273234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG2 / `0025002C3234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG3 / `004C003A3034510B31363339` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
-| JIG4 / `0049003A3034510B31363339` | Observed 2026-07-24 | `0x00E7` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
+| JIG4 / `0049003A3034510B31363339` | Corrected 2026-07-27 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG5 / `001D00283234470438353535` | Observed 2026-07-27 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 
 JIG1/JIG2/JIG3 were supplied with explicit operator jig labels from the audit
@@ -48,16 +48,21 @@ build that preceded self-identifying CONFIG records. Their profiles match.
 JIG4 is a new PCB with the MA600A sensor (same protocol/registers as
 JIG1-3, different physical board) -- its first boot-smoke read
 (`ZERO=0x00D5,FILT=0x0C,PRT=0x80`) was pre-calibration/transient, not this
-board's real profile. The row above reflects the sensor IC installed as of
-2026-07-24 (a physical MA600 swap on the same board/MCU superseded the
-originally locked `ZERO=0x005C`): `FILT`/`PRT`/`STATUS`/`RMAPID` match
-JIG1-3 exactly, and only `ZERO` differs -- expected, since `ZERO` is the
+board's real profile. A physical MA600 swap on the same board/MCU on
+2026-07-24 then led to locking `ZERO=0x00E7`, which was itself another
+premature lock: it was corrected on 2026-07-27 to `ZERO=0x0000` after 33
+consecutive gated reads (`PRECONDITION_PRE_MOTOR` + `BATCH_PRE_MOTOR`, zero
+exceptions) across three independent test-31 sessions on this exact
+board/sensor (P03, P02, P06 -- all captured under `PolicyABypassOverride=1`
+while the stale `0x00E7` lock was gate-rejecting every run). `ZERO=0x0000`
+matches JIG1/JIG2/JIG3/JIG5 exactly. `FILT`/`PRT`/`STATUS`/`RMAPID` were
+already identical to JIG1-3 throughout and are unchanged. `ZERO` is the
 per-unit absolute-position calibration constant baked into each sensor IC,
-not a shared sensor-configuration setting. Re-locking `ZERO` on a sensor
-swap is intentional (`POLICY_A_LOCKED_V1` must not silently accept a later
-configuration change); it does not weaken Policy A for JIG1-3. No separate
-sensor-configuration stratum concern remains; JIG3-versus-JIG4 numeric
-comparisons are not blocked by this.
+not a shared sensor-configuration setting, so re-locking it on a sensor
+swap (or correcting a bad lock) is intentional (`POLICY_A_LOCKED_V1` must
+not silently accept a later configuration change); it does not weaken
+Policy A for JIG1-3/JIG5. No separate sensor-configuration stratum concern
+remains; JIG1/JIG3/JIG4/JIG5 numeric comparisons are not blocked by this.
 
 JIG5 is a second new control board (different MCU/PCB) carrying, at
 bring-up time, the same physical MA600A sensor JIG4 had -- registered as

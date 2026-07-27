@@ -387,20 +387,23 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
     }, /* MCU_UID=004C003A3034510B31363339 */
     {
         /* JIG4: MA600A sensor replaced 2026-07-24 (operator-confirmed
-         * physical swap on the same board/MCU). Zero is the per-unit
-         * absolute-position calibration constant baked into each sensor
-         * IC, not a shared sensor-configuration setting, so it changes
-         * with the physical chip while Dir/Filt/Status/Prt/RmapId/
-         * CorrCRC32 stay identical to JIG1-3 -- confirming only the sensor
-         * IC changed, not the board/wiring/protocol. New Zero=0x00E7 is
-         * locked to this specific jig+sensor pairing. Keep the exact
-         * per-UID values locked: accepting this board must not weaken
-         * Policy A for JIG1/JIG2/JIG3 or silently accept a later
-         * configuration change on JIG4 (see prior transient-first-read
-         * mistake this replaced -- do not lock a single boot-smoke read
-         * without confirming it repeats across a reboot). */
+         * physical swap on the same board/MCU). Zero read back unstable
+         * across reboots that day (0x00E7/0x00E6/0x00E2/0x00E2/0x00E3, a
+         * >5-count spread -- see NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4 history
+         * below), and 0x00E7 was locked anyway as a best-guess placeholder
+         * while the instability was investigated. The later JIG5 board-swap
+         * test traced this class of instability to sensor power-on settling
+         * time, not a board/connection fault -- and consistent with that,
+         * the instability was gone by 2026-07-27: Zero=0x0000 across 33
+         * consecutive gated reads (PRECONDITION_PRE_MOTOR + BATCH_PRE_MOTOR,
+         * zero exceptions) over three independent test sessions on this
+         * exact board/sensor (P03, P02, P06 test-31 logs, all captured
+         * under PolicyABypassOverride=1 while the stale 0x00E7 lock was
+         * still gate-rejecting every run). Zero=0x0000 matches
+         * JIG1/JIG2/JIG3/JIG5 exactly. Dir/Filt/Status/Prt/RmapId/CorrCRC32
+         * were already identical to JIG1-3 and remain unchanged. */
         0x0049003A, 0x3034510B, 0x31363339, "JIG4",
-        { 0x00E7, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=0049003A3034510B31363339 */
     {
         /* JIG5: new control board (different MCU/PCB), same physical MA600A
@@ -758,17 +761,15 @@ static const char *ResolveJigId(bool *outKnown)
 #ifndef NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4
 /* JIG4's MA600 Zero register read back unstable across reboots on
  * 2026-07-24 (0x00E7/0x00E6/0x00E2/0x00E2/0x00E3 -- a >5-count spread, not
- * +/-1 LSB noise), most likely a board-level issue (SPI/power/ground) since
- * this is the SECOND MA600 IC on this same board to show unstable reads.
- * This flag lets JIG4 continue past the Policy-A gate for debug/bring-up
- * only while that hardware issue is investigated -- it does NOT fix or hide
- * the instability: the real CONFIG/RejectReason fields are logged unchanged,
- * a PolicyABypassOverride=1 marker is added, and the gate stays fully
- * enforced for JIG1/JIG2/JIG3. Any data collected from JIG4 while this is
- * 1 has an unverified absolute-zero reference and MUST NOT be used for
- * official measurement conclusions. Set back to 0 once JIG4's Zero read is
- * confirmed stable and re-locked in NL_KNOWN_JIGS. */
-#define NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4    1
+ * +/-1 LSB noise). The JIG5 board-swap test later traced this class of
+ * instability to sensor power-on settling time, not a board-level fault.
+ * Zero has since read back stable at 0x0000 across 33 consecutive gated
+ * reads over three independent sessions (2026-07-27, P03/P02/P06 test-31)
+ * and is re-locked in NL_KNOWN_JIGS -- restoring full Policy-A enforcement
+ * for JIG4. Do not set this back to 1 without the same standard of
+ * evidence (many reads, multiple independent power cycles/sessions, not a
+ * single boot-smoke read) that justified turning it off. */
+#define NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4    0
 #endif
 
 /* Real hardware data (test jig 1.txt/test jig 2.txt) showed RMS_AC/A36 trending down across
