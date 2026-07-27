@@ -402,6 +402,25 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
         0x0049003A, 0x3034510B, 0x31363339, "JIG4",
         { 0x00E7, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=0049003A3034510B31363339 */
+    {
+        /* JIG5: new control board (different MCU/PCB), same physical MA600A
+         * sensor as JIG4 at the time of bring-up (operator-confirmed
+         * board-only swap, 2026-07-27) -- registered as its own jig entry
+         * rather than replacing JIG4 (operator's explicit choice; JIG4's
+         * own board/profile is untouched). BOOT_SMOKE's very first read
+         * after power-up is unreliable (varied: 0x007D, then 0x0080 across
+         * two separate power cycles) and is read-only/never gates anything
+         * (see ReadLogAndGateConfiguration("BOOT_SMOKE") call site) -- the
+         * value that matters is PRECONDITION_PRE_MOTOR, read later in boot
+         * after the home routine, which came back Zero=0x0000 with zero
+         * exceptions across 3 reads in the first power cycle and 6 reads in
+         * the second (after a full power-off/power-on, not just a
+         * reconnect) -- the same board-swap discipline already used to
+         * rule out the control board as JIG4's earlier instability cause.
+         * Dir/Filt/Status/Prt/RmapId/CorrCRC32 match JIG1-3 exactly. */
+        0x001D0028, 0x32344704, 0x38353535, "JIG5",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=001D00283234470438353535 */
 };
 
 static const NlKnownJig_t *FindKnownJigByUid(void)

@@ -24,6 +24,7 @@ log filename:
 | JIG2 | `0025002C3234470438353535` |
 | JIG3 | `004C003A3034510B31363339` |
 | JIG4 | `0049003A3034510B31363339` |
+| JIG5 | `001D00283234470438353535` |
 
 The firmware table in `Core/Src/nonlinear_test.c` must use this exact mapping.
 An unknown UID must remain `UNKNOWN_JIG`; never infer a jig number from a file
@@ -40,6 +41,7 @@ failure that occurs before `META` remains self-identifying.
 | JIG2 / `0025002C3234470438353535` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG3 / `004C003A3034510B31363339` | Observed 2026-07-13 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG4 / `0049003A3034510B31363339` | Observed 2026-07-24 | `0x00E7` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
+| JIG5 / `001D00283234470438353535` | Observed 2026-07-27 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 
 JIG1/JIG2/JIG3 were supplied with explicit operator jig labels from the audit
 build that preceded self-identifying CONFIG records. Their profiles match.
@@ -56,6 +58,22 @@ swap is intentional (`POLICY_A_LOCKED_V1` must not silently accept a later
 configuration change); it does not weaken Policy A for JIG1-3. No separate
 sensor-configuration stratum concern remains; JIG3-versus-JIG4 numeric
 comparisons are not blocked by this.
+
+JIG5 is a second new control board (different MCU/PCB) carrying, at
+bring-up time, the same physical MA600A sensor JIG4 had -- registered as
+its own entry rather than replacing JIG4 (operator's choice; JIG4's board
+and locked profile are untouched). This swap was the diagnostic that
+resolved JIG4's earlier instability: `BOOT_SMOKE` (the very first read
+immediately after power-up, read-only, never gates anything) varied across
+two full power cycles on this same new board (`0x007D` then `0x0080`), but
+`PRECONDITION_PRE_MOTOR` (read later in boot, after the home routine) came
+back `ZERO=0x0000` with zero exceptions across 3 reads then 6 reads on the
+second power cycle. Since a different board reproduced the same
+"boot-smoke unreliable, later read stable" pattern with the same sensor,
+the earlier instability traces to sensor power-on settling time, not a
+board-specific connection fault -- do not lock a profile from a
+`BOOT_SMOKE` read alone; always confirm against the later gated read
+across a real power cycle first.
 `POLICY_A_LOCKED_V1` therefore locks these values by physical MCU UID and emits
 `AuditFieldsLocked=1`. An unknown UID, missing expected profile, or mismatch in
 ZERO/DIR/FILT/STATUS/PRT/RMAPID/correction CRC rejects motor enable with E510

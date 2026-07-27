@@ -1,0 +1,33 @@
+SavedAtLocal=2026-07-27T09:45:00+07:00
+Configuration=Release
+GitCommit=404713233e84ea69f5052c47c1e9fde0e781cd23
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (JIG5 entry added to NL_KNOWN_JIGS[]),
+    docs/hardware-validation-checklist.md (JIG5 row + explanation),
+    scripts/analyze_nonlinear_logs.ps1 (host-side UID->JIG5 mapping),
+    scripts/test_phase2b_shadow_contract.ps1 (JIG5 assertions), not yet
+    committed at build time
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged)
+NewJig=JIG5, MCU_UID=001D00283234470438353535 (new control board, same
+    manufacturing lot as JIG1/JIG2 -- UID words 1-2 identical), locked
+    profile Zero=0x0000 Dir=0x00 Filt=0x05 Status=0x00 Prt=0x00 RmapId=0x00
+    CorrCRC32=0x190A55AD -- matches JIG1-3 exactly.
+Diagnosis=This board-swap test (same MA600A sensor JIG4 had, new
+    board/MCU) is what resolved JIG4's earlier instability mystery:
+    BOOT_SMOKE (first read immediately post-power-up, read-only, never
+    gates anything) varied across 2 power cycles (0x007D, then 0x0080),
+    but PRECONDITION_PRE_MOTOR (read later in boot, after the home
+    routine) came back Zero=0x0000 with zero exceptions across 3 reads
+    then 6 reads. Since a DIFFERENT board reproduced the same
+    "boot-smoke-unreliable, later-read-stable" pattern with the same
+    sensor, root cause is sensor power-on settling time, not a
+    board-specific connection fault. Do not lock a profile from a
+    BOOT_SMOKE read alone.
+OperatorDecision=Registered as new JIG5, not merged into JIG4 -- JIG4's
+    own board and locked profile (Zero=0x00E7) are untouched.
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-a0-production-default-jig5-v1
+HexSHA256=AF71CA26795D2D65A9F7112AFFD7F22EEFE18358935496774FA2B2BBECBCFB88
+ElfSHA256=BA641F47B069B2D45E06FD7512E88FBA2EECDE7E12B86794F9C40ABC7B4A0D9D

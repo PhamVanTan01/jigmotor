@@ -42,6 +42,10 @@ try {
         'Firmware UID registry is missing the locked JIG4 profile (sensor replaced 2026-07-24; Zero=0x00E7 for the current MA600 IC on this board).'
     Assert-True ($analyzerSource -match "0049003A3034510B31363339'\s*=\s*'JIG4'") `
         'Host UID registry is missing JIG4.'
+    Assert-True ($source -match '(?s)0x001D0028,\s*0x32344704,\s*0x38353535,\s*"JIG5".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the locked JIG5 profile (new control board, 2026-07-27; Zero=0x0000 confirmed across two power cycles via PRECONDITION_PRE_MOTOR, not the unreliable BOOT_SMOKE read).'
+    Assert-True ($analyzerSource -match "001D00283234470438353535'\s*=\s*'JIG5'") `
+        'Host UID registry is missing JIG5.'
 
     & (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1') -Path $fixture -OutCsv $csv | Out-Null
     $rows = @(Import-Csv $csv)
