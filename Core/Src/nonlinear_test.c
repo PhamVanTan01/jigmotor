@@ -424,6 +424,44 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
         0x001D0028, 0x32344704, 0x38353535, "JIG5",
         { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=001D00283234470438353535 */
+    {
+        /* JIG6: new control board, registered 2026-07-28 BEFORE the
+         * mechanical assembly/MA600 sensor was attached -- this build was
+         * flashed solely to read MCU_UID_WORD0/1/2 off the bare STM32 (UID
+         * is factory-lasered into the die, independent of any sensor
+         * wiring), so at registration time no sensor read exists yet. The
+         * first CONFIG line off this board read all-0xFF across
+         * Zero/Dir/Filt/Status/Prt/RmapId (CorrNonZeroCount=32/32) --
+         * SPI-not-connected garbage, expected with no sensor attached, NOT
+         * a locked profile. PLACEHOLDER PROFILE BELOW matches every other
+         * known jig (JIG1-5, all identical) as the working prediction --
+         * it is UNCONFIRMED and MUST be re-verified against a real
+         * PRECONDITION_PRE_MOTOR/BATCH_PRE_MOTOR read once the sensor is
+         * physically attached, following the same discipline that caught
+         * JIG4's three premature locks earlier in this project: do not
+         * trust this placeholder past the first real post-assembly read. */
+        0x00510032, 0x32355118, 0x35383831, "JIG6",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=005100323235511835383831 -- PLACEHOLDER, sensor not yet attached */
+    {
+        /* JIG7: new control board, registered 2026-07-28. UID_WORD1/WORD2
+         * (0x32355118, 0x35383831) are identical to JIG6's -- same die
+         * batch/wafer lot, different die position (WORD0 only differs:
+         * 0x00460032 vs JIG6's 0x00510032) -- expected for STM32 UIDs, not
+         * a sign of a misread. Unlike JIG6's first read (all-0xFF, sensor
+         * not yet attached), this board's first CONFIG line already read a
+         * clean, plausible profile (Zero=0x0000, Filt=0x05, CorrCRC32=
+         * 0x190A55AD -- matching every other known jig) via
+         * PRECONDITION_PRE_MOTOR, rejected only with
+         * EXPECTED_CONFIG_PROFILE_MISSING (unregistered UID), not a
+         * garbage/SPI-fault reason. Still just ONE read, though -- profile
+         * below is registered from it directly (not a blind placeholder
+         * like JIG6's), but per the same discipline that caught JIG4's
+         * three premature locks, re-verify against several more gated
+         * reads across a real power cycle before fully trusting it. */
+        0x00460032, 0x32355118, 0x35383831, "JIG7",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=004600323235511835383831 -- single-read, needs confirmation */
 };
 
 static const NlKnownJig_t *FindKnownJigByUid(void)

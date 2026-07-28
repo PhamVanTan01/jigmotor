@@ -13,6 +13,37 @@
 #define MOTOR_PID_MAX_JUMP_RAW      8192
 #define MOTOR_PID_READ_ATTEMPTS     3U
 
+#ifndef MOTOR_PID_GAIN_SENSITIVITY_TEST
+/* Experimental, default OFF -- production PID gains are a single fixed
+ * global constant shared by every jig (see docs/nl-factors-jig-comparison-
+ * and-algorithm-review-2026-07-27.md section 5.1), despite measured real
+ * friction differences of 9-13% between jigs (compute_a4_torque_margin.m).
+ * A fixed gain tuned around one plant's damping will be relatively under-
+ * or over-damped on a plant with different friction, which can leak into
+ * the tracking-error harmonic content (H2/NL) independent of any true
+ * motor/sensor difference -- a candidate explanation for the JIG1-vs-
+ * JIG4/JIG5/JIG6 H2 deltas alongside the driver dead-time hypothesis, and
+ * notably one that could also explain the JIG6 sign flip (opposite-
+ * direction plants relative to the tuning point would push tracking error
+ * opposite ways under one fixed gain). This flag swaps in a uniformly
+ * +30% more aggressive gain set (same P/I/D balance, same safety clamps
+ * unchanged) so a single JIG6/P06 batch can test whether H2 is sensitive
+ * to gain at all, before deciding whether per-jig gain tuning is worth
+ * building out. Set back to 0 (or leave unset) for any production build. */
+#define MOTOR_PID_GAIN_SENSITIVITY_TEST    0
+#endif
+
+#if MOTOR_PID_GAIN_SENSITIVITY_TEST
+static const PositionControllerConfig_t POSITION_CONFIG = {
+    .kp = 2.6f,     /* +30% vs production 2.0f */
+    .ki = 0.0039f,  /* +30% vs production 0.003f */
+    .kd = 0.39f,    /* +30% vs production 0.3f */
+    .integralLimit = 5.0f,
+    .outputLimit = 400.0f,
+    .derivativeAlpha = 0.25f,
+    .outputSlewLimit = 8.0f,
+};
+#else
 static const PositionControllerConfig_t POSITION_CONFIG = {
     .kp = 2.0f,
     .ki = 0.003f,
@@ -22,6 +53,7 @@ static const PositionControllerConfig_t POSITION_CONFIG = {
     .derivativeAlpha = 0.25f,
     .outputSlewLimit = 8.0f,
 };
+#endif
 
 #define MOTOR_HOME_CONTROLLER_PROFILE_ID "WRAPPED_PID_SLEW_V2"
 

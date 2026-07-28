@@ -1,0 +1,52 @@
+SavedAtLocal=2026-07-28T00:00:00+07:00
+Configuration=Release
+GitCommit=d413b289513497101a110bfb63372ef7dc1295bb (+ uncommitted JIG6
+    registration + this PID gain sensitivity test flag on top)
+GitDirty=yes
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged)
+ExperimentalFlag=MOTOR_PID_GAIN_SENSITIVITY_TEST=1 (Core/Src/motor.c) --
+    THIS IS AN EXPERIMENTAL BUILD, NOT PRODUCTION. Working-tree default is
+    0; this hex was built with a temporary local override.
+GainsUsed=kp=2.6 ki=0.0039 kd=0.39 (uniformly +30% vs production
+    kp=2.0/ki=0.003/kd=0.3, same P/I/D balance, same integralLimit=5.0/
+    outputLimit=400.0/derivativeAlpha=0.25/outputSlewLimit=8.0 safety
+    clamps unchanged)
+Purpose=PID-gain sensitivity probe for JIG6/P06. Production PID gains are
+    a single fixed global constant shared by every jig despite measured
+    real friction differences of 9-13% between jigs
+    (compute_a4_torque_margin.m). A fixed gain tuned around one plant's
+    damping will be relatively under/over-damped on a different-friction
+    plant, which can leak into the tracking-error harmonic content
+    (H2/NL) independent of any true motor/sensor difference -- a
+    candidate explanation for the JIG1-vs-JIG4/JIG5/JIG6 H2 deltas
+    alongside the driver dead-time hypothesis, and one that could also
+    explain the JIG6 sign-flip result (P02: JIG4/JIG5 pulled H2 down,
+    JIG6 pulled it up) if JIG6's friction sits on the opposite side of
+    the tuning point from JIG4/JIG5.
+TestProtocol=Flash this hex to JIG6. Run 1 full P06 batch (1 precondition
+    + 10 official runs), same motor as the existing JIG1/JIG6 P06 data if
+    available, same cooldown protocol as every other test-32 session.
+    Compare H2AmplitudeDeg/NLAvg/ClosureErrorDeg against JIG6's existing
+    default-gain P06 data (if any) or against this same P02/P03 JIG6
+    baseline pattern -- if H2 shifts measurably with only a gain change
+    (no hardware change), that confirms PID/friction mismatch is a real,
+    software-fixable contributor, and per-jig gain tuning is worth
+    building out before committing to the current-sensing hardware plan.
+    If H2 barely moves despite a 30% gain change, that argues against PID
+    mismatch as a dominant factor and points back toward the driver
+    dead-time hypothesis.
+SafetyNote=+30% is a moderate, conservative bump -- same safety clamps
+    (outputLimit/outputSlewLimit/integralLimit) as production apply
+    unchanged, so this should not risk instability or unsafe motion, but
+    keep the usual mechanical-stop readiness during the first run per the
+    hardware-validation-checklist "Before testing" section.
+RevertBeforeAnyOtherBuild=Core/Src/motor.c's
+    MOTOR_PID_GAIN_SENSITIVITY_TEST must be set back to 0 before building
+    anything else from this working tree -- it is currently left at 1
+    only for this specific packaged artifact.
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=pid-gain-sensitivity-test-jig6-p06-v1
+HexSHA256=3C45E1A127FD9584655A6C8F86DE4003C0BA65BDC85C87E411A23810D81BC5DF
+ElfSHA256=71CDA8B50BF077B8F5B5BAF541948E2070C63AFE680DF91FF243656943A73BEF

@@ -46,6 +46,14 @@ try {
         'Firmware UID registry is missing the locked JIG5 profile (new control board, 2026-07-27; Zero=0x0000 confirmed across two power cycles via PRECONDITION_PRE_MOTOR, not the unreliable BOOT_SMOKE read).'
     Assert-True ($analyzerSource -match "001D00283234470438353535'\s*=\s*'JIG5'") `
         'Host UID registry is missing JIG5.'
+    Assert-True ($source -match '(?s)0x00510032,\s*0x32355118,\s*0x35383831,\s*"JIG6".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the JIG6 placeholder profile (new control board, 2026-07-28; registered from a bare MCU_UID read before the MA600 sensor was attached -- profile is an unconfirmed placeholder matching JIG1-5, pending a real post-assembly read).'
+    Assert-True ($analyzerSource -match "005100323235511835383831'\s*=\s*'JIG6'") `
+        'Host UID registry is missing JIG6.'
+    Assert-True ($source -match '(?s)0x00460032,\s*0x32355118,\s*0x35383831,\s*"JIG7".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the JIG7 profile (new control board, 2026-07-28; registered from a single real CONFIG read, matching JIG1-6 -- needs re-verification across more reads before full trust).'
+    Assert-True ($analyzerSource -match "004600323235511835383831'\s*=\s*'JIG7'") `
+        'Host UID registry is missing JIG7.'
 
     & (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1') -Path $fixture -OutCsv $csv | Out-Null
     $rows = @(Import-Csv $csv)
