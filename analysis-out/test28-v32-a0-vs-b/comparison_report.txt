@@ -1,0 +1,53 @@
+V3.2 A0-before vs B -- direct comparison (same product P03, same jig,
+no motor removal between legs, ClampForce=0.16N)
+==============================================================================
+A0-before file: B0-B v32 jig 1 test 28 A.txt
+B file        : B0-B v32 p03 jig 1 test 28 B.txt
+n=10 official each. SE = sqrt(sd_A0^2/10 + sd_B^2/10). *** = |SE|>=2.77
+(plan's repeatability-limit convention), * = |SE|>=2.0 (worth watching).
+
+--- Sector consistency check (both should land at ~same absolute sector) ---
+AnalysisStartRaw                         A0-before=+7931.00000(sd= 4.08248)  B=+7924.80000(sd= 5.34997)  diff(B-A0)= -6.20000   -2.91 SE ***
+  -> diff is tiny in absolute terms (~6 raw = 0.03 deg), far below the
+     ~60deg intentional V1/V2-vs-V3 shift and even below 1 grid step (182
+     raw) -- consistent with the muc 6.2 design goal that A0 and B share
+     the same sector. Statistically detectable only because in-batch SD is
+     tight; not practically meaningful on its own.
+
+--- H2 setup-consistency check (mechanical eccentricity / clamp) ---
+H2AmplitudeDeg                           A0-before=  +0.16889(sd= 0.00208)  B=  +0.16773(sd= 0.00227)  diff(B-A0)= -0.00116   -1.19 SE 
+H2C                                      A0-before=  -0.00256(sd= 0.00173)  B=  +0.00156(sd= 0.00195)  diff(B-A0)= +0.00412   +5.00 SE ***
+H2S                                      A0-before=  -0.16886(sd= 0.00207)  B=  -0.16771(sd= 0.00227)  diff(B-A0)= +0.00115   +1.18 SE 
+  -> amplitude essentially unchanged (not significant) -- no gross setup
+     change. H2C shows a large SE because C2=A2*cos(phase) sits near its
+     zero-crossing at phase~=-90 deg, where small phase shifts produce large
+     RELATIVE changes in C2 even though the underlying phase shift is small
+     (A0-before phase mean=-90.87deg, B phase mean~=-89.5deg -- about 1.3deg).
+     Plausibly homing-cycle noise (RESET_BEFORE_EACH_HOME_V1 re-homes every
+     leg) rather than a real remount/setup change -- worth checking whether
+     A0-after's phase returns close to A0-before's.
+
+--- Primary causal comparison (muc 7.2/7.2b) ---
+ClosureErrorDeg                          A0-before=  -0.00501(sd= 0.01793)  B=  -0.01974(sd= 0.03432)  diff(B-A0)= -0.01473   -1.20 SE 
+ClosureNormalizedDeltaRMSDeg (residual)  A0-before=  +0.08194(sd= 0.01838)  B=  +0.11021(sd= 0.01949)  diff(B-A0)= +0.02827   +3.34 SE ***
+NLAvg                                    A0-before=  +2.75000(sd= 0.01826)  B=  +2.72600(sd= 0.02951)  diff(B-A0)= -0.02400   -2.19 SE *
+
+KEY FINDING: residual is NOT lower under B -- it is HIGHER (worse) than
+A0-before by +3.34 SE, the opposite direction of the reversal-removal
+hypothesis (muc 1). Closure itself shows no significant difference (-1.20 SE).
+
+NOT YET CONCLUSIVE -- per muc 6.2, the causal gate requires the FULL A0-B-A0
+bracket:
+    Residual_B < mean(Residual_A0_before, Residual_A0_after) - 2.77*pooled_SD
+A0-after has not been run yet. With only A0-before as reference
+(0.08194 vs B's 0.11021), B already fails to beat even the single A0-before
+value, let alone clear a 2.77*pooled_SD margin below the bracket mean -- so
+unless A0-after comes back markedly worse than A0-before (which would itself
+flag a drift/repeatability problem, per muc 6.2's own bracket-drift check),
+this gate is on track to FAIL, i.e. removing the reversal does not appear to
+improve residual in this pair. Sector gate (AnalysisStartRaw circular+
+interpolated per-run check, muc 6.2 step 3-4) also cannot be finalized without
+A0-after's timestamps/AnalysisStartRaw.
+
+Next: run A0-after (same build as A0-before, no motor removal) to complete
+the bracket before drawing a causal conclusion.

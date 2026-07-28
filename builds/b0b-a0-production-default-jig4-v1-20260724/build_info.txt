@@ -1,0 +1,29 @@
+SavedAtLocal=2026-07-24T18:10:00+07:00
+Configuration=Release
+GitCommit=8c90514f9388ad2a63887ed3c1019237fb067c06
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (JIG4 entry added to NL_KNOWN_JIGS[]),
+    docs/hardware-validation-checklist.md, docs/nonlinear-log-schema-v6.md,
+    scripts/test_phase2b_shadow_contract.ps1 (JIG4 assertions) -- all four
+    were already sitting in the working tree from earlier JIG4 bring-up work
+    (not authored this session), confirmed correct against the real
+    CONFIG/BOOT_SMOKE rejection log the user supplied (MCU_UID=
+    0049003A3034510B31363339, observed profile
+    Zero=0x00D5,Dir=0x00,Filt=0x0C,Status=0x00,Prt=0x80,RmapId=0x00,
+    CorrCRC32=0x190A55AD -- matches the locked NL_KNOWN_JIGS[] entry exactly),
+    not yet committed at build time.
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged from b0b-a0-production-default-v1-20260724)
+NewJig=JIG4, MCU_UID=0049003A3034510B31363339, locked MA600 profile
+    Zero=0x00D5 Dir=0x00 Filt=0x0C Status=0x00 Prt=0x80 RmapId=0x00
+    CorrCRC32=0x190A55AD (distinct sensor-config stratum from JIG1/2/3 --
+    FILT/PRT/ZERO differ -- see docs/hardware-validation-checklist.md
+    caveat: do not pool JIG3-vs-JIG4 numeric comparisons directly)
+Purpose=Recognize JIG4 (previously UNKNOWN_JIG, Policy-A gate rejected
+    E510/EXPECTED_CONFIG_PROFILE_MISSING) so A0 (production default) can be
+    tested on a second physical jig in addition to JIG1.
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-a0-production-default-jig4-v1
+HexSHA256=9D4E5B028B2A5FF98318F6021212130DE8235ECF1724915A290912F8467DC24B
+ElfSHA256=2E7B00D01C49DEAC2B394228C3499BE3E5B4519E5605B0F77198D391D3495152

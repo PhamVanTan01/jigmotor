@@ -16,6 +16,8 @@ $KnownJigsByUid = @{
     '0025002C3234470438353535' = 'JIG2'
     '004C003A3034510B31363339' = 'JIG3'
     '0027002E3234470438353535' = 'JIG4'
+    '0049003A3034510B31363339' = 'JIG4'
+    '001D00283234470438353535' = 'JIG5'
 }
 
 function Convert-ToNullableDouble {
@@ -1006,6 +1008,25 @@ foreach ($inputPath in $Path) {
                 }
             }
 
+            # H2 amplitude/phase -> (C2, S2) rectangular components (per user request,
+            # V3.2 setup-consistency check across A0-before/B/A0-after -- mechanical
+            # eccentricity/clamp harmonic, tracked as a vector so a phase shift can't hide
+            # behind an unchanged amplitude). Source: RESULT.A2 (H2 amplitude, deg) and
+            # RESULT.H2_PhaseSweepDeg (phase relative to sweep progress, deg). Convention:
+            # C2 = A2*cos(phase), S2 = A2*sin(phase) -- an internally-consistent vector for
+            # comparing runs/legs against each other; not independently validated against any
+            # external phase reference, so treat cross-leg comparisons as relative, not as a
+            # calibrated absolute angle.
+            $h2AmplitudeDeg = if ($resultFields.ContainsKey('A2')) { Convert-ToNullableDouble $resultFields['A2'] } else { $null }
+            $h2PhaseSweepDeg = if ($resultFields.ContainsKey('H2_PhaseSweepDeg')) { Convert-ToNullableDouble $resultFields['H2_PhaseSweepDeg'] } else { $null }
+            $h2C = $null
+            $h2S = $null
+            if ($null -ne $h2AmplitudeDeg -and $null -ne $h2PhaseSweepDeg) {
+                $h2PhaseRad = $h2PhaseSweepDeg * [Math]::PI / 180.0
+                $h2C = $h2AmplitudeDeg * [Math]::Cos($h2PhaseRad)
+                $h2S = $h2AmplitudeDeg * [Math]::Sin($h2PhaseRad)
+            }
+
             $probeInitialDeg = if ($closureProbeStages.ContainsKey('INITIAL') -and
                     $closureProbeStages['INITIAL'].ContainsKey('ClosureErrorDeg') -and
                     $closureProbeStages['INITIAL']['ClosureErrorDeg'] -ne 'NA') {
@@ -1043,6 +1064,10 @@ foreach ($inputPath in $Path) {
                 ElectricalRippleOrder = if ($meta.ContainsKey('ElectricalRippleOrder')) { $meta['ElectricalRippleOrder'] } else { "" }
                 AElectrical6 = if ($resultFields.ContainsKey('AElectrical6')) { Convert-ToNullableDouble $resultFields['AElectrical6'] } else { $null }
                 ElectricalRippleValid = if ($resultFields.ContainsKey('ElectricalRippleValid')) { $resultFields['ElectricalRippleValid'] } else { "" }
+                H2AmplitudeDeg = $h2AmplitudeDeg
+                H2PhaseSweepDeg = $h2PhaseSweepDeg
+                H2C = $h2C
+                H2S = $h2S
                 Run = $recordRun
                 SessionID = $sessionId
                 BatchID = $batchId
@@ -1123,6 +1148,16 @@ foreach ($inputPath in $Path) {
                 InitialSettleResult = if ($approachResult.ContainsKey('InitialSettleResult')) { $approachResult['InitialSettleResult'] } else { "" }
                 PreRollSettleResult = if ($approachResult.ContainsKey('PreRollSettleResult')) { $approachResult['PreRollSettleResult'] } else { "" }
                 FinalSettleResult = if ($approachResult.ContainsKey('FinalSettleResult')) { $approachResult['FinalSettleResult'] } else { "" }
+                # A0 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0, docs/b0b-v3-no-reversal-plan.md
+                # muc 6.2/4b) local-backoff/pre-position fields -- "" / null under
+                # B/V2 logs (fixed-shape record prints NA there, and PreRollSettleResult
+                # is itself NA under A0 -- see PrePositionSettleResult instead).
+                PrePositionSettleResult = if ($approachResult.ContainsKey('PrePositionSettleResult')) { $approachResult['PrePositionSettleResult'] } else { "" }
+                LocalBackoffSettleResult = if ($approachResult.ContainsKey('LocalBackoffSettleResult')) { $approachResult['LocalBackoffSettleResult'] } else { "" }
+                LocalBackoffCommandDeltaRaw = if ($approachResult.ContainsKey('LocalBackoffCommandDeltaRaw')) { Convert-ToNullableDouble $approachResult['LocalBackoffCommandDeltaRaw'] } else { $null }
+                LocalBackoffObservedDeltaRaw = if ($approachResult.ContainsKey('LocalBackoffObservedDeltaRaw')) { Convert-ToNullableDouble $approachResult['LocalBackoffObservedDeltaRaw'] } else { $null }
+                LocalBackoffTargetErrorRaw = if ($approachResult.ContainsKey('LocalBackoffTargetErrorRaw')) { Convert-ToNullableDouble $approachResult['LocalBackoffTargetErrorRaw'] } else { $null }
+                LocalBackoffDurationMs = if ($approachResult.ContainsKey('LocalBackoffDurationMs')) { $approachResult['LocalBackoffDurationMs'] } else { "" }
                 ApproachReadAttempts = if ($approachResult.ContainsKey('ApproachReadAttempts')) { $approachResult['ApproachReadAttempts'] } else { "" }
                 ApproachRetries = if ($approachResult.ContainsKey('ApproachRetries')) { $approachResult['ApproachRetries'] } else { "" }
                 ApproachTransportErrors = if ($approachResult.ContainsKey('ApproachTransportErrors')) { $approachResult['ApproachTransportErrors'] } else { "" }

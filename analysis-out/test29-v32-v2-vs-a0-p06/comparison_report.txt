@@ -1,0 +1,41 @@
+V2 (old sector) vs A0 (new sector) -- P06, sector-isolation test (2nd pilot,
+opposite-Closure-sign product per plan muc 2)
+============================================================================================
+V2 file: B0-B-v32-v2-old p06-jig-1-test 29.txt (re-run, correct V2 build confirmed:
+         ApproachProtocol=SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2, BuildID=Jul 24 10:01:19)
+A0 file: B0-B-v32-a0-p06-jig1-test-29.txt
+n=10 official each. *** = |SE|>=2.77, * = |SE|>=2.0
+
+--- Structural ---
+  V2: ApproachStructuralValid=1  10/10
+  A0: ApproachStructuralValid=1  10/10
+
+--- Sector separation check ---
+AnalysisStartRaw               V2(old sector)=+64166.50000(sd= 3.30824)  A0(new sector)=+9699.90000(sd= 1.91195)  diff=-54466.60000  -45076.88SE ***
+  V2 ~64166 raw, A0 ~9700 raw -- separated by ~11069 raw = 60.81 deg,
+  again matches the intended ~+60deg shift.
+
+--- PRIMARY RESULT: Closure / Residual / NL ---
+ClosureValid=1 rate: V2 = 0/10   A0 = 10/10
+ClosureErrorDeg                V2(old sector)=  -0.46688(sd= 0.00921)  A0(new sector)=  -0.09262(sd= 0.00953)  diff= +0.37426   +89.31SE ***
+ClosureNormalizedDeltaRMSDeg (residual) V2(old sector)=  +0.43328(sd= 0.00767)  A0(new sector)=  +0.10328(sd= 0.00866)  diff= -0.32999   -90.20SE ***
+NLAvg                          V2(old sector)=  +3.48800(sd= 0.00632)  A0(new sector)=  +3.28300(sd= 0.01059)  diff= -0.20500   -52.54SE ***
+
+============================================================================================
+CROSS-CHECK AGAINST P03 (same test, same day)
+Metric                               P03 V2       P03 A0       P06 V2       P06 A0
+ClosureValid rate                      0/10        10/10         0/10        10/10
+ClosureErrorDeg mean                -0.3575      -0.0209      -0.4669      -0.0926
+Residual mean                       +0.2708      +0.0881      +0.4333      +0.1033
+
+CONCLUSION
+Same pattern confirmed on the SECOND mandatory pilot (P06, opposite Closure sign to
+P03 per muc 2) with the exact same same-session/same-motor/no-remount protocol:
+Closure flips 0/10 -> 10/10, residual improves >4x (0.43 -> 0.10deg). Both pilots now
+independently confirm: sector is the dominant driver of the Closure/residual problem,
+not reversal-vs-no-reversal, not day/build/thermal variation, and not product-specific
+(P03 and P06 sit on opposite sides of the Closure baseline yet respond the same way).
+Per plan muc 2's own rule ('neu mot approach chung khong lam hai product nay hoi tu
+thi chua co ly do test toan bo product'): they DID converge -- both now sit near 0
+Closure / ~0.09-0.10deg residual under the shifted sector. This clears the bar to
+consider expanding to P02/P04/P05.

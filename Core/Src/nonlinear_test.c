@@ -390,7 +390,46 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
     {
         0x0027002E, 0x32344704, 0x38353535, "JIG4",
         { 0x0000, 0x00, 0x05, 0x00, 0x00, TEST_EXPECTED_MA600_REG_1F_MA600A, 0x190A55AD }
-    }, /* MCU_UID=0027002E3234470438353535 */
+    }, /* MCU_UID=0027002E3234470438353535; 1807 7PP jig */
+    {
+        /* JIG4: MA600A sensor replaced 2026-07-24 (operator-confirmed
+         * physical swap on the same board/MCU). Zero read back unstable
+         * across reboots that day (0x00E7/0x00E6/0x00E2/0x00E2/0x00E3, a
+         * >5-count spread -- see NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4 history
+         * below), and 0x00E7 was locked anyway as a best-guess placeholder
+         * while the instability was investigated. The later JIG5 board-swap
+         * test traced this class of instability to sensor power-on settling
+         * time, not a board/connection fault -- and consistent with that,
+         * the instability was gone by 2026-07-27: Zero=0x0000 across 33
+         * consecutive gated reads (PRECONDITION_PRE_MOTOR + BATCH_PRE_MOTOR,
+         * zero exceptions) over three independent test sessions on this
+         * exact board/sensor (P03, P02, P06 test-31 logs, all captured
+         * under PolicyABypassOverride=1 while the stale 0x00E7 lock was
+         * still gate-rejecting every run). Zero=0x0000 matches
+         * JIG1/JIG2/JIG3/JIG5 exactly. Dir/Filt/Status/Prt/RmapId/CorrCRC32
+         * were already identical to JIG1-3 and remain unchanged. */
+        0x0049003A, 0x3034510B, 0x31363339, "JIG4",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=0049003A3034510B31363339 */
+    {
+        /* JIG5: new control board (different MCU/PCB), same physical MA600A
+         * sensor as JIG4 at the time of bring-up (operator-confirmed
+         * board-only swap, 2026-07-27) -- registered as its own jig entry
+         * rather than replacing JIG4 (operator's explicit choice; JIG4's
+         * own board/profile is untouched). BOOT_SMOKE's very first read
+         * after power-up is unreliable (varied: 0x007D, then 0x0080 across
+         * two separate power cycles) and is read-only/never gates anything
+         * (see ReadLogAndGateConfiguration("BOOT_SMOKE") call site) -- the
+         * value that matters is PRECONDITION_PRE_MOTOR, read later in boot
+         * after the home routine, which came back Zero=0x0000 with zero
+         * exceptions across 3 reads in the first power cycle and 6 reads in
+         * the second (after a full power-off/power-on, not just a
+         * reconnect) -- the same board-swap discipline already used to
+         * rule out the control board as JIG4's earlier instability cause.
+         * Dir/Filt/Status/Prt/RmapId/CorrCRC32 match JIG1-3 exactly. */
+        0x001D0028, 0x32344704, 0x38353535, "JIG5",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=001D00283234470438353535 */
 };
 
 static const NlKnownJig_t *FindKnownJigByUid(void)
@@ -455,15 +494,21 @@ static const char *ResolveJigId(bool *outKnown)
  * knob: mode 0 is exactly today's ENABLE_B0B_EQUAL_APPROACH=0 fallback
  * (protocol A / SCURVE_LOCK_V2), mode 1 is exactly today's default
  * (protocol B / SCURVE_LOCK_PLUS_CW_LOCAL_APPROACH_V2, backoff-then-forward
- * reversal), mode 2 is the new V3 no-reversal CW-only pre-roll approach,
- * mode 3 (shifted-reversal A0, V3.2 causal control) is reserved but not yet
- * implemented -- selecting it is a hard build error until that phase. */
+ * reversal), mode 2 is the V3 no-reversal CW-only pre-roll approach, and
+ * mode 3 is shifted-reversal A0 generalized in raw electrical-cycle
+ * geometry for the guarded 6PP/7PP profiles. */
 #define NL_APPROACH_MODE_LOCK_ONLY               0
 #define NL_APPROACH_MODE_REVERSAL_V2             1
 #define NL_APPROACH_MODE_NO_REVERSAL_V3          2
 #define NL_APPROACH_MODE_SHIFTED_REVERSAL_A0     3
 #ifndef NL_APPROACH_MODE
-#define NL_APPROACH_MODE NL_APPROACH_MODE_REVERSAL_V2
+/* Production default LOCKED 2026-07-24 (docs/b0b-v3-no-reversal-plan.md muc
+ * V3.2b/10): same-session V2-vs-A0 sector-isolation test on all 5 products
+ * (P02/P03/P04/P05/P06) showed A0 (shifted +60deg sector) wins Closure AND
+ * residual on every product, 3.1x-5.6x residual improvement, no exceptions.
+ * V2 was the default since before this file's B0-B work began; A0
+ * supersedes it as the compiled default from here on. */
+#define NL_APPROACH_MODE NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
 #endif
 #if NL_APPROACH_MODE < NL_APPROACH_MODE_LOCK_ONLY || \
     NL_APPROACH_MODE > NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
@@ -490,6 +535,109 @@ static const char *ResolveJigId(bool *outKnown)
 #if NL_V3_ELECTRICAL_ZERO_TARGET_RAW <= NL_V3_LOCAL_APPROACH_DELTA_RAW
 #error "Electrical cycle must be larger than the V3 local approach step"
 #endif
+
+/* ==================== Sector calibration / fixed-sector experiments ====
+ * docs/nl-factors-jig-comparison-and-algorithm-review-2026-07-27.md
+ * section 4.5: A0's sector (where AnalysisStartRaw lands, see
+ * initialAnchorUnwrapped below) is currently determined PASSIVELY --
+ * "wherever the rotor rests" after LockStartPosition(), not commanded --
+ * so cross-session/cross-jig NL comparisons are confounded by an
+ * uncontrolled sector shift (measured R^2~=0.22 of within-product NL
+ * variance from 14 real sessions pooled across DIFFERENT products/jigs --
+ * far too few distinct sectors per product to fit a reliable per-motor
+ * sector-response curve). Both flags below add an OPTIONAL, ADDITIVE
+ * active pre-positioning move before the existing (byte-for-byte
+ * unmodified) "settle vo-muc-tieu" anchor read, so every line of the
+ * heavily-validated approach/measurement state machine downstream is
+ * untouched -- only WHERE the anchor lands is affected, never HOW it is
+ * used afterward. Both default OFF: with neither enabled, the passive
+ * "wherever it rests" behavior that shipped before this change is
+ * bit-for-bit unchanged. Mutually exclusive with each other. NEITHER HAS
+ * BEEN VALIDATED ON HARDWARE YET -- self-tested in software only (see
+ * NlSectorCalibrationSelfTest, hooked into NonlinearEngine_Init below);
+ * review the diff and run the calibration sweep plan before trusting
+ * either on real hardware. */
+#ifndef ENABLE_NL_SECTOR_CALIBRATION_SWEEP
+/* Medium-term proposal: cycle ONE physical motor through
+ * NL_SECTOR_CALIBRATION_TARGETS_RAW (below) across successive batches --
+ * every button press (one batch = one precondition + NL_OFFICIAL_RUN_COUNT
+ * official runs, all sharing that batch's target) moves to the next
+ * planned sector before the batch starts, so a single dedicated hardware
+ * session directly measures one motor's real nonlinearity-vs-sector curve
+ * at many known, repeated positions, instead of inferring it from a
+ * handful of sessions pooled across different motors/jigs (see
+ * analysis/matlab/nl/fit_sector_response.m's R^2=0.22 caveat). The
+ * commanded target is logged once per batch via a standalone
+ * SECTOR_CALIBRATION line (see RunBatchSweep's caller) so it is auditable
+ * without touching NlSweepCapture_t or any existing log format string. */
+#define ENABLE_NL_SECTOR_CALIBRATION_SWEEP    0
+#endif
+
+#ifndef ENABLE_NL_A0_FIXED_SECTOR
+/* Long-term proposal: replace A0's passive "wherever the rotor rests"
+ * sector with a single fixed, repeatable target
+ * (NL_A0_FIXED_SECTOR_TARGET_RAW), removing the uncontrolled sector-shift
+ * confound at the source instead of correcting for it after the fact. Not
+ * the production default -- this changes production A0 measurement
+ * behavior and needs its own hardware validation pass (repeatability
+ * across power cycles, comparison against the existing shifted-sector
+ * dataset already locked in as the production default per commit
+ * 8c90514) before being considered for that role. */
+#define ENABLE_NL_A0_FIXED_SECTOR    0
+#endif
+
+#if ENABLE_NL_SECTOR_CALIBRATION_SWEEP && ENABLE_NL_A0_FIXED_SECTOR
+#error "ENABLE_NL_SECTOR_CALIBRATION_SWEEP and ENABLE_NL_A0_FIXED_SECTOR are mutually exclusive"
+#endif
+#if (ENABLE_NL_SECTOR_CALIBRATION_SWEEP || ENABLE_NL_A0_FIXED_SECTOR) \
+    && NL_APPROACH_MODE != NL_APPROACH_MODE_SHIFTED_REVERSAL_A0
+#error "Sector calibration/fixed-sector experiments target A0's sector behavior specifically; build with NL_APPROACH_MODE=3"
+#endif
+
+#if ENABLE_NL_SECTOR_CALIBRATION_SWEEP
+/* 8 targets spaced one electrical cycle (10923 raw, 6 pole pairs) apart in
+ * even eighths -- enough resolution to fit the single-harmonic model
+ * fit_sector_response.m already uses (2 free parameters) with real excess
+ * degrees of freedom, without an impractically long hardware session.
+ * Values are round(k*10923/8) for k=0..7, same raw domain as commandPos
+ * (0 immediately after LockStartPosition() sets Motor_SetElectricalPos(0,
+ * 1.0f), so every target here is relative to that same fixed, repeatable
+ * per-boot reference). */
+#define NL_SECTOR_CALIBRATION_TARGET_COUNT    8U
+static const int32_t NL_SECTOR_CALIBRATION_TARGETS_RAW[NL_SECTOR_CALIBRATION_TARGET_COUNT] = {
+    0, 1365, 2731, 4096, 5462, 6827, 8192, 9558
+};
+static uint32_t nlSectorCalibrationBatchIndex = 0U;
+static int32_t nlSectorCalibrationCurrentTargetRaw = 0;
+
+static int32_t NlSectorCalibrationTargetForIndex(uint32_t index)
+{
+    return NL_SECTOR_CALIBRATION_TARGETS_RAW[index % NL_SECTOR_CALIBRATION_TARGET_COUNT];
+}
+
+/* Pure function, no hardware dependency -- verifies the lookup table and
+ * the wrap-around behavior the batch-index cycling in RunBatchSweep's
+ * caller relies on. */
+static bool NlSectorCalibrationSelfTest(void)
+{
+    return NlSectorCalibrationTargetForIndex(0U) == 0
+        && NlSectorCalibrationTargetForIndex(1U) == 1365
+        && NlSectorCalibrationTargetForIndex(7U) == 9558
+        && NlSectorCalibrationTargetForIndex(8U) == 0     /* wraps to index 0 */
+        && NlSectorCalibrationTargetForIndex(9U) == 1365
+        && NL_SECTOR_CALIBRATION_TARGET_COUNT == 8U;
+}
+#endif /* ENABLE_NL_SECTOR_CALIBRATION_SWEEP */
+
+#if ENABLE_NL_A0_FIXED_SECTOR
+/* Placeholder value -- 0 keeps it aligned with LockStartPosition()'s own
+ * reference, i.e. "fixed sector" means "always start exactly at the lock
+ * position", the simplest reproducible choice and a reasonable default,
+ * but not derived from any hardware measurement. Revisit before treating
+ * this as a considered choice rather than a placeholder. */
+#define NL_A0_FIXED_SECTOR_TARGET_RAW    0
+#endif
+/* ==================== end sector calibration / fixed-sector ==================== */
 
 #ifndef ENABLE_B0B_EQUAL_APPROACH
 #define ENABLE_B0B_EQUAL_APPROACH   (NL_APPROACH_MODE != NL_APPROACH_MODE_LOCK_ONLY)
@@ -764,6 +912,20 @@ static const char *ResolveJigId(bool *outKnown)
  * on paper (the formulas themselves were cross-checked separately in
  * scripts or scratch tooling outside this repo before being written here). Leave at 0. */
 #define ENABLE_NL_MATH_SELF_TEST    0
+#endif
+
+#ifndef NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4
+/* JIG4's MA600 Zero register read back unstable across reboots on
+ * 2026-07-24 (0x00E7/0x00E6/0x00E2/0x00E2/0x00E3 -- a >5-count spread, not
+ * +/-1 LSB noise). The JIG5 board-swap test later traced this class of
+ * instability to sensor power-on settling time, not a board-level fault.
+ * Zero has since read back stable at 0x0000 across 33 consecutive gated
+ * reads over three independent sessions (2026-07-27, P03/P02/P06 test-31)
+ * and is re-locked in NL_KNOWN_JIGS -- restoring full Policy-A enforcement
+ * for JIG4. Do not set this back to 1 without the same standard of
+ * evidence (many reads, multiple independent power cycles/sessions, not a
+ * single boot-smoke read) that justified turning it off. */
+#define NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4    0
 #endif
 
 /* Real hardware data (test jig 1.txt/test jig 2.txt) showed RMS_AC/A36 trending down across
@@ -3346,6 +3508,35 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
      * thúc bằng Motor_SetElectricalPos(0, 1.0f)). Mọi biến *Unwrapped là
      * MIỀN ENCODER (int64) -- không bao giờ gán chéo giữa 2 miền. */
     int32_t commandPos = 0;
+
+#if ENABLE_NL_SECTOR_CALIBRATION_SWEEP || ENABLE_NL_A0_FIXED_SECTOR
+    /* -1. (experimental, default off -- see the sector calibration /
+     * fixed-sector block near NL_APPROACH_MODE above) Active sector
+     * pre-position: drives to a KNOWN target from the same
+     * LockStartPosition() reference every batch, BEFORE the existing
+     * "0. Acquire"/"1. Settle vo-muc-tieu" steps below read wherever the
+     * rotor now sits. Nothing downstream of this block is modified --
+     * initialAnchorUnwrapped (assigned below) is still just "wherever we
+     * ended up"; this step only removes the chance element from where
+     * that ends up being. */
+    SetEngineState(NL_ENGINE_RAMP);
+#if ENABLE_NL_SECTOR_CALIBRATION_SWEEP
+    int32_t sectorPrePositionTarget = nlSectorCalibrationCurrentTargetRaw;
+#else
+    int32_t sectorPrePositionTarget = NL_A0_FIXED_SECTOR_TARGET_RAW;
+#endif
+    uint32_t sectorPrePositionSteps = 0U;
+    MA600_Result_t sectorPrePositionResult = RampCommandToTarget(&sweepAcquisition,
+        &commandPos, sectorPrePositionTarget, &sectorPrePositionSteps, NULL, 0,
+        NL_B0B_APPROACH_ACTIVE_DELAY_MS, &out->motionDiagnostics);
+    if (sectorPrePositionResult != MA600_RESULT_OK)
+    {
+        out->acquisitionResult = sectorPrePositionResult;
+        out->approachResult = NL_APPROACH_ACQUISITION_ERROR;
+        FinalizeApproachEarlyExit(out, &sweepAcquisition);
+        return sectorPrePositionResult;
+    }
+#endif
 
     /* 0. Acquire riêng đứng đầu -- mirror ĐÚNG cấu trúc protocol A (không
      * bọc snapshot, nghiễm nhiên tính vào "context" giống hệt A) để Acq*
@@ -6186,13 +6377,27 @@ static bool ReadLogAndGateConfiguration(const char *configContext)
     }
 
     bool policyGatePassed = (errorCode == 0);
+
+    /* Debug-only override, JIG4 exclusively -- see the
+     * NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4 comment at its definition. The
+     * logged ConfigValid/PolicyAGatePassed/RejectReason below are the real,
+     * unmodified gate result; only PolicyABypassOverride and the actual
+     * return value change. */
+    bool bypassOverrideActive = false;
+#if NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4
+    if (!policyGatePassed && jigKnown && strcmp(jigId, "JIG4") == 0)
+    {
+        bypassOverrideActive = true;
+    }
+#endif
+
     LogLineLarge(
         "CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,"
         "ConfigContext=%s,Firmware=%s,BuildID=%s,"
         "MCU_UID=%08lX%08lX%08lX,JigID=%s,JigKnown=%d,"
         "ConfigGateSelfTest=1,PointSamplerSelfTest=1,"
         "ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=%d,ConfigValid=%d,PolicyAGatePassed=%d,"
-        "AuditFieldsLocked=1,ExpectedProfileFound=%d,RejectReason=%s,"
+        "AuditFieldsLocked=1,ExpectedProfileFound=%d,RejectReason=%s,PolicyABypassOverride=%d,"
         "ExpectedZero=0x%04X,ExpectedDir=0x%02X,ExpectedFilt=0x%02X,ExpectedStatus=0x%02X,"
         "ExpectedPrt=0x%02X,ExpectedRmapId=0x%02X,ExpectedCorrCRC32=0x%08lX,"
         "Zero=0x%04X,Dir=0x%02X,Filt=0x%02X,"
@@ -6201,7 +6406,7 @@ static bool ReadLogAndGateConfiguration(const char *configContext)
         (unsigned long)MCU_UID_WORD0, (unsigned long)MCU_UID_WORD1, (unsigned long)MCU_UID_WORD2,
         jigId, jigKnown ? 1 : 0,
         readValid ? 1 : 0, policyGatePassed ? 1 : 0, policyGatePassed ? 1 : 0,
-        expected != NULL ? 1 : 0, rejectReason,
+        expected != NULL ? 1 : 0, rejectReason, bypassOverrideActive ? 1 : 0,
         expected != NULL ? (unsigned)expected->zero : 0U,
         expected != NULL ? (unsigned)expected->dir : 0U,
         expected != NULL ? (unsigned)expected->filt : 0U,
@@ -6213,6 +6418,13 @@ static bool ReadLogAndGateConfiguration(const char *configContext)
         (unsigned)config.status, (unsigned)config.prt, (unsigned)config.rmapId,
         (unsigned)config.corrNonZeroCount, (unsigned long)config.corrCrc32);
 
+    if (!policyGatePassed && bypassOverrideActive)
+    {
+        LogLine("Motor WARNING: E%d bypassed for debug (JIG4 only, config gate rejected: %s) "
+            "-- data from this run is NOT valid for official measurement conclusions!\r\n",
+            errorCode, rejectReason);
+        return true;
+    }
     if (!policyGatePassed)
     {
         LogLine("Motor ERROR: E%d (MA600 config gate rejected: %s)!\r\n",
@@ -6624,6 +6836,21 @@ static void NonlinearBatch_OnButtonPress(void)
     nlHasLastPreconditionClosure = false;
 #endif
     nlBatchState = NL_BATCH_RUNNING;
+#if ENABLE_NL_SECTOR_CALIBRATION_SWEEP
+    /* Select this batch's target before RunBatchSweep so every sweep in the
+     * batch (precondition + all official runs) shares the same commanded
+     * sector -- the batch's official runs then serve as noise-averaging
+     * repeats at that one sector, matching the "one point per session" data
+     * shape analysis/matlab/nl/fit_sector_response.m already expects. Logged
+     * standalone (not through NlSweepCapture_t/PrintSweepLog) so this stays
+     * fully additive against the existing, unmodified log schema. */
+    nlSectorCalibrationCurrentTargetRaw =
+        NlSectorCalibrationTargetForIndex(nlSectorCalibrationBatchIndex);
+    LogLine("SECTOR_CALIBRATION,BatchID=%lu,TargetIndex=%lu,TargetRaw=%ld\r\n",
+        (unsigned long)nlBatchId, (unsigned long)nlSectorCalibrationBatchIndex,
+        (long)nlSectorCalibrationCurrentTargetRaw);
+    nlSectorCalibrationBatchIndex++;
+#endif
     LogLineLarge(
         "BATCH,BatchID=%lu,Status=START,PreconditionProtocol=%s,PreconditionCount=%lu,"
         "RunCount=%lu,TotalCycleCount=%lu,CooldownTargetMs=%lu\r\n",
@@ -6747,6 +6974,12 @@ bool NonlinearEngine_Init(void)
     {
         return false;
     }
+#if ENABLE_NL_SECTOR_CALIBRATION_SWEEP
+    if (!NlSectorCalibrationSelfTest())
+    {
+        return false;
+    }
+#endif
 
     nlEngineCommandQueue = osMessageQueueNew(1U, sizeof(uint8_t), NULL);
     if (nlEngineCommandQueue == NULL)

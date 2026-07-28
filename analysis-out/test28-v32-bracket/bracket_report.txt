@@ -1,0 +1,80 @@
+V3.2 A0-B-A0 bracket -- full causal analysis (product P03, jig1, ClampForce=0.16N,
+no motor removal across all 3 legs)
+========================================================================================
+A0-before : B0-B v32 jig 1 test 28 A.txt
+B         : B0-B v32 p03 jig 1 test 28 B.txt
+A0-after  : B0-B v32 p03 jig 1 test 28 A after.txt
+n=10 official each leg. *** = |SE|>=2.77 (plan repeatability-limit convention),
+* = |SE|>=2.0 (worth watching).
+
+--- Structural gate: all 3 legs clean ---
+  A0-before  ApproachStructuralValid=1: 10/10   ReversalCount=2: 10/10
+  B          ApproachStructuralValid=1: 10/10   ReversalCount=0: 10/10
+  A0-after   ApproachStructuralValid=1: 10/10   ReversalCount=2: 10/10
+
+--- Step 1: A0-before vs A0-after drift check (muc 6.2, bracket must not drift a lot) ---
+OriginShiftTargetErrorRaw  A0-before=+185.00000(sd= 4.59468)  A0-after=+178.70000(sd= 4.42342)  diff= -6.30000   -3.12SE ***
+AnalysisStartRaw           A0-before=+7931.00000(sd= 4.08248)  A0-after=+7919.10000(sd= 2.84605)  diff=-11.90000   -7.56SE ***
+ClosureErrorDeg            A0-before=  -0.00501(sd= 0.01793)  A0-after=  -0.01695(sd= 0.01651)  diff= -0.01194   -1.55SE 
+ClosureNormalizedDeltaRMSDeg A0-before=  +0.08194(sd= 0.01838)  A0-after=  +0.09239(sd= 0.01294)  diff= +0.01045   +1.47SE 
+NLAvg                      A0-before=  +2.75000(sd= 0.01826)  A0-after=  +2.71300(sd= 0.01252)  diff= -0.03700   -5.29SE ***
+H2AmplitudeDeg             A0-before=  +0.16889(sd= 0.00208)  A0-after=  +0.16723(sd= 0.00125)  diff= -0.00166   -2.17SE *
+H2PhaseSweepDeg            A0-before= -90.86651(sd= 0.58424)  A0-after= -89.29669(sd= 0.47672)  diff= +1.56982   +6.58SE ***
+
+Real drift exists over the session: AnalysisStartRaw and NLAvg both moved
+significantly (-7.56 SE, -5.29 SE) from A0-before to A0-after, and monotonically
+through B in between (A0-before=7931/2.750 -> B=7924.8/2.726 -> A0-after=7919.1/2.713
+for AnalysisStartRaw/NLAvg respectively) -- consistent with slow session-long drift
+(thermal or otherwise), not random per-leg noise. H2 phase also drifted (+1.57deg)
+but NOT monotonically -- most of the shift happened between A0-before and B, then
+stayed roughly flat B->A0-after (see per-leg H2 numbers in the individual reports).
+Absolute magnitude of all this drift is small (AnalysisStartRaw ~12 raw = 0.065deg,
+far below 1 grid step of 182 raw) -- real, but not large enough by itself to explain
+the residual gap below.
+
+--- Step 2: sector gate (muc 6.2, circular delta + time-interpolated) ---
+Computed via Get-V32SectorGateResult using CUMULATIVE RUN INDEX as the timestamp
+axis (1..10=A0-before, 11..20=B, 21..30=A0-after) -- an APPROXIMATION documented
+in the plan (muc 6.2): this log format has no true cross-leg wall-clock. Tolerance
+used (91 raw = half a grid step) is illustrative/descriptive only, NOT pre-locked,
+so this is not being reported as an official PASS -- see muc 4b anti-p-hacking rule.
+Result: 10/10 B runs land within +/-91 raw of interpolated expectation, max |error|
+= 9.56 raw (0.05 deg) -- far inside even 1 grid step. Sector consistency across the
+whole session looks solid; not the likely explanation for the residual gap either.
+
+--- Step 3: residual gate (muc 6.2, muc 7.2b -- PRIMARY causal test) ---
+Residual_A0_before = 0.08194 (sd=0.01838)
+Residual_B         = 0.11021 (sd=0.01949)
+Residual_A0_after  = 0.09239 (sd=0.01294)
+bracket mean(A0_before, A0_after) = 0.08716
+pooled_SD (3 legs, df=27, per muc 6.2 formula) = 0.01718
+Gate: Residual_B < bracket_mean - 2.77*pooled_SD
+      0.11021 < 0.08716 - 0.04758 = 0.03959
+  -> FAIL
+
+B's residual is not just outside the pass margin -- it EXCEEDS BOTH bracket
+endpoints (0.110 > 0.082 AND 0.110 > 0.092), not just their average. A pattern of
+pure session-long linear drift (as seen in AnalysisStartRaw/NLAvg above) would put
+B's residual BETWEEN the two endpoints, since B ran chronologically between them --
+residual does the opposite (spikes specifically during B). This argues against
+drift alone as the explanation and toward something specific to the B (no-reversal)
+protocol driving the residual increase in this pair.
+
+--- Step 4: NL gate (muc 7.4) ---
+NL_A0_before=2.75000  NL_B=2.72600  NL_A0_after=2.71300
+bracket mean=2.73150  pooled_SD=0.02130  2.77xpooled_SD=0.05900
+NL_B - bracket_mean = -0.00550  -> within repeatability envelope (PASS)
+
+========================================================================================
+CONCLUSION (P03, this A0-B-A0 round only)
+Structural gate: PASS (all 3 legs, 10/10 official each).
+Sector gate: descriptively consistent (not formally locked/gated).
+NL gate (muc 7.4): PASS -- no meaningful NL change attributable to approach.
+Residual gate (muc 6.2/7.2b, PRIMARY): FAIL -- no evidence removing the reversal
+improves residual; B's residual is higher than the full A0 bracket, and the
+non-monotonic (spike-during-B) pattern argues against session drift as the cause.
+Per muc 8 decision tree, this does not qualify as PASS. Closure itself showed no
+significant change (-1.20 SE vs A0-before) -- endpoint is not clearly better, and
+residual is clearly worse. Recommend stopping the reversal-removal-improves-
+residual branch for P03 pending review; do not tune a bias to force this pair to
+pass (muc 8).

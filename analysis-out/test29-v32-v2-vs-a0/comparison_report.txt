@@ -1,0 +1,43 @@
+V2 (old sector) vs A0 (new sector) -- SAME SESSION, sector-isolation test
+(product P03, jig1, ClampForce=0.16N, no motor removal, V2 first 10:33 -> A0 11:05)
+============================================================================================
+V2 file: B0-B-v32-v2-old p03 jig 1 test 29.txt
+A0 file: B0-B-v32-a0-p03-jig1-test-29.txt
+n=10 official each. *** = |SE|>=2.77, * = |SE|>=2.0
+
+--- Structural ---
+  V2: ApproachStructuralValid=1  10/10
+  A0: ApproachStructuralValid=1  10/10
+
+--- Sector separation check ---
+AnalysisStartRaw               V2(old sector)=+62460.80000(sd= 4.02216)  A0(new sector)=+7914.90000(sd= 4.97661)  diff=-54545.90000  -26956.57SE ***
+  V2 ~62460 raw, A0 ~7915 raw -- separated by ~65536-62460+7915=10919 raw = 59.97 deg,
+  matches the intended ~+60deg shift (muc 3.1) almost exactly. Confirms this really is
+  a sector-only comparison, not an accidental confound.
+
+--- PRIMARY RESULT: Closure / Residual / NL ---
+ClosureValid=1 rate: V2 = 0/10   A0 = 10/10
+ClosureErrorDeg                V2(old sector)=  -0.35747(sd= 0.02324)  A0(new sector)=  -0.02087(sd= 0.02387)  diff= +0.33660   +31.95SE ***
+ClosureNormalizedDeltaRMSDeg (residual) V2(old sector)=  +0.27081(sd= 0.02336)  A0(new sector)=  +0.08807(sd= 0.02402)  diff= -0.18274   -17.25SE ***
+NLAvg                          V2(old sector)=  +2.94000(sd= 0.01333)  A0(new sector)=  +2.69500(sd= 0.01354)  diff= -0.24500   -40.77SE ***
+
+--- H2 (sector-dependent by definition -- reported for completeness, not a setup-change flag here) ---
+H2AmplitudeDeg                 V2(old sector)=  +0.18467(sd= 0.00134)  A0(new sector)=  +0.16655(sd= 0.00093)  diff= -0.01812   -35.20SE ***
+H2PhaseSweepDeg                V2(old sector)= +25.63245(sd= 0.80059)  A0(new sector)= -89.74426(sd= 0.61011)  diff=-115.37671  -362.47SE ***
+
+============================================================================================
+CONCLUSION
+Same physical motor, same jig, same clamp, no remount, 32 minutes apart, ONLY the
+sector changed (both runs use the reversal-based approach -- V2 has ReversalCount=1,
+A0 has ReversalCount=2, a residual confound worth noting but far too small a
+difference in kind to explain a 0/10 -> 10/10 ClosureValid flip and a >4x residual
+change on its own -- V3.2's A0-vs-B already showed reversal count changes move
+residual by <40%, not >400%).
+
+Closure: V2 fails outright (0/10, ~-0.35deg, limit is +/-0.20deg) -> A0 passes cleanly
+(10/10, ~-0.02deg). Residual: V2 ~0.27deg -> A0 ~0.086deg (>3x better).
+
+This is now a DIRECT, single-session, single-motor confirmation (not an indirect
+historical-baseline comparison): sector is the dominant driver of P03's Closure/
+residual problem, not reversal-vs-no-reversal (already ruled out by V3.2) and not
+day-to-day/build/thermal variation (ruled out by running both in one sitting).

@@ -1,0 +1,19 @@
+V2 (old sector) vs A0 (new sector) -- P02, sector-isolation test (V3.3 expansion, LAST of 5)
+============================================================================================
+V2 file: B0-B-v32-v2-old p02 jig 1 test 29.txt
+A0 file: B0-B-v32-a0-p02-jig1-test-29.txt
+n=10 official each. *** = |SE|>=2.77, * = |SE|>=2.0
+
+--- Structural ---
+  V2: ApproachStructuralValid=1  10/10
+  A0: ApproachStructuralValid=1  10/10
+
+--- Sector separation check (no wraparound this time -- different absolute anchor per motor) ---
+AnalysisStartRaw               V2(old sector)=+4622.00000(sd= 6.54896)  A0(new sector)=+15488.30000(sd=12.64955)  diff=+10866.30000  +2412.35SE ***
+  V2 ~4622 raw, A0 ~15488 raw -- separated by ~10866 raw = 59.69 deg
+
+--- PRIMARY RESULT: Closure / Residual / NL ---
+ClosureValid=1 rate: V2 = 0/10   A0 = 10/10
+ClosureErrorDeg                V2(old sector)=  -0.38426(sd= 0.02421)  A0(new sector)=  -0.03979(sd= 0.01648)  diff= +0.34447   +37.20SE ***
+ClosureNormalizedDeltaRMSDeg (residual) V2(old sector)=  +0.40906(sd= 0.01464)  A0(new sector)=  +0.07326(sd= 0.00999)  diff= -0.33581   -59.93SE ***
+NLAvg                          V2(old sector)=  +3.44500(sd= 0.03408)  A0(new sector)=  +3.61000(sd= 0.08819)  diff= +0.16500    +5.52SE ***

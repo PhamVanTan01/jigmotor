@@ -18,6 +18,7 @@ addpath(fullfile(root, "a5"));
 test_parser_ignores_other_families();
 test_a3_circular_offset();
 test_a4_seed_span_and_gate();
+test_a4_torque_margin();
 test_a5_stability_metrics();
 
 fprintf("[ OK ] A3/A4/A5 MATLAB analysis regression test passed.\n");
@@ -107,6 +108,57 @@ assert(result.Metrics.EvidenceCountMatchesExpected(1));
 assert(result.Metrics.CaptureConsistent(1));
 % Single run can never satisfy the >=5-run acceptance gate.
 assert(result.Acceptance == false);
+end
+
+function test_a4_torque_margin()
+% Synthetic PHASE_SWEEP: DragLagRaw rises while the rotor is stuck (rows
+% 1-5, peak=200 raw at constant PowerPpm=350000), then settles into a
+% lower steady drag (rows 6-10, CaptureLatched=1) -- exactly the
+% stuck-then-break shape compute_a4_torque_margin.m's peak-lag method
+% assumes. SUMMARY's own CapturePhaseProgressRaw is deliberately set
+% higher (250) than the true peak (200) to reproduce the documented
+% over-report from the firmware's delayed capture-confirmation window.
+cycle = 10923.0;
+lagValues = [40, 80, 120, 160, 200, 150, 130, 125, 122, 120];
+captureLatched = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+
+lines = strings(0, 1);
+lines(end + 1) = "CONTROL_A4_ARMED,Profile=SYNTH_TORQUE";
+lines(end + 1) = strcat("CONTROL_A4_SUMMARY,Profile=SYNTH_TORQUE,Result=OK,", ...
+    "CaptureRequired=1,CaptureDetected=1,CapturePhaseProgressRaw=250");
+for index = 1:numel(lagValues)
+    lines(end + 1) = sprintf(strcat("CONTROL_A4_DATA,Seq=%d,Phase=PHASE_SWEEP,", ...
+        "DragLagRaw=%d,PowerPpm=350000,CaptureLatched=%d"), ...
+        index, lagValues(index), captureLatched(index)); %#ok<AGROW>
+end
+file = write_temp_log(lines);
+cleanup = onCleanup(@() delete_if_exists(file)); %#ok<NASGU>
+
+runs = parse_control_log(file, "A4");
+metric = compute_a4_torque_margin(runs(1));
+
+expectedStatic = 0.35 * sin(200 * 2 * pi / cycle);
+assert(metric.PeakLagRaw == 200);
+assert(metric.LagRisingTrendToPeak == true);
+assert(metric.PowerConstantDuringSweep == true);
+assert(metric.DragLagRangeRaw == 30); % post-capture range = 150-120 raw
+assert(abs(metric.StaticFrictionFraction - expectedStatic) < 1e-9);
+
+expectedKineticLagMean = mean([150, 130, 125, 122, 120]);
+expectedKinetic = 0.35 * sin(expectedKineticLagMean * 2 * pi / cycle);
+assert(abs(metric.KineticFrictionFraction - expectedKinetic) < 1e-9);
+
+expectedFirmware = 0.35 * sin(250 * 2 * pi / cycle);
+assert(abs(metric.FirmwareStaticFrictionFraction - expectedFirmware) < 1e-9);
+% The firmware's delayed capture-confirmation window must over-report
+% relative to the true peak-lag breakaway angle -- that is the whole
+% reason the peak-lag method exists instead of trusting CaptureSeq alone.
+assert(metric.FirmwareStaticFrictionFraction > metric.StaticFrictionFraction);
+
+batch = analyze_a4_torque_margin_batch(file);
+assert(height(batch.Runs) == 1);
+assert(batch.StaticFrictionStats.N == 1);
+assert(abs(batch.StaticFrictionStats.Mean - expectedStatic) < 1e-9);
 end
 
 function test_a5_stability_metrics()

@@ -1,0 +1,49 @@
+B0-B A0 vs V3 measurement-method decision
+========================================
+A0 before: C:\learn\rd\jig\B0-B v32 p03 jig 1 test 28 A.txt
+V3: C:\learn\rd\jig\B0-B v32 p03 jig 1 test 28 B.txt
+A0 after: C:\learn\rd\jig\B0-B v32 p03 jig 1 test 28 A after.txt
+
+1. HARD DATA/PROTOCOL GATES
+  A0_BEFORE  valid=10/10 candidates=10 pass=1
+  V3         valid=10/10 candidates=10 pass=1
+  A0_AFTER   valid=10/10 candidates=10 pass=1
+
+2. PRIMARY POST-TURN RESIDUAL (lower is better)
+    A0-before=0.08193788  V3=0.11020641  A0-after=0.09238636
+    V3-bracket=+0.02304428  pooledSD=0.01717516  effect=1.342 SD / 3.239 SE
+    bootstrap95=[+0.00965267, +0.03618501]
+    paired-run-order sensitivity=+0.02304428, bootstrap95=[+0.00899089, +0.03618120]
+  Locked gate: V3 < bracket - 2.77*pooledSD = 0.03958693 deg
+  Gate pass: 0
+  V3 worse, bootstrap 95% excludes zero: 1
+
+3. SECONDARY MEASUREMENT METRICS
+  Absolute canonical closure:
+    A0-before=0.01305400  V3=0.03106200  A0-after=0.01823100
+    V3-bracket=+0.01541950  pooledSD=0.01704089  effect=0.905 SD / 1.902 SE
+    bootstrap95=[+0.00187095, +0.03162434]
+    paired-run-order sensitivity=+0.01541950, bootstrap95=[+0.00078127, +0.03235906]
+  NL robust P2P:
+    A0-before=2.74910180  V3=2.72605620  A0-after=2.71374720
+    V3-bracket=-0.00536830  pooledSD=0.02091052  effect=-0.257 SD / -0.538 SE
+    bootstrap95=[-0.02415147, +0.01235833]
+    paired-run-order sensitivity=-0.00536830, bootstrap95=[-0.02431071, +0.01454630]
+  RMS_AC:
+    A0-before=0.71142392  V3=0.70645783  A0-after=0.70412778
+    V3-bracket=-0.00131802  pooledSD=0.00232761  effect=-0.566 SD / -1.298 SE
+    bootstrap95=[-0.00327119, +0.00046796]
+    paired-run-order sensitivity=-0.00131802, bootstrap95=[-0.00252933, -0.00011316]
+
+4. SAME-SECTOR DIAGNOSTIC
+  time axis=APPROXIMATE_CUMULATIVE_RUN_INDEX (approximate, no shared cross-file wall clock)
+  within +/-91 raw: 10/10; max abs error=9.562 raw
+  descriptive pass=1; formal causal sector gate available=0
+
+5. DECISION
+  Selected method: A0
+  Code: KEEP_A0_REJECT_V3
+  V3 post-turn residual is higher than the A0 bracket and its bootstrap 95% interval excludes zero.
+  Interpretation: Test 28 can reject a V3 benefit and keep A0 as the
+  production method. It cannot claim a fully timestamp-controlled causal
+  proof because the three firmware legs do not share an absolute clock.

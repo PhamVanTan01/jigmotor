@@ -18,6 +18,8 @@ Canonical mapping:
 | --- | --- |
 | JIG1 | `003C00273234470438353535` |
 | JIG2 | `0025002C3234470438353535` |
+| JIG3 | `004C003A3034510B31363339` |
+| JIG4 | `0049003A3034510B31363339` |
 
 The pre-motor `CONFIG` record includes `MCU_UID`, `JigID`, and `JigKnown`.
 This is mandatory because a configuration-gate rejection can stop the batch
