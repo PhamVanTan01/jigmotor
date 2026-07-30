@@ -167,14 +167,14 @@ static const uint32_t kNlB0BPreRollCheckpoints[NL_B0B_PREROLL_CHECKPOINT_COUNT] 
 #define NL_SETTLE_MAX_JUMP_RAW      1821
 #define NL_SWEEP_MAX_JUMP_RAW       1821
 /* Phase-2B shadow sampler. Legacy schema-v5 DATA/ACQ/RESULT remain official;
- * these limits apply only to the non-official CANONICAL_Q16_V1 capture made
+ * these limits apply only to the non-official canonical Q16 capture made
  * at the same settled point. The point sampler aborts when consecutive
  * failures exceed maxConsecutiveFailures, so 2 means the third consecutive
  * failure aborts, matching the legacy three-attempt failure boundary. */
 #define NL_SHADOW_POINT_MAX_TRANSACTIONS          96U
 #define NL_SHADOW_POINT_MAX_CONSECUTIVE_FAILURES  2U
 #define NL_SHADOW_POINT_MAX_ELAPSED_US             20000U
-#define NL_SHADOW_CONTRACT_ID                      "CANONICAL_Q16_V1"
+#define NL_SHADOW_CONTRACT_ID                      "CANONICAL_Q16_1DEG360_V2"
 #define NL_SHADOW_SIGN_CONVENTION                  "MEASURED_MINUS_TARGET"
 #define NL_SHADOW_REFERENCE_DEFINITION             "POINT0_CANONICAL_MEAN"
 #define NL_SHADOW_CANONICAL_MEAN_SOURCE            "ALL_TIER1"
@@ -980,9 +980,23 @@ static bool NlSectorCalibrationSelfTest(void)
 #define NL_PRECONDITION_COUNT               1U
 #define NL_OFFICIAL_RUN_COUNT               NL_BATCH_RUN_COUNT
 #define NL_BATCH_TOTAL_CYCLE_COUNT          (NL_PRECONDITION_COUNT + NL_OFFICIAL_RUN_COUNT)
+#if (NL_BATCH_RUN_COUNT == 10U)
 #define NL_PRECONDITION_PROTOCOL_ID         "ONE_FULL_SWEEP_120S_V1"
-#if (NL_BATCH_RUN_COUNT != 10U)
-#error "ONE_FULL_SWEEP_120S_V1 requires the 10-run batch mode"
+#elif (NL_BATCH_RUN_COUNT == 3U)
+/* Reduced-run fast-iteration variant, for cheap A/B firmware experiments
+ * (e.g. sweeping a dead-time compensation coefficient) where the effect
+ * being looked for is already known to be large -- see the JIG1-vs-JIG4
+ * no-relay H2 comparison (ratio 128%-398% across P02/P03/P05/P06), far
+ * above what n=3 noise could produce by chance. This is a DISTINCT
+ * protocol ID, not a relaxation of ONE_FULL_SWEEP_120S_V1's own 10-run
+ * guard (left untouched above) -- so a log's PreconditionProtocol field
+ * always says plainly which study design produced it, and n=3 data is
+ * never silently mistaken for a full 10-run qualification result. Confirm
+ * anything found under this mode by re-running under
+ * NL_TEST_REPEAT_10_RUNS before trusting it. */
+#define NL_PRECONDITION_PROTOCOL_ID         "ONE_FULL_SWEEP_120S_V1_FAST3"
+#else
+#error "This precondition protocol only supports the 10-run (ONE_FULL_SWEEP_120S_V1) or 3-run (ONE_FULL_SWEEP_120S_V1_FAST3) batch modes -- NL_TEST_REPEAT_1_RUN is for the separate remount-study use case, not this protocol."
 #endif
 
 /* Adaptive precondition (plan Part 1): the fixed single-precondition-sweep

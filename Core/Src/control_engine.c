@@ -87,9 +87,29 @@ extern UART_HandleTypeDef huart3;
 
 /* Guards carried over from A3 unchanged -- that framework was validated in
  * both directions (drag peaks 92-106 raw/ms passed; ramp snaps tripped at
- * 152-154 raw/ms and stopped safely). */
+ * 152-154 raw/ms and stopped safely) -- for the P02-class motor A3 was
+ * validated against. P06 (2026-07-30, both JIG1 and JIG4, 31/31 attempts)
+ * trips CONTROL_A4_SAMPLE_STEP_LIMIT every single time, MaxStepMilliDeg
+ * clustering at 835-1176 (i.e. ~152-214 raw/ms), consistent across two
+ * physically different driver boards -- a genuine P06-specific breakaway
+ * characteristic (not a jig/driver artifact), most likely P06 breaking
+ * away more abruptly than the P02 motor this threshold was tuned against.
+ * ENABLE_CONTROL_A4_WIDE_STEP_LIMIT overrides the guard for retesting P06
+ * without weakening it for P02, which already works at 150. This is a
+ * diagnostic-validity guard, not a hardware safety interlock -- widening
+ * it risks accepting genuinely erratic motion as normal breakaway, so
+ * treat any friction values captured under this override as unconfirmed
+ * until cross-checked (e.g. against a second independent P06 unit) rather
+ * than immediately folding them into the JIG1-vs-JIG4 NL comparison. */
 #define CONTROL_A4_MAX_TRAVEL_RAW             12000
+#ifndef ENABLE_CONTROL_A4_WIDE_STEP_LIMIT
+#define ENABLE_CONTROL_A4_WIDE_STEP_LIMIT     0
+#endif
+#if ENABLE_CONTROL_A4_WIDE_STEP_LIMIT
+#define CONTROL_A4_MAX_SAMPLE_STEP_RAW        280
+#else
 #define CONTROL_A4_MAX_SAMPLE_STEP_RAW        150
+#endif
 #define CONTROL_A4_MAX_CONSECUTIVE_MISSES     3U
 
 /* Capture criterion, unchanged from A3. */

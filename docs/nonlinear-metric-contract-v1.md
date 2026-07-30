@@ -2,6 +2,12 @@
 
 Contract ID: `CANONICAL_Q16_V1`
 
+> Historical contract only: this ID means the legacy 256-point grid with
+> closure at point 256. Current one-degree/360-point captures use
+> [`CANONICAL_Q16_1DEG360_V2`](nonlinear-metric-contract-v2.md). Some logs
+> produced before 2026-07-30 incorrectly stamped this V1 ID while declaring
+> `AnalysisPoints=360`; host tools expose that combination as a legacy alias.
+
 This document fixes the mathematical meaning of schema-v6 canonical capture
 and analysis. Changing any formula, index set, normalization, sign, rounding,
 or fitted grid requires a new contract ID.

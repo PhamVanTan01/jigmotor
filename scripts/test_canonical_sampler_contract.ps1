@@ -144,4 +144,4 @@ Assert-True ($source -notmatch 'sumRelRaw\s*<<\s*16') 'Forbidden signed left shi
 Assert-True ($source -notmatch 'pointAnchorUnwrapped\s*<<\s*16') 'Forbidden signed left shift found for anchor.'
 Assert-True ($source -match 'value\s*\*\s*65536LL') 'Canonical Q16 multiplication is missing.'
 
-Write-Host '[ OK ] CANONICAL_Q16_V1 and scheduler host contract tests passed.'
+Write-Host '[ OK ] Canonical Q16 arithmetic and scheduler host contract tests passed.'

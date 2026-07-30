@@ -10,13 +10,49 @@ extern TIM_HandleTypeDef htim1;
 #define MOTOR_PHASE_C_OFFSET    (MOTOR_COUNT_PER_ELECTRICAL_CYCLE * 2U / 3U)
 #define MOTOR_PWM_PERIOD        2154
 
+#ifndef ENABLE_DEADTIME_COMPENSATION_FEEDFORWARD
+/* Experimental, default OFF -- "Huong A" open-loop dead-time compensation.
+ * Adds a small duty-cycle offset based on the SIGN of the commanded sine
+ * value for this phase (a proxy for current direction inferred from the
+ * command itself, not a real current measurement) to counteract the
+ * systematic distortion dead-time causes near current zero-crossings --
+ * see the JIG1-vs-JIG4 no-relay H2 comparison (H2 ratio 128%-398% across
+ * P02/P03/P05/P06, far too product-dependent to be a fixed calibration
+ * offset -- consistent with a dead-time x per-product-eccentricity
+ * interaction). DEADTIME_COMPENSATION_FRACTION is an empirically-swept
+ * dimensionless fraction of full duty range, not derived from an absolute
+ * timing measurement here -- start small and adjust based on measured H2
+ * before/after. Sign convention is UNVERIFIED until tested on real
+ * hardware: if H2 gets WORSE instead of closer to the other jig, flip the
+ * sign of DEADTIME_COMPENSATION_FRACTION and retest. This does nothing to
+ * current sensing or measurement -- it only changes what PWM duty is
+ * commanded, exactly like production code, just with this added term. */
+#define ENABLE_DEADTIME_COMPENSATION_FEEDFORWARD    0
+#endif
+
+#ifndef DEADTIME_COMPENSATION_FRACTION
+#define DEADTIME_COMPENSATION_FRACTION    0.01f
+#endif
+
 static MotorPwm_CommandState_t lastCommand;
 
 static uint16_t MotorPwm_PhaseValue(uint32_t stepInCycle, float power)
 {
     float angleRad = 2.0f * (float)M_PI * (float)stepInCycle
         / (float)MOTOR_COUNT_PER_ELECTRICAL_CYCLE;
-    float duty = (sinf(angleRad) * 0.5f + 0.5f) * power;
+    float sinValue = sinf(angleRad);
+    float duty = (sinValue * 0.5f + 0.5f) * power;
+
+#if ENABLE_DEADTIME_COMPENSATION_FEEDFORWARD
+    if (sinValue > 0.0f)
+    {
+        duty += DEADTIME_COMPENSATION_FRACTION * power;
+    }
+    else if (sinValue < 0.0f)
+    {
+        duty -= DEADTIME_COMPENSATION_FRACTION * power;
+    }
+#endif
 
     if (duty < 0.0f) duty = 0.0f;
     if (duty > 1.0f) duty = 1.0f;
