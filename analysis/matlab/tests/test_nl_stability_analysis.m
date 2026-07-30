@@ -65,6 +65,8 @@ test_jig_delta();
 test_sector_response();
 test_sector_match_gate();
 test_sector_calibration_parsing();
+test_nl_extreme_angles();
+test_rank_motor_nl_quality();
 
 fprintf("[ OK ] NL stability MATLAB analysis regression test passed.\n");
 end
@@ -320,6 +322,131 @@ for batchIndex = 1:3
     assert(abs(row.ErrorRaw - achievedErrors(batchIndex)) < 1e-9);
     assert(row.SweepCount == 2);
 end
+end
+
+function test_nl_extreme_angles()
+% Two groups (motor M1, jig JA/JB), 2 identical runs each, n=8, k=3.
+% Group B's mean curve is EXACTLY group A's curve rotated by 2 points, so
+% every quantity is hand-computable: best shift must recover exactly 2,
+% best correlation exactly 1, post-alignment tail distances exactly 0,
+% and (since B is a pure rotation of A, not an amplitude change) every
+% top5/bottom5/robust-NL delta must be exactly 0.
+curveA = [5, 1, 2, 3, -5, -1, -2, -3];
+n = numel(curveA);
+curveB = zeros(1, n);
+for j = 0:n - 1
+    curveB(j + 1) = curveA(mod(j - 2, n) + 1);
+end
+
+fileA = write_extreme_angle_log(curveA, "M1", "JA");
+fileB = write_extreme_angle_log(curveB, "M1", "JB");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileA, fileB}, "MotorId", {"M1", "M1"}, "JigId", {"JA", "JB"});
+[groups, pairs] = analyze_nl_extreme_angles(fileGroups, 3);
+
+assert(numel(groups) == 2);
+assert(numel(pairs) == 1);
+p = pairs(1);
+
+assert(p.BestShiftPoints == 2);
+assert(abs(p.BestShiftCorrelation - 1) < 1e-9);
+assert(abs(p.Top5MeanDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Bottom5MeanDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Top5MaxDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Bottom5MaxDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Top5DeltaBMinusADeg) < 1e-9);
+assert(abs(p.Bottom5DeltaBMinusADeg) < 1e-9);
+assert(abs(p.RobustNLDeltaBMinusADeg) < 1e-9);
+
+expectedRobust = mean([5, 3, 2]) - mean([-5, -3, -2]);
+assert(abs(p.RobustNLADeg - expectedRobust) < 1e-9);
+assert(abs(p.RobustNLBDeg - expectedRobust) < 1e-9);
+
+% Zero-shift correlation must be strictly worse than the best-shift one --
+% curveA and curveB are NOT aligned at shift 0 by construction.
+assert(p.ZeroShiftCorrelation < p.BestShiftCorrelation - 1e-6);
+end
+
+function file = write_extreme_angle_log(curve, motorId, jigId) %#ok<INUSD>
+n = numel(curve);
+lines = strings(0, 1);
+for runIndex = 1:2
+    lines(end + 1) = sprintf(strcat("META,SchemaVersion=5,TestID=%d,SweepID=%d,", ...
+        "RunRole=OFFICIAL,EligibleForStatistics=1,MeasurementValid=1,AnalysisPoints=%d,", ...
+        "AnalysisStartRaw=0,ApproachProtocol=SYNTH"), ...
+        runIndex, runIndex, n); %#ok<AGROW>
+    for dataIndex = 0:n - 1
+        lines(end + 1) = sprintf("DATA,,%d,%d,,,,%d,0,0,0,%.10f", ...
+            runIndex, runIndex, dataIndex, curve(dataIndex + 1)); %#ok<AGROW>
+    end
+    lines(end + 1) = "SHADOW_RESULT,ClosureErrorDeg=0.0"; %#ok<AGROW>
+    lines(end + 1) = "END,Status=VALID"; %#ok<AGROW>
+end
+file = write_temp_log(lines);
+end
+
+function test_rank_motor_nl_quality()
+% Three motors, single jig "JX" each, n=360, 3 runs/motor. M1: small pure
+% 36th-harmonic amplitude (low NL, low A36) -- "good". M2: large pure
+% 36th-harmonic amplitude (high NL, high A36) -- consistently bad on both
+% metrics. M3: the SAME small amplitude as M1 (so A36 must match M1)
+% plus a single-point spike added at one index -- a single point can
+% dominate a top-5-of-360 mean, inflating NL_RobustP2P, while barely
+% moving the 36th-order DFT amplitude. This is the textbook "NL rank
+% distorted, A36 rank not" case the RankShift warning exists to catch.
+n = 360;
+index = (0:n - 1)';
+theta = 2 * pi * 36 * index / n;
+
+files = strings(1, 3);
+amps = [0.3, 1.0, 0.3];
+% Index 7 (angle 252 deg) puts the spike's DFT contribution roughly
+% opposite the base sine's own phase, so it slightly REDUCES M3's
+% resultant A36 amplitude below M1's (0.2737 vs 0.3) while still
+% dominating M3's top-5/bottom-5 mean (NL_RobustP2P only depends on error
+% VALUES, not their DFT phase, so the spike inflates NL regardless of
+% which index it sits at) -- this is what makes M3 rank BETTER than M1 on
+% A36 but WORSE on NL, the exact case the RankShift warning targets.
+spikeAt = [-1, -1, 7]; % 0-based DATA index to spike, -1 = none
+for m = 1:3
+    lines = strings(0, 1);
+    for run = 1:3
+        errors = amps(m) * sin(theta);
+        if spikeAt(m) >= 0
+            errors(spikeAt(m) + 1) = errors(spikeAt(m) + 1) + 5.0;
+        end
+        lines(end + 1) = sprintf(strcat("META,SchemaVersion=5,TestID=%d,SweepID=%d,", ...
+            "RunRole=OFFICIAL,EligibleForStatistics=1,MeasurementValid=1,AnalysisPoints=360,", ...
+            "AnalysisStartRaw=0,ApproachProtocol=SYNTH"), run, run); %#ok<AGROW>
+        for dataIndex = 0:n - 1
+            lines(end + 1) = sprintf("DATA,,%d,%d,,,,%d,0,0,0,%.10f", ...
+                run, run, dataIndex, errors(dataIndex + 1)); %#ok<AGROW>
+        end
+        lines(end + 1) = "SHADOW_RESULT,ClosureErrorDeg=0.0"; %#ok<AGROW>
+        lines(end + 1) = "END,Status=VALID"; %#ok<AGROW>
+    end
+    files(m) = write_temp_log(lines);
+end
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+fileGroups = struct("Files", {files(1), files(2), files(3)}, ...
+    "MotorId", {"M1", "M2", "M3"}, "JigId", {"JX", "JX", "JX"});
+result = rank_motor_nl_quality(fileGroups);
+lb = result.Leaderboard;
+
+m1 = lb(lb.Motor == "M1", :);
+m2 = lb(lb.Motor == "M2", :);
+m3 = lb(lb.Motor == "M3", :);
+
+assert(m1.NL_Rank == 1);          % smallest amplitude, no spike -- clearly best
+assert(m2.NL_Rank == 3);          % largest amplitude -- clearly worst on NL
+assert(m2.A36_Rank == 3);         % ...and on A36 too (consistently bad)
+assert(m3.NL_Mean_Deg > m1.NL_Mean_Deg);
+assert(abs(m3.A36_Mean_Deg - m1.A36_Mean_Deg) < 0.05); % spike barely moves A36
+assert(m3.NL_Rank > m1.NL_Rank);
+% The rank-shift flag must catch M3: A36 rank much better than its NL rank.
+assert(m3.RankShift_A36MinusNL <= -1);
 end
 
 function file = write_temp_log(lines)
