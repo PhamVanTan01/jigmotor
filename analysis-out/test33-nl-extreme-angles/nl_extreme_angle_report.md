@@ -55,13 +55,6 @@ Only statistically eligible sweeps are included. `DATA.Error` is used with its l
 - Top 5: 264°(+1.7000°), 284°(+1.6793°), 304°(+1.6263°), 244°(+1.5857°), 263°(+1.5451°)
 - Bottom 5: 76°(-1.2817°), 77°(-1.2672°), 96°(-1.2550°), 56°(-1.2456°), 97°(-1.2177°)
 
-### p06 / JIG4
-
-- Eligible runs: 10
-- Mean repeat-selection rate: top=100.0%, bottom=100.0%
-- Top 5: 264°(+2.2542°), 244°(+2.1460°), 284°(+2.1144°), 263°(+2.0949°), 304°(+2.0883°)
-- Bottom 5: 156°(-0.9093°), 356°(-0.8924°), 157°(-0.8676°), 357°(-0.8458°), 16°(-0.8194°)
-
 ### p07 / JIG1
 
 - Eligible runs: 10
@@ -85,7 +78,6 @@ Tail deltas below are differences between the batch means of each run's own top-
 | p02 | JIG1→JIG4 | 0.9841 | 0.0° | 0.9841 | 0.1426° | +0.1636° | -0.1367° | +0.3003° | 0.00° | 40.20° |
 | p03 | JIG1→JIG4 | 0.9664 | 0.0° | 0.9664 | 0.1830° | +0.2147° | +0.1641° | +0.0506° | 0.00° | 95.60° |
 | p05 | JIG1→JIG4 | 0.9619 | 0.0° | 0.9619 | 0.2040° | +0.0665° | -0.3879° | +0.4544° | 32.00° | 63.80° |
-| p06 | JIG1→JIG4 | 0.9695 | 0.0° | 0.9695 | 0.1820° | +0.5120° | +0.3874° | +0.1246° | 0.00° | 64.00° |
 | p07 | JIG1→JIG4 | 0.8782 | 240.0° | 0.9389 | 0.2434° | +0.4069° | +0.0453° | +0.3616° | 57.80° | 126.00° |
 
 Interpretation guard: high correlation after a shift supports a common periodic shape, but does not by itself assign that shape to the motor. Low correlation or large aligned extreme distances indicates a jig/mount/drive interaction or a localized event not preserved across the two setups.

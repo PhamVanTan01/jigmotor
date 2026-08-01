@@ -1,0 +1,199 @@
+{
+  "tool": "analyze_nl_curve.py",
+  "metric_contract": {
+    "pointwise_quantity": "logged DATA.Error curve",
+    "robust_nl": "mean(top 5) - mean(bottom 5) per run",
+    "analysis_indices": "0..359",
+    "closure_index": 360,
+    "closure_in_curve": false,
+    "alignment_policy": "zero-shift is primary; best circular alignment is diagnostic only",
+    "repeatability_pooling": "within-leg variance only; A1-to-A2 drift is not pooled into SD"
+  },
+  "inputs": {
+    "A1": [
+      "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\P05 JIG1-A1.txt"
+    ],
+    "B": [
+      "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\P05 JIG4-B.txt"
+    ],
+    "A2": [
+      "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\P05 JIG1-A2.txt"
+    ]
+  },
+  "thresholds": {
+    "within_sd_limit_deg": 0.03,
+    "remount_shift_limit_deg": 0.05,
+    "minimum_cross_jig_limit_deg": 0.05,
+    "repeatability_multiplier": 2.77,
+    "tail_limit_deg": 0.1,
+    "correlation_min": 0.98,
+    "centered_rmse_limit_deg": 0.1,
+    "closure_limit_deg": 0.2
+  },
+  "leg_summary": [
+    {
+      "leg": "A1",
+      "motor_id": "p05",
+      "jig_id": "JIG1",
+      "eligible_runs": 3,
+      "analysis_points": 360,
+      "nl_mean_deg": 3.1513833333333334,
+      "nl_sd_deg": 0.006657011441580485,
+      "top_mean_deg": 1.5035360000000002,
+      "top_sd_deg": 0.009334141417398887,
+      "bottom_mean_deg": -1.6478473333333332,
+      "bottom_sd_deg": 0.013059599126058143,
+      "closure_mean_deg": -0.08839666666666667,
+      "closure_sd_deg": 0.027797471707573213,
+      "closure_max_abs_deg": 0.11993,
+      "centered_pointwise_sd_mean_deg": 0.014599981857920571,
+      "centered_pointwise_sd_max_deg": 0.11032979655199204,
+      "centered_pointwise_sd_max_angle_deg": 25.0
+    },
+    {
+      "leg": "B",
+      "motor_id": "p05",
+      "jig_id": "JIG4",
+      "eligible_runs": 2,
+      "analysis_points": 360,
+      "nl_mean_deg": 2.751772,
+      "nl_sd_deg": 0.028558628678562344,
+      "top_mean_deg": 1.640594,
+      "top_sd_deg": 0.02310824960917656,
+      "bottom_mean_deg": -1.111178,
+      "bottom_sd_deg": 0.005450379069385942,
+      "closure_mean_deg": -0.089935,
+      "closure_sd_deg": 0.039322208101783905,
+      "closure_max_abs_deg": 0.11774,
+      "centered_pointwise_sd_mean_deg": 0.02264033086292519,
+      "centered_pointwise_sd_max_deg": 0.09630747219308694,
+      "centered_pointwise_sd_max_angle_deg": 175.0
+    },
+    {
+      "leg": "A2",
+      "motor_id": "p05",
+      "jig_id": "JIG1",
+      "eligible_runs": 3,
+      "analysis_points": 360,
+      "nl_mean_deg": 2.8877613333333336,
+      "nl_sd_deg": 0.020097451612911942,
+      "top_mean_deg": 1.6691153333333333,
+      "top_sd_deg": 0.037983515178736806,
+      "bottom_mean_deg": -1.2186460000000001,
+      "bottom_sd_deg": 0.028988356007197055,
+      "closure_mean_deg": -0.08453333333333334,
+      "closure_sd_deg": 0.03180821329992198,
+      "closure_max_abs_deg": 0.12091,
+      "centered_pointwise_sd_mean_deg": 0.01659643225631562,
+      "centered_pointwise_sd_max_deg": 0.05599573321948566,
+      "centered_pointwise_sd_max_angle_deg": 35.0
+    }
+  ],
+  "analysis": {
+    "motor_id": "p05",
+    "analysis_points": 360,
+    "jig_a": "JIG1",
+    "jig_b": "JIG4",
+    "zero_shift_correlation": 0.9794687105352877,
+    "zero_shift_centered_rmse_deg": 0.1451944089252342,
+    "aligned_centered_rmse_deg": 0.1451944089252342,
+    "alignment": {
+      "best_shift_points": 0,
+      "best_shift_deg": 0.0,
+      "best_shift_correlation": 0.9794687105352877,
+      "second_shift_points": 320,
+      "second_shift_deg": 320.0,
+      "second_shift_correlation": 0.9595598782141598,
+      "correlation_margin": 0.019908832321127945
+    },
+    "a1_to_a2_nl_drift_deg": -0.2636219999999998,
+    "a1_to_a2_curve_correlation": 0.9683558086562304,
+    "a1_to_a2_centered_rmse_deg": 0.18581608542143382,
+    "a_baseline_return_valid": false,
+    "a_nl_mean_deg": 3.0195723333333335,
+    "b_nl_mean_deg": 2.751772,
+    "nl_delta_b_minus_a_deg": -0.26780033333333364,
+    "pooled_nl_sd_deg": 0.01850428057144262,
+    "cross_jig_nl_limit_deg": 0.051256857182896055,
+    "top_a_mean_deg": 1.5863256666666667,
+    "top_b_mean_deg": 1.640594,
+    "top_delta_b_minus_a_deg": 0.05426833333333336,
+    "bottom_a_mean_deg": -1.4332466666666668,
+    "bottom_b_mean_deg": -1.111178,
+    "bottom_delta_b_minus_a_deg": 0.3220686666666668,
+    "gates": {
+      "within_batch_nl_sd": {
+        "value_deg": 0.028558628678562344,
+        "limit": "<= 0.03000 deg",
+        "passed": true
+      },
+      "a_return_nl_shift": {
+        "value_deg": -0.2636219999999998,
+        "absolute_value_deg": 0.2636219999999998,
+        "limit_deg": 0.05,
+        "passed": false
+      },
+      "a_return_curve_correlation": {
+        "value": 0.9683558086562304,
+        "limit": ">= 0.98000",
+        "passed": false
+      },
+      "a_return_centered_rmse": {
+        "value_deg": 0.18581608542143382,
+        "limit": "<= 0.10000 deg",
+        "passed": false
+      },
+      "cross_jig_nl_delta": {
+        "value_deg": -0.26780033333333364,
+        "absolute_value_deg": 0.26780033333333364,
+        "limit_deg": 0.051256857182896055,
+        "passed": false
+      },
+      "top_tail_delta": {
+        "value_deg": 0.05426833333333336,
+        "limit": "abs <= 0.10000 deg",
+        "passed": true
+      },
+      "bottom_tail_delta": {
+        "value_deg": 0.3220686666666668,
+        "limit": "abs <= 0.10000 deg",
+        "passed": false
+      },
+      "zero_shift_curve_correlation": {
+        "value": 0.9794687105352877,
+        "limit": ">= 0.98000",
+        "passed": false
+      },
+      "zero_shift_centered_rmse": {
+        "value_deg": 0.1451944089252342,
+        "limit": "<= 0.10000 deg",
+        "passed": false
+      },
+      "closure": {
+        "max_abs_deg": 0.12091,
+        "available": true,
+        "limit": "abs <= 0.20000 deg",
+        "passed": true
+      },
+      "all_primary_gates": {
+        "passed": false
+      },
+      "data_health": {
+        "invalid_official_reports": 1,
+        "config_state": "PASS",
+        "limit": "0 invalid OFFICIAL; CONFIG=PASS",
+        "passed": false
+      }
+    }
+  },
+  "config_health": {
+    "state": "PASS",
+    "config_records_seen": 12,
+    "config_failures": [],
+    "motor_errors": []
+  },
+  "warnings": [
+    "P05 JIG4-B.txt:7254: malformed DATA line, skipped: DATA,5,4,4,JIG4,p05,CW,152,37947,37839,ection=CW,Point=152,RampAcceptedSamples=4",
+    "At least one leg has fewer than 3 eligible runs; SD/gates are low-confidence."
+  ]
+}

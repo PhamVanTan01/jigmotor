@@ -1,0 +1,9 @@
+gate,value,limit,result
+within_batch_nl_sd,0.04014439990833073,<= 0.03000 deg,FAIL
+cross_jig_nl_delta,0.15687766666666603,0.08334523410860363,FAIL
+top_tail_delta,0.17230166666666658,abs <= 0.10000 deg,FAIL
+bottom_tail_delta,0.3291793333333335,abs <= 0.10000 deg,FAIL
+zero_shift_curve_correlation,0.9648181340621012,>= 0.98000,FAIL
+zero_shift_centered_rmse,0.19268633875201435,<= 0.10000 deg,FAIL
+closure,0.11603,abs <= 0.20000 deg,PASS
+data_health,invalid=0; config=PASS,0 invalid OFFICIAL; CONFIG=PASS,PASS
