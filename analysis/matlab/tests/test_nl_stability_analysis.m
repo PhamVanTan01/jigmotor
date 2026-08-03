@@ -74,6 +74,8 @@ test_cross_jig_point_delta();
 test_find_outlier_mount_sessions();
 test_session_feature_table();
 test_compare_features_across_jigs();
+test_mount_precheck();
+test_peak_signature_tools();
 
 fprintf("[ OK ] NL stability MATLAB analysis regression test passed.\n");
 end
@@ -718,6 +720,166 @@ lines(end + 1) = sprintf("CLOSURE_PROBE_RESULT,TestID=%d,SweepID=%d,ValidStages=
     testId, sweepId, validStages);
 lines(end + 1) = "END,Status=VALID";
 file = write_temp_log(lines);
+end
+
+function test_mount_precheck()
+% Two synthetic groups mimicking the firmware comment's own description
+% (Core/Src/nonlinear_test.c, MOUNT_PRECHECK_V1 M0): "GOOD" mounts have a
+% larger H1 (concentricity) amplitude and small H2; "BAD" mounts have H1
+% shrunk and H2 grown, per "H1 shrinks and sometimes H2 grows under bad
+% mounting". One BAD record is also MountValid=0/CLOSURE_INVALID, to
+% check RejectReason pooling. Two files per group so file-level pooling
+% (not just record-level) is exercised.
+h1Good = [0.40, 0.42];
+h2Good = [0.05, 0.06];
+h1Bad = [0.05, 0.06];
+h2Bad = [0.30, 0.28];
+
+fileGoodA = write_mount_precheck_log("JIG1", "p05", 2.50, h1Good(1), h2Good(1), 0.05, 1, "NONE", 1);
+fileGoodB = write_mount_precheck_log("JIG1", "p05", 2.60, h1Good(2), h2Good(2), 0.04, 1, "NONE", 1);
+fileBadA = write_mount_precheck_log("JIG5", "p05", 3.00, h1Bad(1), h2Bad(1), 0.25, 0, "CLOSURE_INVALID", 0);
+fileBadB = write_mount_precheck_log("JIG5", "p05", 3.10, h1Bad(2), h2Bad(2), 0.03, 1, "NONE", 1);
+files = [fileGoodA, fileGoodB, fileBadA, fileBadB];
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+% parse_mount_precheck_log.m on a single multi-record file: two batches
+% logged back to back must both be recovered, in order.
+combined = write_temp_log([ ...
+    mount_precheck_line("JIG1", "p03", 1, 1, 2.10, 0.30, 0.02, 0.01, 1, "NONE", 0), ...
+    mount_precheck_line("JIG1", "p03", 2, 1, 2.15, 0.31, 0.02, 0.02, 1, "NONE", 0)]);
+cleanup2 = onCleanup(@() delete_if_exists(combined)); %#ok<NASGU>
+singleFileRecords = parse_mount_precheck_log(combined);
+assert(height(singleFileRecords) == 2);
+assert(singleFileRecords.BatchID(1) == 1 && singleFileRecords.BatchID(2) == 2);
+assert(abs(singleFileRecords.H1AmplitudeDeg(2) - 0.31) < 1e-9);
+assert(singleFileRecords.AcquisitionResult(1) == "OK");
+
+labels = ["GOOD", "GOOD", "BAD", "BAD"];
+result = analyze_mount_precheck_batch(files, labels);
+assert(height(result.Records) == 4);
+assert(height(result.ByLabel) == 2);
+
+goodRow = result.ByLabel(result.ByLabel.Label == "GOOD", :);
+badRow = result.ByLabel(result.ByLabel.Label == "BAD", :);
+assert(abs(goodRow.Mean_H1AmplitudeDeg - mean(h1Good)) < 1e-9);
+assert(abs(goodRow.Mean_H2AmplitudeDeg - mean(h2Good)) < 1e-9);
+assert(abs(goodRow.MountValidRatePct - 100) < 1e-9);
+assert(abs(badRow.Mean_H1AmplitudeDeg - mean(h1Bad)) < 1e-9);
+assert(abs(badRow.Mean_H2AmplitudeDeg - mean(h2Bad)) < 1e-9);
+assert(abs(badRow.MountValidRatePct - 50) < 1e-9);
+
+% The firmware-observed direction ("H1 shrinks, H2 grows under bad
+% mounting") must show up as BAD's H1 lower and H2OverH1 much higher.
+assert(badRow.Mean_H1AmplitudeDeg < goodRow.Mean_H1AmplitudeDeg);
+assert(badRow.Mean_H2OverH1 > goodRow.Mean_H2OverH1);
+
+% Sorted ascending by Mean_H1AmplitudeDeg -- BAD (lower H1) must come first.
+assert(result.ByLabel.Label(1) == "BAD");
+
+rrc = result.RejectReasonCounts;
+badClosureRow = rrc(rrc.Label == "BAD" & rrc.RejectReason == "CLOSURE_INVALID", :);
+assert(height(badClosureRow) == 1);
+assert(badClosureRow.GroupCount == 1);
+goodNoneRow = rrc(rrc.Label == "GOOD" & rrc.RejectReason == "NONE", :);
+assert(goodNoneRow.GroupCount == 2);
+end
+
+function file = write_mount_precheck_log(jigId, motorId, robustP2P, h1Amp, h2Amp, closureErr, mountValid, rejectReason, gateEnabled)
+line = mount_precheck_line(jigId, motorId, 1, 1, robustP2P, h1Amp, h2Amp, closureErr, mountValid, rejectReason, gateEnabled);
+file = write_temp_log(line);
+end
+
+function line = mount_precheck_line(jigId, motorId, batchId, cycleOrder, robustP2P, h1Amp, h2Amp, closureErr, mountValid, rejectReason, gateEnabled)
+line = sprintf(strcat("MOUNT_PRECHECK_RESULT,SchemaVersion=5,BatchID=%d,CycleOrder=%d,TestID=1,", ...
+    "Protocol=PRECONDITION_FULL_SWEEP_MOUNT_GATE_V1,JigID=%s,MotorID=%s,RobustP2PDeg=%.5f,", ...
+    "H1AmplitudeDeg=%.5f,H1PhaseDeg=-50.00,H2AmplitudeDeg=%.5f,H2PhaseDeg=10.00,", ...
+    "ClosureErrorDeg=%.5f,TrackingValid=1,ClosureValid=%d,AcquisitionResult=OK,", ...
+    "MountValid=%d,RejectReason=%s,GateEnabled=%d"), ...
+    batchId, cycleOrder, jigId, motorId, robustP2P, h1Amp, h2Amp, closureErr, ...
+    double(rejectReason == "NONE"), mountValid, rejectReason, gateEnabled);
+end
+
+function test_peak_signature_tools()
+% find_circular_extrema: n=8, period-4 square-ish wave [0 1 0 -1 0 1 0 -1]
+% (0-based idx 0..7). With window=1, promThresh=0.5, must recover exactly
+% the two maxima (idx 1,5, value 1) and two minima (idx 3,7, value -1) --
+% hand-checkable by construction.
+curve = [0; 1; 0; -1; 0; 1; 0; -1];
+[maxIdx, maxVal] = find_circular_extrema(curve, 1, 0.5, true);
+[minIdx, minVal] = find_circular_extrema(curve, 1, 0.5, false);
+assert(isequal(maxIdx, [1; 5]));
+assert(isequal(maxVal, [1; 1]));
+assert(isequal(minIdx, [3; 7]));
+assert(isequal(minVal, [-1; -1]));
+
+% A promThresh above the actual prominence must find nothing.
+[noneIdx, ~] = find_circular_extrema(curve, 1, 1.5, true);
+assert(isempty(noneIdx));
+
+% match_circular_peaks: two points in A, two in B, each within tolerance
+% of exactly one A point -- every quantity hand-computable.
+mResult = match_circular_peaks([1;5], [1;1], [2;6], [1.2;0.8], 8, 2);
+assert(mResult.NMatched == 2);
+assert(isequal(mResult.MatchedIndexA, [1;5]));
+assert(isequal(mResult.MatchedIndexB, [2;6]));
+assert(all(abs(mResult.Delta - [0.2; -0.2]) < 1e-9));
+assert(isempty(mResult.UnmatchedIndexA));
+assert(isempty(mResult.UnmatchedIndexB));
+
+% Outside tolerance: no candidate pairs within reach -- both unmatched.
+mFar = match_circular_peaks([0], [1], [4], [1], 8, 2);
+assert(mFar.NMatched == 0);
+assert(isequal(mFar.UnmatchedIndexA, 0));
+assert(isequal(mFar.UnmatchedIndexB, 4));
+
+% classify_jig_peak_signatures end-to-end: 3 synthetic jigs, one motor.
+% JA and JB are the IDENTICAL pure order-36 curve (0.5 amplitude) --
+% MeanAbsDeltaDeg must be exactly 0, classified SAME_CLASS. JC is JA
+% scaled by 1.6x everywhere -- every matched peak/trough differs by
+% exactly 0.6*valueA at that point (same sign as A, since it's a pure
+% scale, not a shift), comfortably above the default 0.10 deg threshold,
+% classified DIFFERENT_CLASS. Peak POSITIONS must be identical across all
+% three (scaling doesn't move zero-crossings/extrema locations), so all
+% 36 maxima and 36 minima must match on every pair.
+n = 360;
+theta = 2 * pi * 36 * (0:n - 1) / n;
+curveA = 0.5 * sin(theta);
+curveB = curveA;
+curveC = 1.6 * curveA;
+
+fileA = write_extreme_angle_log(curveA, "MZ", "JA");
+fileB = write_extreme_angle_log(curveB, "MZ", "JB");
+fileC = write_extreme_angle_log(curveC, "MZ", "JC");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB, fileC})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileA, fileB, fileC}, ...
+    "MotorId", {"MZ", "MZ", "MZ"}, "JigId", {"JA", "JB", "JC"});
+result = classify_jig_peak_signatures(fileGroups);
+
+pairs = result.PairSummary;
+assert(height(pairs) == 3);
+rowAB = pairs(pairs.JigA == "JA" & pairs.JigB == "JB", :);
+rowAC = pairs(pairs.JigA == "JA" & pairs.JigB == "JC", :);
+rowBC = pairs(pairs.JigA == "JB" & pairs.JigB == "JC", :);
+
+assert(rowAB.NMaxMatched == 36 && rowAB.NMinMatched == 36);
+assert(rowAC.NMaxMatched == 36 && rowAC.NMinMatched == 36);
+assert(abs(rowAB.MeanAbsDeltaDeg) < 1e-9);
+assert(rowAB.Class == "SAME_CLASS");
+assert(rowAC.MeanAbsDeltaDeg > 0.10);
+assert(rowAC.Class == "DIFFERENT_CLASS");
+assert(rowBC.MeanAbsDeltaDeg > 0.10);
+assert(rowBC.Class == "DIFFERENT_CLASS");
+
+expectedRows = (rowAB.NMaxMatched + rowAB.NMinMatched) + (rowAC.NMaxMatched + rowAC.NMinMatched) ...
+    + (rowBC.NMaxMatched + rowBC.NMinMatched);
+assert(height(result.PeakDetail) == expectedRows);
+
+% Spot-check one PeakDetail row against the hand-derived scale relationship.
+detailAC = result.PeakDetail(result.PeakDetail.JigA == "JA" & result.PeakDetail.JigB == "JC" ...
+    & result.PeakDetail.Kind == "MAX", :);
+assert(height(detailAC) == 36);
+assert(all(abs(detailAC.ValueB_Deg - 1.6 * detailAC.ValueA_Deg) < 1e-9));
 end
 
 function file = write_temp_log(lines)
