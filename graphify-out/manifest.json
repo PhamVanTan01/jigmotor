@@ -1,0 +1,1367 @@
+{
+  ".codex/hooks.json": {
+    "mtime": 1785717430.820762,
+    "ast_hash": "497c4f9a49bc174387839aad1352b9d9",
+    "semantic_hash": "497c4f9a49bc174387839aad1352b9d9"
+  },
+  ".vscode/c_cpp_properties.json": {
+    "mtime": 1784132763.1421635,
+    "ast_hash": "1a4853f5c3ab8beb1150dc5e5aa41c41",
+    "semantic_hash": "1a4853f5c3ab8beb1150dc5e5aa41c41"
+  },
+  ".vscode/launch.json": {
+    "mtime": 1784132763.0884426,
+    "ast_hash": "b588d70f7f5efd5bc1b4efa61989361a",
+    "semantic_hash": "b588d70f7f5efd5bc1b4efa61989361a"
+  },
+  ".vscode/settings.json": {
+    "mtime": 1784132763.0636148,
+    "ast_hash": "eef57d7f6e5d2d33db3a1c74fd147875",
+    "semantic_hash": "eef57d7f6e5d2d33db3a1c74fd147875"
+  },
+  "Core/Inc/FreeRTOSConfig.h": {
+    "mtime": 1784029272.6965754,
+    "ast_hash": "58fbd6560b5cd9fcfb6442d7ee7e32a7",
+    "semantic_hash": "58fbd6560b5cd9fcfb6442d7ee7e32a7"
+  },
+  "Core/Inc/app_engine.h": {
+    "mtime": 1784213937.9745712,
+    "ast_hash": "dcd32f391a059b314a3b776e8c81b4b4",
+    "semantic_hash": "dcd32f391a059b314a3b776e8c81b4b4"
+  },
+  "Core/Inc/app_mode.h": {
+    "mtime": 1784644455.913153,
+    "ast_hash": "b2272946db0d7e6ce2d884f74e676b80",
+    "semantic_hash": "b2272946db0d7e6ce2d884f74e676b80"
+  },
+  "Core/Inc/control_a5_capture.h": {
+    "mtime": 1784644455.9136782,
+    "ast_hash": "0887c33f11f5d2d7a3ff02d678a5a6d6",
+    "semantic_hash": "0887c33f11f5d2d7a3ff02d678a5a6d6"
+  },
+  "Core/Inc/control_a5_math.h": {
+    "mtime": 1784644455.9142022,
+    "ast_hash": "537065864de549c9f52f763d76531301",
+    "semantic_hash": "537065864de549c9f52f763d76531301"
+  },
+  "Core/Inc/control_engine.h": {
+    "mtime": 1784215362.3884778,
+    "ast_hash": "d263e8418a54ee299b44ec2f254c34e7",
+    "semantic_hash": "d263e8418a54ee299b44ec2f254c34e7"
+  },
+  "Core/Inc/ma600.h": {
+    "mtime": 1784132503.4781177,
+    "ast_hash": "545fe2dfd7dd69f50b5e65c75c135e85",
+    "semantic_hash": "545fe2dfd7dd69f50b5e65c75c135e85"
+  },
+  "Core/Inc/ma600_acquisition.h": {
+    "mtime": 1785419544.020719,
+    "ast_hash": "aa1b15699fdd34c8bc3dce62afa8ac2b",
+    "semantic_hash": "aa1b15699fdd34c8bc3dce62afa8ac2b"
+  },
+  "Core/Inc/main.h": {
+    "mtime": 1783773377.879,
+    "ast_hash": "68b59bb0c423ba13871ae7ca35d83314",
+    "semantic_hash": "68b59bb0c423ba13871ae7ca35d83314"
+  },
+  "Core/Inc/motor.h": {
+    "mtime": 1784298788.7606378,
+    "ast_hash": "b5a2d94757be879e516d833e9c27f624",
+    "semantic_hash": "b5a2d94757be879e516d833e9c27f624"
+  },
+  "Core/Inc/motor_config.h": {
+    "mtime": 1784029272.6991198,
+    "ast_hash": "81dab5ab5b4c3acf67ef58a8538daa0c",
+    "semantic_hash": "81dab5ab5b4c3acf67ef58a8538daa0c"
+  },
+  "Core/Inc/motor_pwm.h": {
+    "mtime": 1784029272.7002485,
+    "ast_hash": "9a01c8473e99a80a34ca3dbecd97a871",
+    "semantic_hash": "9a01c8473e99a80a34ca3dbecd97a871"
+  },
+  "Core/Inc/nonlinear_test.h": {
+    "mtime": 1784029272.7013283,
+    "ast_hash": "534954ea35a1cceed459b01d02ff6be8",
+    "semantic_hash": "534954ea35a1cceed459b01d02ff6be8"
+  },
+  "Core/Inc/position_controller.h": {
+    "mtime": 1784138033.2812965,
+    "ast_hash": "8c0b11a8ba9003eca8707fff1ef76b27",
+    "semantic_hash": "8c0b11a8ba9003eca8707fff1ef76b27"
+  },
+  "Core/Inc/stm32f4xx_hal_conf.h": {
+    "mtime": 1783773377.669,
+    "ast_hash": "4fcbc52c1966b1ac73d3b0860efea53b",
+    "semantic_hash": "4fcbc52c1966b1ac73d3b0860efea53b"
+  },
+  "Core/Inc/stm32f4xx_it.h": {
+    "mtime": 1784132331.363274,
+    "ast_hash": "56278d333b60c6dc6420e0b5f6f9f3cf",
+    "semantic_hash": "56278d333b60c6dc6420e0b5f6f9f3cf"
+  },
+  "Core/Src/app_engine.c": {
+    "mtime": 1784213937.9767077,
+    "ast_hash": "7c71f71b0f742f4bda163e0feed762b3",
+    "semantic_hash": "7c71f71b0f742f4bda163e0feed762b3"
+  },
+  "Core/Src/control_a5_capture.c": {
+    "mtime": 1784644455.915797,
+    "ast_hash": "788ff74ed01a199251c01662a40ed051",
+    "semantic_hash": "788ff74ed01a199251c01662a40ed051"
+  },
+  "Core/Src/control_a5_math.c": {
+    "mtime": 1784644455.916336,
+    "ast_hash": "bffa8c90bfd556db137e09b687514490",
+    "semantic_hash": "bffa8c90bfd556db137e09b687514490"
+  },
+  "Core/Src/control_engine.c": {
+    "mtime": 1785419544.0227287,
+    "ast_hash": "35dae8d85f21b175fa75e943eba9cc97",
+    "semantic_hash": "35dae8d85f21b175fa75e943eba9cc97"
+  },
+  "Core/Src/freertos.c": {
+    "mtime": 1784029272.7023344,
+    "ast_hash": "07604d8ff6a3ea4db6de159e10238ee4",
+    "semantic_hash": "07604d8ff6a3ea4db6de159e10238ee4"
+  },
+  "Core/Src/ma600.c": {
+    "mtime": 1784132503.4791126,
+    "ast_hash": "f2b32b0143153429a2ec221642a07e22",
+    "semantic_hash": "f2b32b0143153429a2ec221642a07e22"
+  },
+  "Core/Src/ma600_acquisition.c": {
+    "mtime": 1784644455.9179182,
+    "ast_hash": "7ad2a6d38da075884c26ee037ba4b8a1",
+    "semantic_hash": "7ad2a6d38da075884c26ee037ba4b8a1"
+  },
+  "Core/Src/main.c": {
+    "mtime": 1784213987.7607098,
+    "ast_hash": "09d11369cdd1346d09b93b0b22d9e55e",
+    "semantic_hash": "09d11369cdd1346d09b93b0b22d9e55e"
+  },
+  "Core/Src/motor.c": {
+    "mtime": 1785285380.8513355,
+    "ast_hash": "f2a4e98186d9f10412aaaf41cc35a471",
+    "semantic_hash": "f2a4e98186d9f10412aaaf41cc35a471"
+  },
+  "Core/Src/motor_pwm.c": {
+    "mtime": 1785419544.0227287,
+    "ast_hash": "7c36af81f3f1bd54a6ae668f3ab2ee03",
+    "semantic_hash": "7c36af81f3f1bd54a6ae668f3ab2ee03"
+  },
+  "Core/Src/nonlinear_test.c": {
+    "mtime": 1785419544.0237195,
+    "ast_hash": "6df90124baab66634b5e9b32a0a99cd3",
+    "semantic_hash": "6df90124baab66634b5e9b32a0a99cd3"
+  },
+  "Core/Src/position_controller.c": {
+    "mtime": 1784138728.362599,
+    "ast_hash": "abf7d7a999c95e402b84745544f5e423",
+    "semantic_hash": "abf7d7a999c95e402b84745544f5e423"
+  },
+  "Core/Src/stm32f4xx_hal_msp.c": {
+    "mtime": 1784132331.362276,
+    "ast_hash": "afdced21b68949507158c29ffafa4241",
+    "semantic_hash": "afdced21b68949507158c29ffafa4241"
+  },
+  "Core/Src/stm32f4xx_hal_timebase_tim.c": {
+    "mtime": 1783773377.544,
+    "ast_hash": "f5d0659013f3b9be3a6f886c54d3ead2",
+    "semantic_hash": "f5d0659013f3b9be3a6f886c54d3ead2"
+  },
+  "Core/Src/stm32f4xx_it.c": {
+    "mtime": 1784132331.3642762,
+    "ast_hash": "73d397284a834b06fac6d1b758b0fd62",
+    "semantic_hash": "73d397284a834b06fac6d1b758b0fd62"
+  },
+  "Core/Src/syscalls.c": {
+    "mtime": 1783773398.097345,
+    "ast_hash": "96e857e1e72fba0891d2c2bbeb9d695e",
+    "semantic_hash": "96e857e1e72fba0891d2c2bbeb9d695e"
+  },
+  "Core/Src/sysmem.c": {
+    "mtime": 1783773398.0636384,
+    "ast_hash": "c322f3ee7d50a0cff5a77d61a23c8606",
+    "semantic_hash": "c322f3ee7d50a0cff5a77d61a23c8606"
+  },
+  "Core/Src/system_stm32f4xx.c": {
+    "mtime": 1783773221.6226175,
+    "ast_hash": "087224580ece313ab8ba52fe31edcbd9",
+    "semantic_hash": "087224580ece313ab8ba52fe31edcbd9"
+  },
+  "Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f405xx.h": {
+    "mtime": 1783773221.5077288,
+    "ast_hash": "95e0ef2093d14d63fbd43af5e395110b",
+    "semantic_hash": "95e0ef2093d14d63fbd43af5e395110b"
+  },
+  "Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h": {
+    "mtime": 1783773221.558911,
+    "ast_hash": "cedd4920cc4c8b62af5eec33f568558b",
+    "semantic_hash": "cedd4920cc4c8b62af5eec33f568558b"
+  },
+  "Drivers/CMSIS/Device/ST/STM32F4xx/Include/system_stm32f4xx.h": {
+    "mtime": 1783773221.5599134,
+    "ast_hash": "af33c8a0e63b0f0eb4e8b29c553f8f85",
+    "semantic_hash": "af33c8a0e63b0f0eb4e8b29c553f8f85"
+  },
+  "Drivers/CMSIS/Include/cmsis_armcc.h": {
+    "mtime": 1783773224.0092473,
+    "ast_hash": "d9ecdbb103e0b598d58fea36182656db",
+    "semantic_hash": "d9ecdbb103e0b598d58fea36182656db"
+  },
+  "Drivers/CMSIS/Include/cmsis_armclang.h": {
+    "mtime": 1783773224.0102468,
+    "ast_hash": "1339267ef03634b336354ac803991ca6",
+    "semantic_hash": "1339267ef03634b336354ac803991ca6"
+  },
+  "Drivers/CMSIS/Include/cmsis_compiler.h": {
+    "mtime": 1783773224.0102468,
+    "ast_hash": "c6d4aace8bc8ed71fe080e6b955c67c6",
+    "semantic_hash": "c6d4aace8bc8ed71fe080e6b955c67c6"
+  },
+  "Drivers/CMSIS/Include/cmsis_gcc.h": {
+    "mtime": 1783773224.011245,
+    "ast_hash": "ba7e4770884341336138fcec9d34fc09",
+    "semantic_hash": "ba7e4770884341336138fcec9d34fc09"
+  },
+  "Drivers/CMSIS/Include/cmsis_iccarm.h": {
+    "mtime": 1783773224.0122452,
+    "ast_hash": "192071118aa92f3707d0d440f5f4ee75",
+    "semantic_hash": "192071118aa92f3707d0d440f5f4ee75"
+  },
+  "Drivers/CMSIS/Include/cmsis_version.h": {
+    "mtime": 1783773224.0122452,
+    "ast_hash": "cacb641688416f3619b516b9bc59fdc3",
+    "semantic_hash": "cacb641688416f3619b516b9bc59fdc3"
+  },
+  "Drivers/CMSIS/Include/core_armv8mbl.h": {
+    "mtime": 1783773224.0132449,
+    "ast_hash": "676b97059875d75fa4c51c523aef153c",
+    "semantic_hash": "676b97059875d75fa4c51c523aef153c"
+  },
+  "Drivers/CMSIS/Include/core_armv8mml.h": {
+    "mtime": 1783773224.0132449,
+    "ast_hash": "108c80101b01af6859aa31cde48b73e4",
+    "semantic_hash": "108c80101b01af6859aa31cde48b73e4"
+  },
+  "Drivers/CMSIS/Include/core_cm0.h": {
+    "mtime": 1783773224.0143328,
+    "ast_hash": "0f3087a652b6362a6085e3551f4745e8",
+    "semantic_hash": "0f3087a652b6362a6085e3551f4745e8"
+  },
+  "Drivers/CMSIS/Include/core_cm0plus.h": {
+    "mtime": 1783773224.0153832,
+    "ast_hash": "a3bebd2418aa7a3f2aef50f0914624dc",
+    "semantic_hash": "a3bebd2418aa7a3f2aef50f0914624dc"
+  },
+  "Drivers/CMSIS/Include/core_cm1.h": {
+    "mtime": 1783773224.015899,
+    "ast_hash": "d5946786246ce8aadd9471f13bc2b834",
+    "semantic_hash": "d5946786246ce8aadd9471f13bc2b834"
+  },
+  "Drivers/CMSIS/Include/core_cm23.h": {
+    "mtime": 1783773224.015899,
+    "ast_hash": "5b3a1deb503bcc0e52f6e205c8ed76c3",
+    "semantic_hash": "5b3a1deb503bcc0e52f6e205c8ed76c3"
+  },
+  "Drivers/CMSIS/Include/core_cm3.h": {
+    "mtime": 1783773224.016905,
+    "ast_hash": "d2e6241b9ae8050e2b1d52fcf2965f17",
+    "semantic_hash": "d2e6241b9ae8050e2b1d52fcf2965f17"
+  },
+  "Drivers/CMSIS/Include/core_cm33.h": {
+    "mtime": 1783773224.0179098,
+    "ast_hash": "8feaa4c44744994a5395d1e487698056",
+    "semantic_hash": "8feaa4c44744994a5395d1e487698056"
+  },
+  "Drivers/CMSIS/Include/core_cm4.h": {
+    "mtime": 1783773224.0179098,
+    "ast_hash": "d92c9841b9de8fd67d852e8a65a138f8",
+    "semantic_hash": "d92c9841b9de8fd67d852e8a65a138f8"
+  },
+  "Drivers/CMSIS/Include/core_cm7.h": {
+    "mtime": 1783773224.0189092,
+    "ast_hash": "b8114115ceffdd2bf2b07a2a05909cc2",
+    "semantic_hash": "b8114115ceffdd2bf2b07a2a05909cc2"
+  },
+  "Drivers/CMSIS/Include/core_sc000.h": {
+    "mtime": 1783773224.01991,
+    "ast_hash": "b2e136ae2c650adca2ea38a92f8abdf4",
+    "semantic_hash": "b2e136ae2c650adca2ea38a92f8abdf4"
+  },
+  "Drivers/CMSIS/Include/core_sc300.h": {
+    "mtime": 1783773224.01991,
+    "ast_hash": "e910f4c2f39da6218a5eccb67908858d",
+    "semantic_hash": "e910f4c2f39da6218a5eccb67908858d"
+  },
+  "Drivers/CMSIS/Include/mpu_armv7.h": {
+    "mtime": 1783773224.0209095,
+    "ast_hash": "e3bb1b1024c4b933b565cdee12bccfaa",
+    "semantic_hash": "e3bb1b1024c4b933b565cdee12bccfaa"
+  },
+  "Drivers/CMSIS/Include/mpu_armv8.h": {
+    "mtime": 1783773224.0209095,
+    "ast_hash": "329b3f33cb92fa9e408d98c6b905b1ae",
+    "semantic_hash": "329b3f33cb92fa9e408d98c6b905b1ae"
+  },
+  "Drivers/CMSIS/Include/tz_context.h": {
+    "mtime": 1783773224.021911,
+    "ast_hash": "1c5f40a94063779b674e03bf6fb00259",
+    "semantic_hash": "1c5f40a94063779b674e03bf6fb00259"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h": {
+    "mtime": 1783773329.765754,
+    "ast_hash": "ed2d62c11cbbc356df8243a689150691",
+    "semantic_hash": "ed2d62c11cbbc356df8243a689150691"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h": {
+    "mtime": 1783773329.766261,
+    "ast_hash": "91d80c0a0449873984fd293789e2a91c",
+    "semantic_hash": "91d80c0a0449873984fd293789e2a91c"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h": {
+    "mtime": 1783773329.766261,
+    "ast_hash": "954842b77ffe6b2b73c532b35f9b5459",
+    "semantic_hash": "954842b77ffe6b2b73c532b35f9b5459"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h": {
+    "mtime": 1783773329.7672694,
+    "ast_hash": "5fafb4c55c24442c93b99b57ebf0e060",
+    "semantic_hash": "5fafb4c55c24442c93b99b57ebf0e060"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h": {
+    "mtime": 1783773329.7682698,
+    "ast_hash": "9dc25b7f2a85329ac477d947da91ded9",
+    "semantic_hash": "9dc25b7f2a85329ac477d947da91ded9"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h": {
+    "mtime": 1783773329.7712717,
+    "ast_hash": "b44ec6430765468a792e6f5a28c8238c",
+    "semantic_hash": "b44ec6430765468a792e6f5a28c8238c"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h": {
+    "mtime": 1783773329.7722692,
+    "ast_hash": "9faebfe407fcda0859b0d6de44ed228b",
+    "semantic_hash": "9faebfe407fcda0859b0d6de44ed228b"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h": {
+    "mtime": 1783773329.7732706,
+    "ast_hash": "0595671514d16fb54d98422515485b4f",
+    "semantic_hash": "0595671514d16fb54d98422515485b4f"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h": {
+    "mtime": 1783773329.7742684,
+    "ast_hash": "1689e55dddb59c115d3a95956353126e",
+    "semantic_hash": "1689e55dddb59c115d3a95956353126e"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h": {
+    "mtime": 1783773329.7752686,
+    "ast_hash": "7032fc4c2c6816f5a5cf5323deed0043",
+    "semantic_hash": "7032fc4c2c6816f5a5cf5323deed0043"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h": {
+    "mtime": 1783773329.7752686,
+    "ast_hash": "fee8d519d0b0c8b7732555aa9b8f876f",
+    "semantic_hash": "fee8d519d0b0c8b7732555aa9b8f876f"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h": {
+    "mtime": 1783773329.7757764,
+    "ast_hash": "aa8001578db43ca3112a50fb65b51ab4",
+    "semantic_hash": "aa8001578db43ca3112a50fb65b51ab4"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h": {
+    "mtime": 1783773329.7776537,
+    "ast_hash": "a68b8fe38a46444deddc82561ef9cd16",
+    "semantic_hash": "a68b8fe38a46444deddc82561ef9cd16"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h": {
+    "mtime": 1783773329.7776537,
+    "ast_hash": "4c94f8c608b55e2ea16e4a8a4c901d7d",
+    "semantic_hash": "4c94f8c608b55e2ea16e4a8a4c901d7d"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h": {
+    "mtime": 1783773329.7796547,
+    "ast_hash": "36ac57fb1b21e5e15148a8a30bdea065",
+    "semantic_hash": "36ac57fb1b21e5e15148a8a30bdea065"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h": {
+    "mtime": 1783773329.7796547,
+    "ast_hash": "13fb9d1f0b40fd699090d83c42ea3430",
+    "semantic_hash": "13fb9d1f0b40fd699090d83c42ea3430"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h": {
+    "mtime": 1783773329.785164,
+    "ast_hash": "20177fbede9643ea32f233589839a4df",
+    "semantic_hash": "20177fbede9643ea32f233589839a4df"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h": {
+    "mtime": 1783773329.7861762,
+    "ast_hash": "55a996625defe269b428a38694950daa",
+    "semantic_hash": "55a996625defe269b428a38694950daa"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h": {
+    "mtime": 1783773329.787213,
+    "ast_hash": "68b89cd88cfacc7c35636d15d8516bef",
+    "semantic_hash": "68b89cd88cfacc7c35636d15d8516bef"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h": {
+    "mtime": 1783773329.788212,
+    "ast_hash": "615135f97f9821dbdbf7548829a528cf",
+    "semantic_hash": "615135f97f9821dbdbf7548829a528cf"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h": {
+    "mtime": 1783773329.792213,
+    "ast_hash": "97f61d3afaf790013ef74758518286a7",
+    "semantic_hash": "97f61d3afaf790013ef74758518286a7"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h": {
+    "mtime": 1783773329.7932136,
+    "ast_hash": "dc890ba32df998b71009c58528599782",
+    "semantic_hash": "dc890ba32df998b71009c58528599782"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h": {
+    "mtime": 1783773329.794211,
+    "ast_hash": "dc1a4358be1f523106618005d5846bed",
+    "semantic_hash": "dc1a4358be1f523106618005d5846bed"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h": {
+    "mtime": 1783773329.794211,
+    "ast_hash": "7ff6947ee112e4566eecb642c8765272",
+    "semantic_hash": "7ff6947ee112e4566eecb642c8765272"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h": {
+    "mtime": 1783773329.796252,
+    "ast_hash": "17f5300831e213d81c76331fd8c41b04",
+    "semantic_hash": "17f5300831e213d81c76331fd8c41b04"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_bus.h": {
+    "mtime": 1783773329.7970204,
+    "ast_hash": "9936f9a65f4e82ce1ca4973b3ef07fd4",
+    "semantic_hash": "9936f9a65f4e82ce1ca4973b3ef07fd4"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_cortex.h": {
+    "mtime": 1783773329.7970204,
+    "ast_hash": "6983403be860dc93aa02e9ebaddd799d",
+    "semantic_hash": "6983403be860dc93aa02e9ebaddd799d"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_dma.h": {
+    "mtime": 1783773329.7990274,
+    "ast_hash": "bd59910eb1fd74a8d7b1aee391f72a06",
+    "semantic_hash": "bd59910eb1fd74a8d7b1aee391f72a06"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_exti.h": {
+    "mtime": 1783773329.7990274,
+    "ast_hash": "159c2df3c869129685d2051112c4cf47",
+    "semantic_hash": "159c2df3c869129685d2051112c4cf47"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_gpio.h": {
+    "mtime": 1783773329.8010306,
+    "ast_hash": "fddb31022781e23e710457c4a939d379",
+    "semantic_hash": "fddb31022781e23e710457c4a939d379"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_i2c.h": {
+    "mtime": 1783773329.8020303,
+    "ast_hash": "4e55588297083534ff395d09d78bca47",
+    "semantic_hash": "4e55588297083534ff395d09d78bca47"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_pwr.h": {
+    "mtime": 1783773329.8030324,
+    "ast_hash": "1f4df93980b6303ebebb63b09325152e",
+    "semantic_hash": "1f4df93980b6303ebebb63b09325152e"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_rcc.h": {
+    "mtime": 1783773329.80403,
+    "ast_hash": "5353c421aeca6637f8b431560dc3ef37",
+    "semantic_hash": "5353c421aeca6637f8b431560dc3ef37"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_system.h": {
+    "mtime": 1783773329.8060663,
+    "ast_hash": "dfcbba02f807db14a95c2bed5b1e91ea",
+    "semantic_hash": "dfcbba02f807db14a95c2bed5b1e91ea"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_tim.h": {
+    "mtime": 1783773329.8070786,
+    "ast_hash": "ef64bf3f15ba280286303389ec826356",
+    "semantic_hash": "ef64bf3f15ba280286303389ec826356"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h": {
+    "mtime": 1783773329.8080769,
+    "ast_hash": "606c1f799c0a674fcb86e497e1ad8e5b",
+    "semantic_hash": "606c1f799c0a674fcb86e497e1ad8e5b"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_utils.h": {
+    "mtime": 1783773329.8080769,
+    "ast_hash": "55745c7b50f78599081842e6a51788dc",
+    "semantic_hash": "55745c7b50f78599081842e6a51788dc"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c": {
+    "mtime": 1783773329.8140779,
+    "ast_hash": "ed050bda1e53beeb834589cfa96d87fb",
+    "semantic_hash": "ed050bda1e53beeb834589cfa96d87fb"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c": {
+    "mtime": 1783773329.8140779,
+    "ast_hash": "fb1f7bfe144cb34be6eae18566849f9a",
+    "semantic_hash": "fb1f7bfe144cb34be6eae18566849f9a"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c": {
+    "mtime": 1783773329.8150773,
+    "ast_hash": "b6ff39ab3d14a26ca7378888a1221b0b",
+    "semantic_hash": "b6ff39ab3d14a26ca7378888a1221b0b"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c": {
+    "mtime": 1783773329.8161044,
+    "ast_hash": "1d46d470c37796791a913eb163228c31",
+    "semantic_hash": "1d46d470c37796791a913eb163228c31"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c": {
+    "mtime": 1783773329.8200474,
+    "ast_hash": "f3e1a8ee0c29f16e47dbc4d10e490b49",
+    "semantic_hash": "f3e1a8ee0c29f16e47dbc4d10e490b49"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c": {
+    "mtime": 1783773329.8210561,
+    "ast_hash": "22837bc950912a1a47c0d9e9e87ff720",
+    "semantic_hash": "22837bc950912a1a47c0d9e9e87ff720"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c": {
+    "mtime": 1783773329.8220563,
+    "ast_hash": "07c7035403a9b4b15503f4745c7c690e",
+    "semantic_hash": "07c7035403a9b4b15503f4745c7c690e"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c": {
+    "mtime": 1783773329.823056,
+    "ast_hash": "b43ed9f19c5903267a544b9e07b351b1",
+    "semantic_hash": "b43ed9f19c5903267a544b9e07b351b1"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c": {
+    "mtime": 1783773329.823056,
+    "ast_hash": "c1cd8c94ebdb72db6683441eab961bec",
+    "semantic_hash": "c1cd8c94ebdb72db6683441eab961bec"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c": {
+    "mtime": 1783773329.824056,
+    "ast_hash": "0b85c841d97f7a0812b79314c2b6f351",
+    "semantic_hash": "0b85c841d97f7a0812b79314c2b6f351"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c": {
+    "mtime": 1783773329.8263564,
+    "ast_hash": "44e65f3478d016b91d27f8cea9425f73",
+    "semantic_hash": "44e65f3478d016b91d27f8cea9425f73"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c": {
+    "mtime": 1783773329.828361,
+    "ast_hash": "474d755be4f5f6d00a71ce657fb068fb",
+    "semantic_hash": "474d755be4f5f6d00a71ce657fb068fb"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c": {
+    "mtime": 1783773329.828361,
+    "ast_hash": "d72446d392039ddb89bed534b1e66cf9",
+    "semantic_hash": "d72446d392039ddb89bed534b1e66cf9"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c": {
+    "mtime": 1783773329.8354025,
+    "ast_hash": "69f9472f9773654d2b2ea47699c28e23",
+    "semantic_hash": "69f9472f9773654d2b2ea47699c28e23"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c": {
+    "mtime": 1783773329.8359087,
+    "ast_hash": "cf344e661f49d91dda18ef4ae9d344de",
+    "semantic_hash": "cf344e661f49d91dda18ef4ae9d344de"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c": {
+    "mtime": 1783773329.8369162,
+    "ast_hash": "01526c9dc4dfd4e895095d3e0bf5be1c",
+    "semantic_hash": "01526c9dc4dfd4e895095d3e0bf5be1c"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c": {
+    "mtime": 1783773329.8369162,
+    "ast_hash": "5deb430a63eaaebdaad3073679eed339",
+    "semantic_hash": "5deb430a63eaaebdaad3073679eed339"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c": {
+    "mtime": 1783773329.841916,
+    "ast_hash": "18a3b61391a5dfbf07ae068b67eb1098",
+    "semantic_hash": "18a3b61391a5dfbf07ae068b67eb1098"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c": {
+    "mtime": 1783773329.8429165,
+    "ast_hash": "e9fb97f353eb4e3ed08349b83ebcd802",
+    "semantic_hash": "e9fb97f353eb4e3ed08349b83ebcd802"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c": {
+    "mtime": 1783773329.8454192,
+    "ast_hash": "6c327d14d88a98f0fa399975317e7efe",
+    "semantic_hash": "6c327d14d88a98f0fa399975317e7efe"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c": {
+    "mtime": 1783773329.8460162,
+    "ast_hash": "55226f13afdf9cfd57a03fd3dd743134",
+    "semantic_hash": "55226f13afdf9cfd57a03fd3dd743134"
+  },
+  "Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c": {
+    "mtime": 1783773329.846807,
+    "ast_hash": "66d399f2d24ead64120825205c40acf8",
+    "semantic_hash": "66d399f2d24ead64120825205c40acf8"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h": {
+    "mtime": 1783773226.1106396,
+    "ast_hash": "61b322d17e5c51494983f63fbdcaca37",
+    "semantic_hash": "61b322d17e5c51494983f63fbdcaca37"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c": {
+    "mtime": 1783773226.1106396,
+    "ast_hash": "8988856276b40fbb2cf485ebc74c216c",
+    "semantic_hash": "8988856276b40fbb2cf485ebc74c216c"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h": {
+    "mtime": 1783773226.1106396,
+    "ast_hash": "a03c86c3b1bece2e447df34643aafc0b",
+    "semantic_hash": "a03c86c3b1bece2e447df34643aafc0b"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/freertos_mpool.h": {
+    "mtime": 1783773226.1119018,
+    "ast_hash": "d31de8d32c31cdee9c31e43afd82d17d",
+    "semantic_hash": "d31de8d32c31cdee9c31e43afd82d17d"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/freertos_os2.h": {
+    "mtime": 1783773226.1128993,
+    "ast_hash": "a26347dee643c433caa7b4b33535826f",
+    "semantic_hash": "a26347dee643c433caa7b4b33535826f"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/croutine.c": {
+    "mtime": 1783773226.1128993,
+    "ast_hash": "324efe873d198e018e17b09861be2f77",
+    "semantic_hash": "324efe873d198e018e17b09861be2f77"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/event_groups.c": {
+    "mtime": 1783773226.1145253,
+    "ast_hash": "e4feb4714ef0e03599d251e524523476",
+    "semantic_hash": "e4feb4714ef0e03599d251e524523476"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h": {
+    "mtime": 1783773226.1199758,
+    "ast_hash": "05695ef107fc6a4aefa8bc9f14d8a018",
+    "semantic_hash": "05695ef107fc6a4aefa8bc9f14d8a018"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/StackMacros.h": {
+    "mtime": 1783773226.1244104,
+    "ast_hash": "159a063ba39bfb91c6dac869fc025e1e",
+    "semantic_hash": "159a063ba39bfb91c6dac869fc025e1e"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/atomic.h": {
+    "mtime": 1783773226.1168144,
+    "ast_hash": "07b9f239630dd9cef6310614527778fa",
+    "semantic_hash": "07b9f239630dd9cef6310614527778fa"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/croutine.h": {
+    "mtime": 1783773226.117976,
+    "ast_hash": "39e1e0cdf91d8871ee974d9e1242e9ce",
+    "semantic_hash": "39e1e0cdf91d8871ee974d9e1242e9ce"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h": {
+    "mtime": 1783773226.117976,
+    "ast_hash": "fcca417a1e48d284540051243896872a",
+    "semantic_hash": "fcca417a1e48d284540051243896872a"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h": {
+    "mtime": 1783773226.118976,
+    "ast_hash": "9277169a4ded2c94fe584fafc31c6a86",
+    "semantic_hash": "9277169a4ded2c94fe584fafc31c6a86"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/list.h": {
+    "mtime": 1783773226.1199758,
+    "ast_hash": "32966c16d63cc02c3c2085bb611d99cf",
+    "semantic_hash": "32966c16d63cc02c3c2085bb611d99cf"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/message_buffer.h": {
+    "mtime": 1783773226.1214101,
+    "ast_hash": "cc63a8ace5179fdf5951943e7b9cb6ab",
+    "semantic_hash": "cc63a8ace5179fdf5951943e7b9cb6ab"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/mpu_prototypes.h": {
+    "mtime": 1783773226.1214101,
+    "ast_hash": "9e3c83d669c1e09d83e9b34bdf365b34",
+    "semantic_hash": "9e3c83d669c1e09d83e9b34bdf365b34"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h": {
+    "mtime": 1783773226.1224086,
+    "ast_hash": "d2688d98e17963916dd58c8a54d2ef3c",
+    "semantic_hash": "d2688d98e17963916dd58c8a54d2ef3c"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/portable.h": {
+    "mtime": 1783773226.1224086,
+    "ast_hash": "e840e66f546b20c0566f6a36dce43f25",
+    "semantic_hash": "e840e66f546b20c0566f6a36dce43f25"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h": {
+    "mtime": 1783773226.1234095,
+    "ast_hash": "97308171ff91a1a07099a569c05b3eb7",
+    "semantic_hash": "97308171ff91a1a07099a569c05b3eb7"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/queue.h": {
+    "mtime": 1783773226.1234095,
+    "ast_hash": "9ae99e0593f6fb04bc9aa05c6a5d4566",
+    "semantic_hash": "9ae99e0593f6fb04bc9aa05c6a5d4566"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h": {
+    "mtime": 1783773226.1244104,
+    "ast_hash": "b2aeb1e4bbd2c332c4eea4bd961f873d",
+    "semantic_hash": "b2aeb1e4bbd2c332c4eea4bd961f873d"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/stack_macros.h": {
+    "mtime": 1783773226.125409,
+    "ast_hash": "1a7266bdd60ee58649971f5fb9486021",
+    "semantic_hash": "1a7266bdd60ee58649971f5fb9486021"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/stream_buffer.h": {
+    "mtime": 1783773226.1259122,
+    "ast_hash": "ae50000d54739a2fecfda69d560b86af",
+    "semantic_hash": "ae50000d54739a2fecfda69d560b86af"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/task.h": {
+    "mtime": 1783773226.1269271,
+    "ast_hash": "d32690b14c9d0468891bf5e050752363",
+    "semantic_hash": "d32690b14c9d0468891bf5e050752363"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/include/timers.h": {
+    "mtime": 1783773226.1279328,
+    "ast_hash": "6c03cb4f5c43f4e8195fac8aa7087e34",
+    "semantic_hash": "6c03cb4f5c43f4e8195fac8aa7087e34"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/list.c": {
+    "mtime": 1783773226.128934,
+    "ast_hash": "37dd2e62432352aebec83527568c6a95",
+    "semantic_hash": "37dd2e62432352aebec83527568c6a95"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c": {
+    "mtime": 1783773226.1563647,
+    "ast_hash": "1aa31963b59d374ee2096bbebeac12d0",
+    "semantic_hash": "1aa31963b59d374ee2096bbebeac12d0"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/portmacro.h": {
+    "mtime": 1783773226.157373,
+    "ast_hash": "2f588c676c107f3d951beafdb8be240c",
+    "semantic_hash": "2f588c676c107f3d951beafdb8be240c"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c": {
+    "mtime": 1783773226.2014465,
+    "ast_hash": "d99d733b61c082b91d4b48dfb4c17242",
+    "semantic_hash": "d99d733b61c082b91d4b48dfb4c17242"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/queue.c": {
+    "mtime": 1783773226.2208183,
+    "ast_hash": "09d9203a1eed33c92b33443d5d63bae9",
+    "semantic_hash": "09d9203a1eed33c92b33443d5d63bae9"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c": {
+    "mtime": 1783773226.2222617,
+    "ast_hash": "d7a0df783d17f04994644d67f713714c",
+    "semantic_hash": "d7a0df783d17f04994644d67f713714c"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/tasks.c": {
+    "mtime": 1783773226.2242732,
+    "ast_hash": "3077f31cd8847126f862071429f26fca",
+    "semantic_hash": "3077f31cd8847126f862071429f26fca"
+  },
+  "Middlewares/Third_Party/FreeRTOS/Source/timers.c": {
+    "mtime": 1783773226.2242732,
+    "ast_hash": "5a863362583252b1bb248767fbee5205",
+    "semantic_hash": "5a863362583252b1bb248767fbee5205"
+  },
+  "analysis/matlab/a3/analyze_a3_batch.m": {
+    "mtime": 1784645720.5193896,
+    "ast_hash": "fdfeff7191f866e91e92f653d5566a01",
+    "semantic_hash": "fdfeff7191f866e91e92f653d5566a01"
+  },
+  "analysis/matlab/a4/analyze_a4_batch.m": {
+    "mtime": 1784645514.2874036,
+    "ast_hash": "becd23c9b0f962793e769f283c5a0df5",
+    "semantic_hash": "becd23c9b0f962793e769f283c5a0df5"
+  },
+  "analysis/matlab/a4/analyze_a4_torque_margin_batch.m": {
+    "mtime": 1784988377.7152324,
+    "ast_hash": "f0631a894bd63ab23e7cd677a5a51826",
+    "semantic_hash": "f0631a894bd63ab23e7cd677a5a51826"
+  },
+  "analysis/matlab/a4/compute_a4_run_metrics.m": {
+    "mtime": 1784645495.028238,
+    "ast_hash": "a7ccca80a6bd8000ecfbca2e0e883167",
+    "semantic_hash": "a7ccca80a6bd8000ecfbca2e0e883167"
+  },
+  "analysis/matlab/a4/compute_a4_torque_margin.m": {
+    "mtime": 1784988355.4353993,
+    "ast_hash": "c7321fa916cf0b0b80505821232ce015",
+    "semantic_hash": "c7321fa916cf0b0b80505821232ce015"
+  },
+  "analysis/matlab/a4/crosscheck_a4_metrics.m": {
+    "mtime": 1784645529.1839726,
+    "ast_hash": "71d3e5db425ff0510f646fa53cfcbc70",
+    "semantic_hash": "71d3e5db425ff0510f646fa53cfcbc70"
+  },
+  "analysis/matlab/a5/analyze_a5_batch.m": {
+    "mtime": 1784646017.6085088,
+    "ast_hash": "cdcc9654efdeefb63ca077d1dfcb6fa9",
+    "semantic_hash": "cdcc9654efdeefb63ca077d1dfcb6fa9"
+  },
+  "analysis/matlab/a5/compute_a5_run_metrics.m": {
+    "mtime": 1784645767.8079462,
+    "ast_hash": "30a2075c1624251acb90979cbd02f664",
+    "semantic_hash": "30a2075c1624251acb90979cbd02f664"
+  },
+  "analysis/matlab/a5/crosscheck_a5_metrics.m": {
+    "mtime": 1784646028.93872,
+    "ast_hash": "0e4dabdabdd87196020b3b35552fcc11",
+    "semantic_hash": "0e4dabdabdd87196020b3b35552fcc11"
+  },
+  "analysis/matlab/b0b/analyze_b0b_a0_v3_method.m": {
+    "mtime": 1784906686.4812188,
+    "ast_hash": "a84685a6f658586e8000b74c2c96323f",
+    "semantic_hash": "a84685a6f658586e8000b74c2c96323f"
+  },
+  "analysis/matlab/b0b/analyze_b0b_creep.m": {
+    "mtime": 1784647564.103014,
+    "ast_hash": "ebc45c0c29f94aa010c2f964ad0c423d",
+    "semantic_hash": "ebc45c0c29f94aa010c2f964ad0c423d"
+  },
+  "analysis/matlab/b0b/analyze_b0b_metric_relationships.m": {
+    "mtime": 1784730764.1872256,
+    "ast_hash": "e0e8ddaff2cd97d62460fd6e816bb91e",
+    "semantic_hash": "e0e8ddaff2cd97d62460fd6e816bb91e"
+  },
+  "analysis/matlab/b0b/analyze_b0b_precondition.m": {
+    "mtime": 1784647588.6447625,
+    "ast_hash": "0670250a364c723edc6c615f04ddc4b8",
+    "semantic_hash": "0670250a364c723edc6c615f04ddc4b8"
+  },
+  "analysis/matlab/b0b/analyze_b0b_transient.m": {
+    "mtime": 1784646902.3768964,
+    "ast_hash": "a1b20ec2e903499bf884a0dc56c48fce",
+    "semantic_hash": "a1b20ec2e903499bf884a0dc56c48fce"
+  },
+  "analysis/matlab/b0b/analyze_b0b_v2_a0_multimotor.m": {
+    "mtime": 1784906686.4822388,
+    "ast_hash": "d599a0221612a9aa6b83f6a5532bd492",
+    "semantic_hash": "d599a0221612a9aa6b83f6a5532bd492"
+  },
+  "analysis/matlab/b0b/compare_b0b_a0_v3.m": {
+    "mtime": 1784906686.4832458,
+    "ast_hash": "13ab4dd7a1e306e995a21fec68aeccda",
+    "semantic_hash": "13ab4dd7a1e306e995a21fec68aeccda"
+  },
+  "analysis/matlab/b0b/extract_b0b_method_runs.m": {
+    "mtime": 1784906686.4843926,
+    "ast_hash": "2c1c2261ed7e617931c6e84e1f078d47",
+    "semantic_hash": "2c1c2261ed7e617931c6e84e1f078d47"
+  },
+  "analysis/matlab/b0b/parse_b0b_log.m": {
+    "mtime": 1784646880.4107394,
+    "ast_hash": "f9e3a272359f460f38e31fb2bcb2d960",
+    "semantic_hash": "f9e3a272359f460f38e31fb2bcb2d960"
+  },
+  "analysis/matlab/b0b/run_b0b_measurement_method_study.m": {
+    "mtime": 1784906686.4854417,
+    "ast_hash": "161fbd0989e034c7d65ac6b84705d84d",
+    "semantic_hash": "161fbd0989e034c7d65ac6b84705d84d"
+  },
+  "analysis/matlab/build_a2_circular_significance.m": {
+    "mtime": 1784359548.9814405,
+    "ast_hash": "de6d1d70b1e86b1f256ea1f26bb12bf3",
+    "semantic_hash": "de6d1d70b1e86b1f256ea1f26bb12bf3"
+  },
+  "analysis/matlab/build_a2_profile_summary.m": {
+    "mtime": 1784358712.5288868,
+    "ast_hash": "b22b1499b435b247bcc2116023e917b9",
+    "semantic_hash": "b22b1499b435b247bcc2116023e917b9"
+  },
+  "analysis/matlab/build_a2_safety_envelope.m": {
+    "mtime": 1784359515.9460838,
+    "ast_hash": "a6d8efab47b9527971c87c1cf1d81a42",
+    "semantic_hash": "a6d8efab47b9527971c87c1cf1d81a42"
+  },
+  "analysis/matlab/compute_a2_metrics.m": {
+    "mtime": 1784354645.7381017,
+    "ast_hash": "3df25b469a960875454ba3a2c72dd57e",
+    "semantic_hash": "3df25b469a960875454ba3a2c72dd57e"
+  },
+  "analysis/matlab/compute_circular_significance.m": {
+    "mtime": 1784359505.5941472,
+    "ast_hash": "23bce6f7f96e3d379676d5cb3a752f48",
+    "semantic_hash": "23bce6f7f96e3d379676d5cb3a752f48"
+  },
+  "analysis/matlab/compute_circular_stats.m": {
+    "mtime": 1784354420.186113,
+    "ast_hash": "79874dac51a81625d8e998e71ac21084",
+    "semantic_hash": "79874dac51a81625d8e998e71ac21084"
+  },
+  "analysis/matlab/crosscheck_a2_metrics.m": {
+    "mtime": 1784358706.5373285,
+    "ast_hash": "3144adc00af63f724f80ab2f7b392cc4",
+    "semantic_hash": "3144adc00af63f724f80ab2f7b392cc4"
+  },
+  "analysis/matlab/estimate_a2_power_ceiling.m": {
+    "mtime": 1784359526.5707624,
+    "ast_hash": "baa9ff5cb9341026800de906876efd22",
+    "semantic_hash": "baa9ff5cb9341026800de906876efd22"
+  },
+  "analysis/matlab/export_a2_report.m": {
+    "mtime": 1784360458.1087916,
+    "ast_hash": "79d64d7d042d2022a7e3d4264fe989f9",
+    "semantic_hash": "79d64d7d042d2022a7e3d4264fe989f9"
+  },
+  "analysis/matlab/fit_a2_restoring_torque.m": {
+    "mtime": 1784360374.000875,
+    "ast_hash": "b281331a5bc6f3021c9e60906ea22a4d",
+    "semantic_hash": "b281331a5bc6f3021c9e60906ea22a4d"
+  },
+  "analysis/matlab/health/analyze_acquisition_health.m": {
+    "mtime": 1785165392.4317234,
+    "ast_hash": "80dd3dbd3947a82027267b4a5948b915",
+    "semantic_hash": "80dd3dbd3947a82027267b4a5948b915"
+  },
+  "analysis/matlab/health/analyze_pid_timing_jitter.m": {
+    "mtime": 1785165429.295097,
+    "ast_hash": "da806bc732b4f48b33a32633616b04e6",
+    "semantic_hash": "da806bc732b4f48b33a32633616b04e6"
+  },
+  "analysis/matlab/health/analyze_sensor_noise_floor.m": {
+    "mtime": 1785165659.828376,
+    "ast_hash": "4dcafd6d9b53a1ea00fa8c6a878c58f5",
+    "semantic_hash": "4dcafd6d9b53a1ea00fa8c6a878c58f5"
+  },
+  "analysis/matlab/load_a2_evidence.m": {
+    "mtime": 1784354420.1845717,
+    "ast_hash": "d9a3a6e809d23a15e0c78581b52b8dc6",
+    "semantic_hash": "d9a3a6e809d23a15e0c78581b52b8dc6"
+  },
+  "analysis/matlab/load_a2_summary.m": {
+    "mtime": 1784354420.1837437,
+    "ast_hash": "dc28c0fdbfa0946ae8eacafaf4fd6469",
+    "semantic_hash": "dc28c0fdbfa0946ae8eacafaf4fd6469"
+  },
+  "analysis/matlab/nl/analyze_cross_jig_point_delta.m": {
+    "mtime": 1785510944.194389,
+    "ast_hash": "849d440e6f9171813279d6605f12b872",
+    "semantic_hash": "849d440e6f9171813279d6605f12b872"
+  },
+  "analysis/matlab/nl/analyze_deadtime_harmonic_signature.m": {
+    "mtime": 1785508992.6009119,
+    "ast_hash": "1bb5e84e67c76459136ee4a5f716fd11",
+    "semantic_hash": "1bb5e84e67c76459136ee4a5f716fd11"
+  },
+  "analysis/matlab/nl/analyze_full_curve_quality.m": {
+    "mtime": 1785509783.3232765,
+    "ast_hash": "c7c391357c1f3af46ce6796ed16187b4",
+    "semantic_hash": "c7c391357c1f3af46ce6796ed16187b4"
+  },
+  "analysis/matlab/nl/analyze_jig_delta.m": {
+    "mtime": 1785163900.4097364,
+    "ast_hash": "59645f2bd6ed58d374c5a8a214b6fc71",
+    "semantic_hash": "59645f2bd6ed58d374c5a8a214b6fc71"
+  },
+  "analysis/matlab/nl/analyze_nl_extreme_angles.m": {
+    "mtime": 1785431091.0535903,
+    "ast_hash": "c2bd4af8a9f7edeb51142573ddbf9c41",
+    "semantic_hash": "c2bd4af8a9f7edeb51142573ddbf9c41"
+  },
+  "analysis/matlab/nl/analyze_nl_factors.m": {
+    "mtime": 1784985510.3526013,
+    "ast_hash": "be102e85ac156dc37d3e7a17078e996d",
+    "semantic_hash": "be102e85ac156dc37d3e7a17078e996d"
+  },
+  "analysis/matlab/nl/analyze_nl_stability_batch.m": {
+    "mtime": 1784730861.4914005,
+    "ast_hash": "39c451e638689971cc59d16ba8966809",
+    "semantic_hash": "39c451e638689971cc59d16ba8966809"
+  },
+  "analysis/matlab/nl/build_nl_group_curve.m": {
+    "mtime": 1785431046.7468276,
+    "ast_hash": "a4295faba549dc97e47f0a9674e7533e",
+    "semantic_hash": "a4295faba549dc97e47f0a9674e7533e"
+  },
+  "analysis/matlab/nl/build_session_feature_table.m": {
+    "mtime": 1785514800.244733,
+    "ast_hash": "271fb10d451fb813be6c7a1796b9ab92",
+    "semantic_hash": "271fb10d451fb813be6c7a1796b9ab92"
+  },
+  "analysis/matlab/nl/compare_features_across_jigs.m": {
+    "mtime": 1785514950.8575468,
+    "ast_hash": "7495e89ef69c86ce09fe34af0e827cf9",
+    "semantic_hash": "7495e89ef69c86ce09fe34af0e827cf9"
+  },
+  "analysis/matlab/nl/compare_nl_group_curves.m": {
+    "mtime": 1785431076.2533312,
+    "ast_hash": "dc8500bbcf5e56afbf6e0a1014fd668b",
+    "semantic_hash": "dc8500bbcf5e56afbf6e0a1014fd668b"
+  },
+  "analysis/matlab/nl/compute_harmonic_spectrum.m": {
+    "mtime": 1785508946.8734722,
+    "ast_hash": "b01a0bc1558b6a73af74b52e5c2d1cb9",
+    "semantic_hash": "b01a0bc1558b6a73af74b52e5c2d1cb9"
+  },
+  "analysis/matlab/nl/compute_nl_stability_stats.m": {
+    "mtime": 1784730837.2227018,
+    "ast_hash": "437149cbbabd03fddc63db79a27cea79",
+    "semantic_hash": "437149cbbabd03fddc63db79a27cea79"
+  },
+  "analysis/matlab/nl/compute_nl_sweep_metrics.m": {
+    "mtime": 1784730786.6533716,
+    "ast_hash": "45ab70aea4ed0402de9e2ae1cae6ae33",
+    "semantic_hash": "45ab70aea4ed0402de9e2ae1cae6ae33"
+  },
+  "analysis/matlab/nl/correct_delta_for_sector.m": {
+    "mtime": 1785164694.7269833,
+    "ast_hash": "560d8acd25d3af8cd981a17ecf6e9829",
+    "semantic_hash": "560d8acd25d3af8cd981a17ecf6e9829"
+  },
+  "analysis/matlab/nl/find_outlier_mount_sessions.m": {
+    "mtime": 1785513530.1718383,
+    "ast_hash": "79bae6ee61d15773985b1086753c429e",
+    "semantic_hash": "79bae6ee61d15773985b1086753c429e"
+  },
+  "analysis/matlab/nl/fit_sector_response.m": {
+    "mtime": 1785164684.8445857,
+    "ast_hash": "8ff042c6bdc37e04cce43bfbd3a45439",
+    "semantic_hash": "8ff042c6bdc37e04cce43bfbd3a45439"
+  },
+  "analysis/matlab/nl/parse_nl_log.m": {
+    "mtime": 1785514775.9116364,
+    "ast_hash": "b2b221dfdb9c9d2c709b25f32a592453",
+    "semantic_hash": "b2b221dfdb9c9d2c709b25f32a592453"
+  },
+  "analysis/matlab/nl/parse_sector_calibration_log.m": {
+    "mtime": 1785166877.6429255,
+    "ast_hash": "2045a9ee2e9e3c0cae54fb5ae8e7e987",
+    "semantic_hash": "2045a9ee2e9e3c0cae54fb5ae8e7e987"
+  },
+  "analysis/matlab/nl/rank_motor_nl_quality.m": {
+    "mtime": 1785431719.4783783,
+    "ast_hash": "65699a76fb4d2d1c0652f62ea43b291d",
+    "semantic_hash": "65699a76fb4d2d1c0652f62ea43b291d"
+  },
+  "analysis/matlab/nl/sector_match_gate.m": {
+    "mtime": 1785164709.2315788,
+    "ast_hash": "a1080f218f879b2e806b568e09979aac",
+    "semantic_hash": "a1080f218f879b2e806b568e09979aac"
+  },
+  "analysis/matlab/parse_control_log.m": {
+    "mtime": 1784645107.5681872,
+    "ast_hash": "96ab970b69b9f4340b3263a714b31741",
+    "semantic_hash": "96ab970b69b9f4340b3263a714b31741"
+  },
+  "analysis/matlab/plot_a2_power_envelope.m": {
+    "mtime": 1784354518.8140714,
+    "ast_hash": "fa41a2bde0ba9e5623de5f4c84d6dee3",
+    "semantic_hash": "fa41a2bde0ba9e5623de5f4c84d6dee3"
+  },
+  "analysis/matlab/plot_a2_run.m": {
+    "mtime": 1784355103.8398294,
+    "ast_hash": "8a1e83aa6862028acd2a25dc5489b9eb",
+    "semantic_hash": "8a1e83aa6862028acd2a25dc5489b9eb"
+  },
+  "analysis/matlab/run_a2_power_envelope.m": {
+    "mtime": 1784360434.0421822,
+    "ast_hash": "67cbc150aecd542c25519e3af357aa43",
+    "semantic_hash": "67cbc150aecd542c25519e3af357aa43"
+  },
+  "analysis/matlab/sha256_file.m": {
+    "mtime": 1784354420.186113,
+    "ast_hash": "fd9330c9cb98d1c690b634c822d475a3",
+    "semantic_hash": "fd9330c9cb98d1c690b634c822d475a3"
+  },
+  "analysis/matlab/tests/test_a2_analysis.m": {
+    "mtime": 1784360412.286479,
+    "ast_hash": "363a558863247d191e5d0f619c530eb9",
+    "semantic_hash": "363a558863247d191e5d0f619c530eb9"
+  },
+  "analysis/matlab/tests/test_a3_a4_a5_analysis.m": {
+    "mtime": 1784988387.4972873,
+    "ast_hash": "c42cb6af21e844be512f944cf3c998bb",
+    "semantic_hash": "c42cb6af21e844be512f944cf3c998bb"
+  },
+  "analysis/matlab/tests/test_b0b_analysis.m": {
+    "mtime": 1784906078.6057553,
+    "ast_hash": "fdb8430be0bdc315bfcff179db12974e",
+    "semantic_hash": "fdb8430be0bdc315bfcff179db12974e"
+  },
+  "analysis/matlab/tests/test_health_analysis.m": {
+    "mtime": 1785165674.0270255,
+    "ast_hash": "9e6c09f8e9ea7b9886edffcaf5223ff8",
+    "semantic_hash": "9e6c09f8e9ea7b9886edffcaf5223ff8"
+  },
+  "analysis/matlab/tests/test_nl_stability_analysis.m": {
+    "mtime": 1785514912.4976532,
+    "ast_hash": "b169c9329b9e74f11a3c5a7af3c4086a",
+    "semantic_hash": "b169c9329b9e74f11a3c5a7af3c4086a"
+  },
+  "analysis/matlab/validate_a2_schema.m": {
+    "mtime": 1784354420.1845717,
+    "ast_hash": "bd44db65d59ddf363c17c7ea54f0872c",
+    "semantic_hash": "bd44db65d59ddf363c17c7ea54f0872c"
+  },
+  "data test/gremsyMotor.c": {
+    "mtime": 1784644455.9593556,
+    "ast_hash": "0a51c62e965cec80b7141fd7f0f410fd",
+    "semantic_hash": "0a51c62e965cec80b7141fd7f0f410fd"
+  },
+  "data test/gremsyMotor.h": {
+    "mtime": 1784644455.9598777,
+    "ast_hash": "e44bc7a08bbe8bebd1bd2c0dafb5453d",
+    "semantic_hash": "e44bc7a08bbe8bebd1bd2c0dafb5453d"
+  },
+  "docs/gremsyProfiles_PM1505.h": {
+    "mtime": 1784029272.7190623,
+    "ast_hash": "dbabf33ffbb6a68c5c38f243ee2bad6e",
+    "semantic_hash": "dbabf33ffbb6a68c5c38f243ee2bad6e"
+  },
+  "scripts/analyze_b0b_transient.py": {
+    "mtime": 1784644456.0573833,
+    "ast_hash": "e01daf651fc875b29d00d13d8a182f6b",
+    "semantic_hash": "e01daf651fc875b29d00d13d8a182f6b"
+  },
+  "scripts/analyze_control_a2.ps1": {
+    "mtime": 1784358853.5330122,
+    "ast_hash": "60a9ff6ef159d9251d36aae1185eb7e6",
+    "semantic_hash": "60a9ff6ef159d9251d36aae1185eb7e6"
+  },
+  "scripts/analyze_control_a4.ps1": {
+    "mtime": 1784644456.058076,
+    "ast_hash": "a22b2b7115676200279a597bf04450fd",
+    "semantic_hash": "a22b2b7115676200279a597bf04450fd"
+  },
+  "scripts/analyze_control_a5.ps1": {
+    "mtime": 1784644456.059139,
+    "ast_hash": "285230baf98a79138793810cdf36d869",
+    "semantic_hash": "285230baf98a79138793810cdf36d869"
+  },
+  "scripts/analyze_control_c0.ps1": {
+    "mtime": 1784215629.8350863,
+    "ast_hash": "78d4a639430502a5f85fb19f1337d1cc",
+    "semantic_hash": "78d4a639430502a5f85fb19f1337d1cc"
+  },
+  "scripts/analyze_detrended_harmonics.py": {
+    "mtime": 1784644456.0596642,
+    "ast_hash": "d3f71b366f145392792853770c94de48",
+    "semantic_hash": "d3f71b366f145392792853770c94de48"
+  },
+  "scripts/analyze_nonlinear_logs.ps1": {
+    "mtime": 1785419544.0373125,
+    "ast_hash": "743e5eb3d6268da10588e6dba44a8c47",
+    "semantic_hash": "743e5eb3d6268da10588e6dba44a8c47"
+  },
+  "scripts/build_control_a5_audit.ps1": {
+    "mtime": 1784644456.061298,
+    "ast_hash": "20c5fab01f4c85984018642b3df374d1",
+    "semantic_hash": "20c5fab01f4c85984018642b3df374d1"
+  },
+  "scripts/build_cubeide.ps1": {
+    "mtime": 1783770580.3331227,
+    "ast_hash": "f31466b6660ee939fb37ad414badd00a",
+    "semantic_hash": "f31466b6660ee939fb37ad414badd00a"
+  },
+  "scripts/build_dual_image.ps1": {
+    "mtime": 1784213937.9767077,
+    "ast_hash": "c62f440019d3c839c1f4f3c362cee35f",
+    "semantic_hash": "c62f440019d3c839c1f4f3c362cee35f"
+  },
+  "scripts/build_make.ps1": {
+    "mtime": 1783770580.3381226,
+    "ast_hash": "c97fe516a204229f5b4c9c991bd79a86",
+    "semantic_hash": "c97fe516a204229f5b4c9c991bd79a86"
+  },
+  "scripts/clean_cubeide.ps1": {
+    "mtime": 1783770580.3451583,
+    "ast_hash": "1b98125f01fe05f11f4fe9b663a424e1",
+    "semantic_hash": "1b98125f01fe05f11f4fe9b663a424e1"
+  },
+  "scripts/preflight.ps1": {
+    "mtime": 1783770580.350158,
+    "ast_hash": "59b9dee3f411e4b237e8e10fedddada0",
+    "semantic_hash": "59b9dee3f411e4b237e8e10fedddada0"
+  },
+  "scripts/run_matlab_a2_analysis.ps1": {
+    "mtime": 1784354559.6312692,
+    "ast_hash": "0211db3f1d579ae762bfe2e0293562e7",
+    "semantic_hash": "0211db3f1d579ae762bfe2e0293562e7"
+  },
+  "scripts/save_build.ps1": {
+    "mtime": 1784124195.7519417,
+    "ast_hash": "3a2aca80828a63e425529b264feae1de",
+    "semantic_hash": "3a2aca80828a63e425529b264feae1de"
+  },
+  "scripts/test_adaptive_precondition_contract.ps1": {
+    "mtime": 1784644456.0618198,
+    "ast_hash": "6f2ffc6de904657ef1afedcb66631083",
+    "semantic_hash": "6f2ffc6de904657ef1afedcb66631083"
+  },
+  "scripts/test_analyze_control_a2.ps1": {
+    "mtime": 1784358853.5330122,
+    "ast_hash": "65d10615c9b8015ed04020798751f0a7",
+    "semantic_hash": "65d10615c9b8015ed04020798751f0a7"
+  },
+  "scripts/test_analyze_control_a5.ps1": {
+    "mtime": 1784644456.0623498,
+    "ast_hash": "638ef4d0645a46553e12cd0fe116f048",
+    "semantic_hash": "638ef4d0645a46553e12cd0fe116f048"
+  },
+  "scripts/test_analyze_control_c0.ps1": {
+    "mtime": 1784215629.836084,
+    "ast_hash": "d23cc1dc266650427690b751a02d1ecb",
+    "semantic_hash": "d23cc1dc266650427690b751a02d1ecb"
+  },
+  "scripts/test_analyze_nonlinear_logs.ps1": {
+    "mtime": 1785419544.0416038,
+    "ast_hash": "61c5f89f198b2ba4d41b9963e8c4a18a",
+    "semantic_hash": "61c5f89f198b2ba4d41b9963e8c4a18a"
+  },
+  "scripts/test_b0b_approach_soft_start_contract.ps1": {
+    "mtime": 1784644456.062929,
+    "ast_hash": "66796cb111dadaec8822ba6f4929dab4",
+    "semantic_hash": "66796cb111dadaec8822ba6f4929dab4"
+  },
+  "scripts/test_b0b_creep_contract.ps1": {
+    "mtime": 1784730173.5579574,
+    "ast_hash": "2a461791c685e6d75473e9a4d4a61e6f",
+    "semantic_hash": "2a461791c685e6d75473e9a4d4a61e6f"
+  },
+  "scripts/test_b0b_feedforward_contract.ps1": {
+    "mtime": 1784730173.5579574,
+    "ast_hash": "c0398a1c407e5769f841d873e13e6024",
+    "semantic_hash": "c0398a1c407e5769f841d873e13e6024"
+  },
+  "scripts/test_canonical_sampler_contract.ps1": {
+    "mtime": 1785419544.0430388,
+    "ast_hash": "8845e0e6d45d0e7d3d2bebbb7860c6f6",
+    "semantic_hash": "8845e0e6d45d0e7d3d2bebbb7860c6f6"
+  },
+  "scripts/test_control_a5_capture_contract.ps1": {
+    "mtime": 1784644456.06345,
+    "ast_hash": "8e2319d1df7d13abb62d34f2365e15ec",
+    "semantic_hash": "8e2319d1df7d13abb62d34f2365e15ec"
+  },
+  "scripts/test_control_a5_math_contract.ps1": {
+    "mtime": 1784644456.0639737,
+    "ast_hash": "26a6a2bb9859992567a351d7c182d497",
+    "semantic_hash": "26a6a2bb9859992567a351d7c182d497"
+  },
+  "scripts/test_control_a5_reporting_contract.ps1": {
+    "mtime": 1784644456.0644944,
+    "ast_hash": "433886b45bd439d63ac5ab4a03eea099",
+    "semantic_hash": "433886b45bd439d63ac5ab4a03eea099"
+  },
+  "scripts/test_control_alignment_contract.ps1": {
+    "mtime": 1784644456.0650232,
+    "ast_hash": "11c9c159aad1e20cf122941b0263e53d",
+    "semantic_hash": "11c9c159aad1e20cf122941b0263e53d"
+  },
+  "scripts/test_controller_state_contract.ps1": {
+    "mtime": 1784133844.1172266,
+    "ast_hash": "378be8a0fda39582994f4870e8963a05",
+    "semantic_hash": "378be8a0fda39582994f4870e8963a05"
+  },
+  "scripts/test_dual_image_contract.ps1": {
+    "mtime": 1784644456.0655432,
+    "ast_hash": "84d8f5be2165deba42cb9a6fed34f140",
+    "semantic_hash": "84d8f5be2165deba42cb9a6fed34f140"
+  },
+  "scripts/test_mad_filtering_contract.ps1": {
+    "mtime": 1784644456.06606,
+    "ast_hash": "fd162883596ca14288c8a5af2f0ec32e",
+    "semantic_hash": "fd162883596ca14288c8a5af2f0ec32e"
+  },
+  "scripts/test_motion_control_v2_contract.ps1": {
+    "mtime": 1784899783.9253285,
+    "ast_hash": "8516cb77fed52c55f35bc8aac01daa32",
+    "semantic_hash": "8516cb77fed52c55f35bc8aac01daa32"
+  },
+  "scripts/test_one_degree_grid_contract.ps1": {
+    "mtime": 1785419544.0438676,
+    "ast_hash": "6a718b1149b2c8fe1fa11afe88d277fc",
+    "semantic_hash": "6a718b1149b2c8fe1fa11afe88d277fc"
+  },
+  "scripts/test_phase1_baseline_integrity.ps1": {
+    "mtime": 1784029272.772878,
+    "ast_hash": "665021f0d39f9b05bc587687c65899f2",
+    "semantic_hash": "665021f0d39f9b05bc587687c65899f2"
+  },
+  "scripts/test_phase2b_shadow_contract.ps1": {
+    "mtime": 1785419544.0442448,
+    "ast_hash": "ad886cca54f58dc0999a29cfa9f0f795",
+    "semantic_hash": "ad886cca54f58dc0999a29cfa9f0f795"
+  },
+  "scripts/test_phase3a_motion_contract.ps1": {
+    "mtime": 1784029272.7739692,
+    "ast_hash": "16acb3d298e701c90a7a8c0008d9c998",
+    "semantic_hash": "16acb3d298e701c90a7a8c0008d9c998"
+  },
+  "scripts/test_phase3b0_closure_probe_contract.ps1": {
+    "mtime": 1784029272.7745135,
+    "ast_hash": "7224d1686239e822801a7df8ad7ec8ca",
+    "semantic_hash": "7224d1686239e822801a7df8ad7ec8ca"
+  },
+  "scripts/test_phase3b0_equal_approach_contract.ps1": {
+    "mtime": 1784899783.926233,
+    "ast_hash": "28fcb3621f78cb3c020272b045109d10",
+    "semantic_hash": "28fcb3621f78cb3c020272b045109d10"
+  },
+  "scripts/test_preconditioned_10run_contract.ps1": {
+    "mtime": 1784029272.775075,
+    "ast_hash": "7584423b59e6e8d17c5bc5a4ef0247fb",
+    "semantic_hash": "7584423b59e6e8d17c5bc5a4ef0247fb"
+  },
+  "scripts/test_python_analyzer_contract.ps1": {
+    "mtime": 1785419544.0442448,
+    "ast_hash": "15c0fc9a95f4fe9fc8daf0e41d3c0364",
+    "semantic_hash": "15c0fc9a95f4fe9fc8daf0e41d3c0364"
+  },
+  "scripts/test_spi1_dma_contract.ps1": {
+    "mtime": 1784132503.4820964,
+    "ast_hash": "2e5b608c8244dbeee319eaface80d9cf",
+    "semantic_hash": "2e5b608c8244dbeee319eaface80d9cf"
+  },
+  "scripts/test_sweep_ramp_soft_start_contract.ps1": {
+    "mtime": 1784138337.626651,
+    "ast_hash": "18add18b03ebc44ae3939e6551e65d6c",
+    "semantic_hash": "18add18b03ebc44ae3939e6551e65d6c"
+  },
+  "scripts/test_sweep_ramp_step_diag_contract.ps1": {
+    "mtime": 1784138337.629025,
+    "ast_hash": "3ef8f1ca85f74147b9a3cd8d62ac53d0",
+    "semantic_hash": "3ef8f1ca85f74147b9a3cd8d62ac53d0"
+  },
+  "scripts/toolchain.ps1": {
+    "mtime": 1785419544.0442448,
+    "ast_hash": "a0494f52140b4b4248fc1f61e9048190",
+    "semantic_hash": "a0494f52140b4b4248fc1f61e9048190"
+  },
+  "tools/analyze_motor_logs.py": {
+    "mtime": 1785419544.049231,
+    "ast_hash": "83e26afaa0f3e8d91bff3f90a835a426",
+    "semantic_hash": "83e26afaa0f3e8d91bff3f90a835a426"
+  },
+  "tools/analyze_nl_extreme_angles.py": {
+    "mtime": 1785419544.0502312,
+    "ast_hash": "88343a81dd347ce3b37e211485555439",
+    "semantic_hash": "88343a81dd347ce3b37e211485555439"
+  },
+  "tools/analyze_nl_stability.py": {
+    "mtime": 1784730173.564083,
+    "ast_hash": "f0450615aba4e2d9a35d7bda3fe8e1fb",
+    "semantic_hash": "f0450615aba4e2d9a35d7bda3fe8e1fb"
+  },
+  "tools/analyze_one_turn_pattern.py": {
+    "mtime": 1784730173.564083,
+    "ast_hash": "299bb1254e9d4ac01fc0d3af6cfc2fde",
+    "semantic_hash": "299bb1254e9d4ac01fc0d3af6cfc2fde"
+  },
+  "tools/analyze_scope_capture.py": {
+    "mtime": 1785419544.051231,
+    "ast_hash": "0cdb2b0b0fc51b61ee085fd0d2f92827",
+    "semantic_hash": "0cdb2b0b0fc51b61ee085fd0d2f92827"
+  },
+  "tools/plot_metric_trend.py": {
+    "mtime": 1784124195.7555614,
+    "ast_hash": "b898684e90c1efd1534398c63e322f13",
+    "semantic_hash": "b898684e90c1efd1534398c63e322f13"
+  }
+}
