@@ -1,0 +1,13 @@
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=0.01deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.03deg StdDev=0.01deg Drift=0.02deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.05deg StdDev=0.01deg Drift=0.02deg MaxStep=0.04deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.03deg StdDev=0.01deg Drift=-0.02deg MaxStep=0.03deg N=25 valid=1
+BATCH,BatchID=1,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,PreconditionCount=1,RunCount=3,TotalCycleCount=4,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug  3 2026 11:14:03,MCU_UID=0049003A3034510B31363339,JigID=JIG4,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=-6.05 deg settled=0/500 cmdPos=21322
+MA600 move-to-zero: error=2.14 deg settled=0/500 cmdPos=22879
+MA600 move-to-zero: error=1.70 deg settled=0/500 cmdPos=22796
+MA600 move-to-zero: error=1.22 deg settled=0/500 cmdPos=22658
+MA600 move-to-zero: error=0.63 deg settled=0/500 cmdPos=22587
+MA600 move-to-zero: error=0.44 deg settled=0/500 cmdPos=22564

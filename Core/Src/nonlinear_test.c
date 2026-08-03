@@ -1013,6 +1013,38 @@ static bool NlSectorCalibrationSelfTest(void)
 #ifndef ENABLE_ADAPTIVE_PRECONDITION
 #define ENABLE_ADAPTIVE_PRECONDITION   0
 #endif
+
+/* MOUNT_PRECHECK_V1, milestone M0: reuses the PRECONDITION sweep's own
+ * already-computed metrics (nlCaptures[0]) to log a mounting-fingerprint
+ * record before the batch commits to 3-10 OFFICIAL runs + cooldown. This
+ * does NOT add any new motion -- the precondition sweep already runs a
+ * full 360-point capture; M0 only adds a decision point after it. M1
+ * (a cheaper sparse 12-sector scan) is a separate, not-yet-built
+ * milestone; the plan requires M0's decision to be validated against a
+ * full-precondition baseline first (see build_info.txt for this build).
+ *
+ * MountValid here is DELIBERATELY restricted to gross, product-independent
+ * checks that are already validated elsewhere in this pipeline
+ * (TrackingValid, shadow ClosureValid, AcquisitionResult==OK) -- NOT the
+ * H1/H2 mounting-sensitive band found this session (P05 decenter/rotation
+ * experiments: H1 shrinks and sometimes H2 grows under bad mounting).
+ * That band is per-product and not yet calibrated from enough pilot data
+ * (one clean vs. one confounded sample per product so far), so baking a
+ * threshold in now would risk rejecting good mounts or passing bad ones on
+ * a guess. H1/H2 amplitude+phase and the legacy robust P2P are logged in
+ * full on every run specifically so pilot batches can build that profile
+ * offline (matching tools/analyze_nl_extreme_angles.py's harmonic output)
+ * before any H1/H2 threshold is ever compiled in.
+ *
+ * ENABLE_MOUNT_PRECHECK_GATE controls whether a MountValid=0 verdict
+ * actually stops the batch before OFFICIAL runs (default OFF): the record
+ * is always logged either way, so this flag only controls enforcement, not
+ * visibility. Left OFF by default so this build never blocks a real test
+ * session on the currently-implemented (intentionally conservative)
+ * checks while pilot data is still being collected. */
+#ifndef ENABLE_MOUNT_PRECHECK_GATE
+#define ENABLE_MOUNT_PRECHECK_GATE     0
+#endif
 #if ENABLE_ADAPTIVE_PRECONDITION
 /* Pilot/uncalibrated first estimate: 0.03 deg sits between the run-to-run
  * SD already measured in the stable region (~0.006-0.02 deg, test
@@ -1036,6 +1068,18 @@ static void LogLine(const char *fmt, ...)
 static void LogLineLarge(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
 
+/* Counts LogLine()/LogLineLarge() calls where HAL_UART_Transmit did not
+ * return HAL_OK (busy/timeout/error). Both helpers previously discarded
+ * this return value, so a dropped or truncated transmission (observed on
+ * hardware as two adjacent log lines spliced together mid-field, e.g. a
+ * DATA line's tail overwritten by a MOTION line's head) was invisible --
+ * nothing in the log itself indicated the capture was untrustworthy at
+ * that point. Reset once per sweep in CaptureSweep() and reported in the
+ * END record so analysis tooling can reject a sweep outright instead of
+ * relying on manual regex corruption-scanning to catch it after the
+ * fact. */
+static uint32_t nlUartTransmitFailureCount = 0;
+
 static void LogLine(const char *fmt, ...)
 {
     char buf[128];
@@ -1049,7 +1093,10 @@ static void LogLine(const char *fmt, ...)
         {
             len = (int)sizeof(buf) - 1;
         }
-        HAL_UART_Transmit(&huart3, (uint8_t *)buf, (uint16_t)len, 100);
+        if (HAL_UART_Transmit(&huart3, (uint8_t *)buf, (uint16_t)len, 100) != HAL_OK)
+        {
+            nlUartTransmitFailureCount++;
+        }
     }
 }
 
@@ -1073,7 +1120,10 @@ static void LogLineLarge(const char *fmt, ...)
         {
             len = (int)sizeof(buf) - 1;
         }
-        HAL_UART_Transmit(&huart3, (uint8_t *)buf, (uint16_t)len, 200);
+        if (HAL_UART_Transmit(&huart3, (uint8_t *)buf, (uint16_t)len, 200) != HAL_OK)
+        {
+            nlUartTransmitFailureCount++;
+        }
     }
 }
 
@@ -3288,6 +3338,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     {
         memset(shadowPoints, 0, sizeof(*shadowPoints));
     }
+    nlUartTransmitFailureCount = 0;
     out->shadowPoints = shadowPoints;
     out->shadowCanonicalEnabled = shadowPoints != NULL;
     out->shadowAcquisitionResult = MA600_RESULT_OK;
@@ -5882,7 +5933,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     LogLineLarge(
         "END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,Direction=%s,CapturedPoints=%d,"
         "AnalysisPoints=%d,TrackingValid=%d,SettleStabilityValid=%d,"
-        "SettleTargetProximityValid=%d,SettleValid=%d,AcquisitionResult=%s,Status=%s\r\n",
+        "SettleTargetProximityValid=%d,SettleValid=%d,AcquisitionResult=%s,"
+        "UartTransmitFailures=%lu,Status=%s\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
         c->capturedCount, c->analysisCount, c->trackingValid ? 1 : 0,
         (c->capturedCount > 0 && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
@@ -5890,7 +5942,13 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             && c->settleTargetProximityValidCount == c->capturedCount) ? 1 : 0,
         (c->capturedCount > 0 && c->settleValidCount == c->capturedCount) ? 1 : 0,
         MA600_ResultName(c->acquisitionResult),
-        c->measurementValid ? "VALID" : "INVALID");
+        (unsigned long)nlUartTransmitFailureCount,
+        /* A transmission failure means some of this sweep's own log lines
+         * (DATA/ACQ/MOTION) may be truncated or spliced with the next
+         * line's bytes -- the sweep's acquisition can still be genuinely
+         * valid, but its LOG cannot be trusted point-for-point, so it must
+         * not read as VALID even if every other check passed. */
+        (c->measurementValid && nlUartTransmitFailureCount == 0U) ? "VALID" : "INVALID");
 }
 
 #if ENABLE_NL_MATH_SELF_TEST
@@ -6292,11 +6350,64 @@ static bool NonlinearTest_Run(void)
 #if ENABLE_AUTO_BATCH_TEST
     if (preconditionRun)
     {
+        bool mountJigKnown = false;
+        const char *mountJigId = ResolveJigId(&mountJigKnown);
+        const NlHarmonicResult_t *mountH1 = &nlCaptures[0].harmonics[0];
+        const NlHarmonicResult_t *mountH2 = &nlCaptures[0].harmonics[1];
+        bool mountValid = nlCaptures[0].trackingValid
+            && nlCaptures[0].shadowClosureValid
+            && (nlCaptures[0].acquisitionResult == MA600_RESULT_OK);
+        const char *mountRejectReason = "NONE";
+        if (!nlCaptures[0].trackingValid)
+        {
+            mountRejectReason = "TRACKING_INVALID";
+        }
+        else if (!nlCaptures[0].shadowClosureValid)
+        {
+            mountRejectReason = "CLOSURE_INVALID";
+        }
+        else if (nlCaptures[0].acquisitionResult != MA600_RESULT_OK)
+        {
+            mountRejectReason = "ACQUISITION_FAULT";
+        }
+        char mountRobustPPBuf[20], mountH1AmpBuf[20], mountH1PhaseBuf[20];
+        char mountH2AmpBuf[20], mountH2PhaseBuf[20], mountClosureBuf[20];
+        FormatDegN(nlCaptures[0].legacyStats.robustPP, 5, mountRobustPPBuf, sizeof(mountRobustPPBuf));
+        FormatDegN(mountH1->amplitude, 5, mountH1AmpBuf, sizeof(mountH1AmpBuf));
+        FormatDegN(mountH1->phaseDeg, 2, mountH1PhaseBuf, sizeof(mountH1PhaseBuf));
+        FormatDegN(mountH2->amplitude, 5, mountH2AmpBuf, sizeof(mountH2AmpBuf));
+        FormatDegN(mountH2->phaseDeg, 2, mountH2PhaseBuf, sizeof(mountH2PhaseBuf));
+        FormatDegN(nlCaptures[0].shadowClosureErrorDeg, 5, mountClosureBuf, sizeof(mountClosureBuf));
+        LogLineLarge(
+            "MOUNT_PRECHECK_RESULT,SchemaVersion=%d,BatchID=%lu,CycleOrder=%lu,TestID=%lu,"
+            "Protocol=PRECONDITION_FULL_SWEEP_MOUNT_GATE_V1,JigID=%s,MotorID=%s,"
+            "RobustP2PDeg=%s,H1AmplitudeDeg=%s,H1PhaseDeg=%s,H2AmplitudeDeg=%s,"
+            "H2PhaseDeg=%s,ClosureErrorDeg=%s,TrackingValid=%d,ClosureValid=%d,"
+            "AcquisitionResult=%s,MountValid=%d,RejectReason=%s,GateEnabled=%d\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)batchId, (unsigned long)cycleOrder,
+            (unsigned long)testId, mountJigId, MOTOR_ID,
+            mountRobustPPBuf, mountH1AmpBuf, mountH1PhaseBuf, mountH2AmpBuf,
+            mountH2PhaseBuf, mountClosureBuf,
+            nlCaptures[0].trackingValid ? 1 : 0, nlCaptures[0].shadowClosureValid ? 1 : 0,
+            MA600_ResultName(nlCaptures[0].acquisitionResult),
+            mountValid ? 1 : 0, mountRejectReason,
+            ENABLE_MOUNT_PRECHECK_GATE ? 1 : 0);
+
         LogLineLarge(
             "PRECONDITION_RESULT,SchemaVersion=%d,BatchID=%lu,CycleOrder=%lu,TestID=%lu,"
             "Protocol=%s,RunRole=PRECONDITION,EligibleForStatistics=0,Status=VALID\r\n",
             NL_LOG_SCHEMA_VERSION, (unsigned long)batchId, (unsigned long)cycleOrder,
             (unsigned long)testId, NL_PRECONDITION_PROTOCOL_ID);
+
+#if ENABLE_MOUNT_PRECHECK_GATE
+        if (!mountValid)
+        {
+            SetEngineState(NL_ENGINE_SAFE_STOP);
+            LogLine("BATCH,BatchID=%lu,Status=MOUNT_INVALID,CycleOrder=%lu,RejectReason=%s\r\n",
+                (unsigned long)batchId, (unsigned long)cycleOrder, mountRejectReason);
+            return false;
+        }
+#endif
         return true;
     }
 #endif

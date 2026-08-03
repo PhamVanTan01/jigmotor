@@ -1,8 +1,12 @@
 function sweeps = parse_nl_log(filePath)
 %PARSE_NL_LOG Parse an NL (nonlinear measurement) hardware log into sweeps.
 %   Mirrors tools/analyze_nl_stability.py's load_sweeps(): groups records by
-%   (TestID, SweepID). META/RESULT/SHADOW_RESULT/APPROACH_RESULT/END are
-%   Key=Value comma records; DATA is POSITIONAL (12 comma fields, not
+%   (TestID, SweepID). META/RESULT/SHADOW_RESULT/APPROACH_RESULT/END/
+%   CONTROL_STATE/MOTION_RESULT/CLOSURE_PROBE_RESULT are Key=Value comma
+%   records (the last three carry no direct Python counterpart -- captured
+%   here to feed build_session_feature_table.m's wider comparison; they
+%   attach to activeKey the same as RESULT/APPROACH_RESULT/END).
+%   DATA is POSITIONAL (12 comma fields, not
 %   Key=Value): field 3=TestID, 4=SweepID, 8=Index, 9=TargetRaw,
 %   10=AngleRaw, 11=AngleDeg, 12=ErrorDeg (1-indexed here; 0-indexed in the
 %   Python source as parts[2],[3],[7],[8],[9],[10],[11]). Records without
@@ -87,7 +91,8 @@ for index = 1:numel(lines)
             sweep.Meta = fields;
             sweepByKey(key) = sweep;
             activeKey = string(key);
-        case {"RESULT", "SHADOW_RESULT", "APPROACH_RESULT", "END"}
+        case {"RESULT", "SHADOW_RESULT", "APPROACH_RESULT", "END", ...
+                "CONTROL_STATE", "MOTION_RESULT", "CLOSURE_PROBE_RESULT"}
             if activeKey == "" || ~isKey(sweepByKey, char(activeKey))
                 continue
             end
@@ -115,7 +120,8 @@ end
 function sweep = new_sweep(testId, sweepId)
 sweep = struct('TestID', testId, 'SweepID', sweepId, 'Meta', struct(), ...
     'RESULT', struct(), 'SHADOW_RESULT', struct(), 'APPROACH_RESULT', struct(), ...
-    'END', struct(), 'FirmwareNLDeg', NaN, ...
+    'END', struct(), 'CONTROL_STATE', struct(), 'MOTION_RESULT', struct(), ...
+    'CLOSURE_PROBE_RESULT', struct(), 'FirmwareNLDeg', NaN, ...
     'Data', table('Size', [0 4], 'VariableTypes', repmat("double", 1, 4), ...
     'VariableNames', ["Index","TargetRaw","AngleRaw","ErrorDeg"]));
 % NOTE: AngleDeg (parts[10]) is intentionally not stored separately -- it
