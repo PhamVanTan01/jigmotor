@@ -49,9 +49,13 @@ Assert-True ($source -match 'NlCreepDiagnostics_t\s+backoffCreepDiag;\s*[\r\n]+\
 # --- CreepToUnwrappedTarget: only compiled/called under the flag; never
 # reverses direction; only touches the motor via Motor_SetElectricalPos
 # (same power=1.0 convention as the rest of B0-B); reuses WaitForPointSettle
-# rather than re-implementing settle logic. ---
+# rather than re-implementing settle logic.
+# 2026-08-04: also reused (unchanged) by ENABLE_SWEEP_POINT_CREEP's own
+# main-sweep-loop call site (see that flag's comment) -- the guard is now an
+# OR of both flags so the function still compiles out entirely when BOTH are
+# off, which is what this test actually cares about. ---
 $creepFn = [regex]::Match($source,
-    '(?s)#if ENABLE_B0B_APPROACH_CREEP\s*/\* Runs only AFTER.*?static MA600_Result_t CreepToUnwrappedTarget\(.*?\n\}\s*#endif').Value
+    '(?s)#if ENABLE_B0B_APPROACH_CREEP \|\| ENABLE_SWEEP_POINT_CREEP\s*/\* Runs only AFTER.*?static MA600_Result_t CreepToUnwrappedTarget\(.*?\n\}\s*#endif').Value
 Assert-True (-not [string]::IsNullOrWhiteSpace($creepFn)) `
     'Could not locate a flag-gated CreepToUnwrappedTarget definition.'
 Assert-True ($creepFn -match 'int direction = \(gap > 0\) \? 1 : -1;' -and

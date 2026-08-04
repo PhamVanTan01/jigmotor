@@ -462,6 +462,30 @@ static const NlKnownJig_t NL_KNOWN_JIGS[] = {
         0x00460032, 0x32355118, 0x35383831, "JIG7",
         { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
     }, /* MCU_UID=004600323235511835383831 -- single-read, needs confirmation */
+    {
+        /* JIG8: new control board, registered 2026-08-04 specifically to test
+         * whether the "new-board effect" found on JIG6/JIG7 this session
+         * (same assembly reads ~0.26-0.31 deg lower NL magnitude, and a
+         * different assembly picks up an extra ~76/77/36 deg tail component,
+         * on BOTH JIG6 and JIG7 but not on the assemblies' own original
+         * boards -- see docs/session-summary-2026-08-03-mount-precheck-and-
+         * assembly-swap.md and the 2026-08-04 follow-up analysis) is general
+         * to any new board or specific to the JIG6/JIG7 wafer lot. UID_WORD1/
+         * WORD2 (0x32355118, 0x35383831) are AGAIN identical to JIG6/JIG7 --
+         * same die batch/wafer lot a third time, only WORD0 differs
+         * (0x003E0032). Two BOOT_SMOKE reads seen so far (Zero=0x0084, then
+         * Zero=0x009F on a second power-up) -- BOOT_SMOKE is documented
+         * elsewhere in this file as unreliable and never gates anything (see
+         * the JIG5 entry above); this instability matches the already-known
+         * sensor power-on-settling pattern from JIG4's early history, not a
+         * new concern. PLACEHOLDER PROFILE BELOW matches every other known
+         * jig as the working prediction -- UNCONFIRMED, MUST be re-verified
+         * against a real PRECONDITION_PRE_MOTOR/BATCH_PRE_MOTOR read once
+         * stable, following the same discipline as JIG4/JIG6/JIG7: do not
+         * trust this placeholder past the first real post-assembly read. */
+        0x003E0032, 0x32355118, 0x35383831, "JIG8",
+        { 0x0000, 0x00, 0x05, 0x00, 0x00, 0x00, 0x190A55AD }
+    }, /* MCU_UID=003E00323235511835383831 -- PLACEHOLDER, BOOT_SMOKE-only reads so far */
 };
 
 static const NlKnownJig_t *FindKnownJigByUid(void)
@@ -801,7 +825,42 @@ static bool NlSectorCalibrationSelfTest(void)
  * pure position-noise floor so neither mechanism chases noise. */
 #define NL_B0B_TARGET_DEADBAND_RAW      16LL
 
-#if ENABLE_B0B_APPROACH_CREEP
+/* Diagnostic-log finding, 2026-08-04: every APPROACH_RESULT record (any
+ * jig, any approach mode used this session, all A0/SHIFTED_REVERSAL_A0)
+ * shows its Final/LocalBackoff legs landing at only ~44-51% of their own
+ * commanded delta (e.g. FinalCommandDeltaRaw=182, FinalObservedDeltaRaw
+ * 83-93 -- consistent across JIG4/6/7/8). A companion check of the main
+ * sweep's own per-point MOTION.PositionErrorRaw (already logged, no new
+ * build needed for that part) shows the same ~10-point-period pattern as
+ * the dominant order-36 NL harmonic, with magnitude up to ~181 raw --
+ * comparable to a full 182-raw single-point step. WaitForPointSettle's own
+ * tolerance (NL_SETTLE_TARGET_TOLERANCE_RAW = 910 raw ~= 5 deg) is far too
+ * loose to catch any of this, on any approach mode.
+ *
+ * ENABLE_B0B_APPROACH_CREEP (above) already solves exactly this problem,
+ * but only for B0-B's own V2-specific backoff/forward legs (incompatible
+ * with A0 by the #error below -- V2's legs don't exist under A0). This flag
+ * instead hooks CreepToUnwrappedTarget (unchanged, reused as-is) into the
+ * MAIN per-point sweep loop's own settle call, which is shared byte-for-byte
+ * across every approach mode (V2/V3/A0) -- so unlike B0B creep, this is NOT
+ * gated against NL_APPROACH_MODE and works under the current production A0
+ * build. Scope for this first experimental cut: corrects the settle for
+ * points 1..capturedCount-1 (the loop's own ramp-then-settle-for-next-point
+ * step); point 0's own pre-loop settle is NOT yet corrected (~1 of ~372
+ * points, deferred rather than risking touching the several distinct
+ * pre-loop settle call-sites shared with every approach-mode variant).
+ * Reuses the SAME NL_B0B_CREEP_* constants as B0-B creep (untuned for this
+ * new call site specifically) -- aggregate outcome is logged in END
+ * (SweepPointCreepPointsCorrected/TotalIterations/TotalCorrectionRaw/
+ * Timeouts/BudgetExceeded) specifically so an over/under-tuned budget or
+ * deadband shows up in the data rather than being silently absorbed.
+ * Default OFF -- diagnostic/experimental, not yet validated against real
+ * hardware. */
+#ifndef ENABLE_SWEEP_POINT_CREEP
+#define ENABLE_SWEEP_POINT_CREEP   0
+#endif
+
+#if ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP
 /* Pilot/uncalibrated first estimates:
  * - step = NL_RAMP_STEP (8 raw), the same per-command magnitude the
  *   existing ramp already uses -- a step size already proven not to
@@ -810,13 +869,20 @@ static bool NlSectorCalibrationSelfTest(void)
  * - max total correction = 150 raw, comfortably above the largest
  *   shortfall observed so far (~90-120 raw) with margin, while still far
  *   below NL_B0B_APPROACH_BACKOFF_RAW (182) so a runaway cannot be
- *   mistaken for a normal correction.
+ *   mistaken for a normal correction. Shared as-is (untuned) with
+ *   ENABLE_SWEEP_POINT_CREEP's main-loop call site, even though that call
+ *   site's own gaps (2026-08-04 MOTION.PositionErrorRaw analysis) run up to
+ *   ~181 raw -- close enough to this budget that BUDGET_EXCEEDED is
+ *   expected to fire on some points; SweepPointCreepBudgetExceeded in END
+ *   exists specifically to quantify that rather than hide it.
  * - max iterations = 30: at 8 raw/step this reaches the 150-raw budget in
  *   ~19 steps: 30 leaves headroom without an effectively unbounded loop. */
 #define NL_B0B_CREEP_STEP_RAW           8
 #define NL_B0B_CREEP_DEADBAND_RAW       NL_B0B_TARGET_DEADBAND_RAW
 #define NL_B0B_CREEP_MAX_TOTAL_RAW      150LL
 #define NL_B0B_CREEP_MAX_ITERATIONS     30U
+#endif
+#if ENABLE_B0B_APPROACH_CREEP
 #define NL_B0B_CREEP_PROTOCOL_ID        "ENCODER_CREEP_V1"
 #else
 #define NL_B0B_CREEP_PROTOCOL_ID        "NONE"
@@ -2282,7 +2348,7 @@ static NlSettleResult_t WaitForPointSettle(
     }
 }
 
-#if ENABLE_B0B_APPROACH_CREEP
+#if ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP
 /* Runs only AFTER the caller's own WaitForPointSettle already confirmed the
  * rotor stopped (this function never replaces or races with that check).
  * Moves *commandPos in small NL_B0B_CREEP_STEP_RAW steps toward
@@ -2352,7 +2418,7 @@ static MA600_Result_t CreepToUnwrappedTarget(
     diag->finalGapRaw = gap;
     return MA600_RESULT_OK;
 }
-#endif /* ENABLE_B0B_APPROACH_CREEP */
+#endif /* ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP */
 
 #if ENABLE_B0B_APPROACH_FEEDFORWARD
 /* Open-loop, unmeasured continuation of *commandPos by exactly
@@ -2776,6 +2842,24 @@ typedef struct
      * (zero-init) when the flag is off or a leg never reached this stage. */
     NlCreepDiagnostics_t backoffCreepDiag;
     NlCreepDiagnostics_t forwardCreepDiag;
+
+    /* Main-sweep-loop per-point creep diagnostics -- see
+     * ENABLE_SWEEP_POINT_CREEP. Always declared, zero-init when the flag is
+     * off. Aggregate over the whole sweep (not per-point) -- a per-point
+     * NlCreepDiagnostics_t[NL_MAX_SWEEP_POINTS] array was considered and
+     * rejected as unnecessary log/RAM volume for a first experimental cut;
+     * the aggregate is enough to judge whether the budget/deadband (reused
+     * from NL_B0B_CREEP_*, untuned for this call site) needs retuning.
+     * sweepPointCreepAcquisition is subtracted out of the schema-v5 Acq*
+     * totals the same way every approach-leg accumulator already is, so
+     * turning this flag on never silently changes the meaning of
+     * AcqReadAttempts/AcqRetries/etc. for builds that don't use it. */
+    uint32_t sweepPointCreepPointsCorrected;
+    uint32_t sweepPointCreepTotalIterations;
+    int64_t  sweepPointCreepTotalCorrectionRaw;
+    uint32_t sweepPointCreepTimeoutCount;
+    uint32_t sweepPointCreepBudgetExceededCount;
+    NlAcquisitionCounters_t sweepPointCreepAcquisition;
 
     /* B0-B creep-derived endpoint bias diagnostics -- see
      * ENABLE_B0B_APPROACH_FEEDFORWARD. Always declared (both branches
@@ -4514,6 +4598,65 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             acquisitionResult = settleObservation.acquisitionResult;
             goto capture_complete;
         }
+
+#if ENABLE_SWEEP_POINT_CREEP
+        /* See ENABLE_SWEEP_POINT_CREEP above. settleResult here is never
+         * NL_SETTLE_ACQUISITION_ERROR (that case already jumped away above)
+         * -- OK/TIMEOUT/WRONG_POSITION all fall through to creep, since a
+         * timeout/wrong-position settle is exactly the case creep exists to
+         * correct. Updates pos and settleObservation.finalSample in place
+         * (CreepToUnwrappedTarget's own contract) so the NEXT loop
+         * iteration's official 64-sample measurement reads the
+         * creep-corrected position, and pointAnchorUnwrapped at the top of
+         * that iteration derives from the corrected finalSample too. */
+        NlAcquisitionCounters_t creepBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
+        NlCreepDiagnostics_t pointCreepDiag;
+        MA600_Result_t creepAcqResult = CreepToUnwrappedTarget(&sweepAcquisition,
+            &pos, expectedTargetUnwrapped, &settleObservation.finalSample,
+            &pointCreepDiag);
+        AccumulateCounterDelta(&sweepAcquisition, &creepBefore,
+            &out->sweepPointCreepAcquisition);
+        if (creepAcqResult != MA600_RESULT_OK)
+        {
+            acquisitionResult = creepAcqResult;
+            goto capture_complete;
+        }
+        out->sweepPointCreepTotalIterations += pointCreepDiag.iterations;
+        out->sweepPointCreepTotalCorrectionRaw += pointCreepDiag.totalCorrectionRaw;
+        if (pointCreepDiag.iterations > 0U)
+        {
+            out->sweepPointCreepPointsCorrected++;
+        }
+        if (pointCreepDiag.result == NL_CREEP_TIMEOUT)
+        {
+            out->sweepPointCreepTimeoutCount++;
+        }
+        if (pointCreepDiag.result == NL_CREEP_BUDGET_EXCEEDED)
+        {
+            out->sweepPointCreepBudgetExceededCount++;
+        }
+        /* CRITICAL: restore pos to the clean nominal grid target after
+         * creep, discarding creep's own commanded-position bookkeeping.
+         * CreepToUnwrappedTarget pushes *commandPos (pos) PAST targetPos by
+         * however much extra command was needed to physically drag the
+         * rotor the rest of the way (that inflation is correct and
+         * necessary for the real Motor_SetElectricalPos() calls it made --
+         * the physical rotor really did need commanding past the nominal
+         * target to get close to it). But pos is ALSO read at the top of
+         * the NEXT loop iteration as signedTargetDeg's source -- the
+         * "target" the official measurement is compared against. Leaving
+         * pos at creep's inflated value would silently substitute "however
+         * far we had to command" for "the actual nominal grid target" in
+         * every subsequent point's own error/NL computation: first
+         * real-hardware test of this build (2026-08-04, P08/JIG7,
+         * SweepPointCreepPointsCorrected=344/360) showed exactly this --
+         * RobustP2P/A36 both INCREASED with creep on (3.05->3.46 deg,
+         * 0.90->1.09 deg) instead of decreasing, because the inflated pos
+         * was leaking into signedTargetDeg. targetPos (the value already
+         * used for this point's own ramp+settle, still in scope) is the
+         * correct value to restore -- not a new computation. */
+        pos = targetPos;
+#endif
     }
 
 capture_complete:
@@ -4534,7 +4677,10 @@ capture_complete:
      * all zero under protocol A, so this stays an exact no-op there. The
      * point-0 settle of protocol B is charged to settleAcquisition (main),
      * same as protocol A's, and is NOT subtracted twice (its diagnostic
-     * copy approachPoint0SettleAcquisitionDiag never enters this formula). */
+     * copy approachPoint0SettleAcquisitionDiag never enters this formula).
+     * sweepPointCreepAcquisition (see ENABLE_SWEEP_POINT_CREEP) is
+     * subtracted the same way -- zero and an exact no-op whenever that flag
+     * is off, so this never changes Acq* for any build that doesn't use it. */
     out->acquisitionReadAttempts = out->contextAcquisition.readAttempts
         - out->rampAcquisition.readAttempts - out->settleAcquisition.readAttempts
         - out->approachSettleAcquisition.readAttempts
@@ -4542,7 +4688,8 @@ capture_complete:
         - out->approachForwardRampAcquisition.readAttempts
         - out->approachPreRollRampAcquisition.readAttempts
         - out->approachPrePositionRampAcquisition.readAttempts
-        - out->approachLocalBackoffRampAcquisition.readAttempts;
+        - out->approachLocalBackoffRampAcquisition.readAttempts
+        - out->sweepPointCreepAcquisition.readAttempts;
     out->acquisitionRetries = out->contextAcquisition.retryCount
         - out->rampAcquisition.retryCount - out->settleAcquisition.retryCount
         - out->approachSettleAcquisition.retryCount
@@ -4550,7 +4697,8 @@ capture_complete:
         - out->approachForwardRampAcquisition.retryCount
         - out->approachPreRollRampAcquisition.retryCount
         - out->approachPrePositionRampAcquisition.retryCount
-        - out->approachLocalBackoffRampAcquisition.retryCount;
+        - out->approachLocalBackoffRampAcquisition.retryCount
+        - out->sweepPointCreepAcquisition.retryCount;
     out->acquisitionTransportErrors = out->contextAcquisition.transportErrorCount
         - out->rampAcquisition.transportErrorCount
         - out->settleAcquisition.transportErrorCount
@@ -4559,7 +4707,8 @@ capture_complete:
         - out->approachForwardRampAcquisition.transportErrorCount
         - out->approachPreRollRampAcquisition.transportErrorCount
         - out->approachPrePositionRampAcquisition.transportErrorCount
-        - out->approachLocalBackoffRampAcquisition.transportErrorCount;
+        - out->approachLocalBackoffRampAcquisition.transportErrorCount
+        - out->sweepPointCreepAcquisition.transportErrorCount;
     out->acquisitionJumpRejects = out->contextAcquisition.jumpRejectCount
         - out->rampAcquisition.jumpRejectCount - out->settleAcquisition.jumpRejectCount
         - out->approachSettleAcquisition.jumpRejectCount
@@ -4567,7 +4716,8 @@ capture_complete:
         - out->approachForwardRampAcquisition.jumpRejectCount
         - out->approachPreRollRampAcquisition.jumpRejectCount
         - out->approachPrePositionRampAcquisition.jumpRejectCount
-        - out->approachLocalBackoffRampAcquisition.jumpRejectCount;
+        - out->approachLocalBackoffRampAcquisition.jumpRejectCount
+        - out->sweepPointCreepAcquisition.jumpRejectCount;
     out->acquisitionFailedSamples = out->contextAcquisition.failedSampleCount
         - out->rampAcquisition.failedSampleCount
         - out->settleAcquisition.failedSampleCount
@@ -4576,7 +4726,8 @@ capture_complete:
         - out->approachForwardRampAcquisition.failedSampleCount
         - out->approachPreRollRampAcquisition.failedSampleCount
         - out->approachPrePositionRampAcquisition.failedSampleCount
-        - out->approachLocalBackoffRampAcquisition.failedSampleCount;
+        - out->approachLocalBackoffRampAcquisition.failedSampleCount
+        - out->sweepPointCreepAcquisition.failedSampleCount;
 
     if (acquisitionResult != MA600_RESULT_OK)
     {
@@ -5930,11 +6081,21 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             c->capturedCount - c->notSettledCount, c->capturedCount);
     }
 
+    char sweepPointCreepCorrBuf[24];
+    FormatI64(c->sweepPointCreepTotalCorrectionRaw, sweepPointCreepCorrBuf,
+        sizeof(sweepPointCreepCorrBuf));
     LogLineLarge(
         "END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,Direction=%s,CapturedPoints=%d,"
         "AnalysisPoints=%d,TrackingValid=%d,SettleStabilityValid=%d,"
         "SettleTargetProximityValid=%d,SettleValid=%d,AcquisitionResult=%s,"
-        "UartTransmitFailures=%lu,Status=%s\r\n",
+        "UartTransmitFailures=%lu,"
+        /* See ENABLE_SWEEP_POINT_CREEP -- all five stay 0 when the flag is
+         * off, so this is a pure addition, never a change, for every
+         * existing build/parser that doesn't know these fields exist. */
+        "SweepPointCreepPointsCorrected=%lu,SweepPointCreepTotalIterations=%lu,"
+        "SweepPointCreepTotalCorrectionRaw=%s,SweepPointCreepTimeouts=%lu,"
+        "SweepPointCreepBudgetExceeded=%lu,"
+        "Status=%s\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
         c->capturedCount, c->analysisCount, c->trackingValid ? 1 : 0,
         (c->capturedCount > 0 && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
@@ -5943,6 +6104,11 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (c->capturedCount > 0 && c->settleValidCount == c->capturedCount) ? 1 : 0,
         MA600_ResultName(c->acquisitionResult),
         (unsigned long)nlUartTransmitFailureCount,
+        (unsigned long)c->sweepPointCreepPointsCorrected,
+        (unsigned long)c->sweepPointCreepTotalIterations,
+        sweepPointCreepCorrBuf,
+        (unsigned long)c->sweepPointCreepTimeoutCount,
+        (unsigned long)c->sweepPointCreepBudgetExceededCount,
         /* A transmission failure means some of this sweep's own log lines
          * (DATA/ACQ/MOTION) may be truncated or spliced with the next
          * line's bytes -- the sweep's acquisition can still be genuinely

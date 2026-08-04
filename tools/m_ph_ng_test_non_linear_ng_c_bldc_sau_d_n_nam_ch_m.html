@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Test Non-Linear Động Cơ BLDC Sau Dán Nam Châm (MPS MA600GQ)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel standalone CDN -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Constants
+        const NUM_LUT_POINTS = 32;
+
+        function NonLinearBldcSimulator() {
+            // Mechanical & Magnet Glued Misalignment Parameters
+            const [eccentricity, setEccentricity] = useState(0.35); // Eccentricity mm (0 to 1mm) -> 1st Harmonic
+            const [tiltAngle, setTiltAngle] = useState(1.8); // Magnet tilt in degrees (0 to 5 deg) -> 2nd Harmonic
+            const [statorSlots, setStatorSlots] = useState(12); // Number of stator slots (6, 12, 18, 24)
+            const [statorHarmonicAmp, setStatorHarmonicAmp] = useState(0.15); // Stator slot distortion deg
+
+            // Motor Control & Rotation State
+            const [rpm, setRpm] = useState(120);
+            const [isRotating, setIsRotating] = useState(true);
+            const [mechAngle, setMechAngle] = useState(0); // True Mechanical Angle (0 - 360)
+            const [polePairs, setPolePairs] = useState(4); // 4 Pole pairs BLDC
+
+            // Calibration & Compensation State
+            const [calibrationActive, setCalibrationActive] = useState(false);
+            const [lutTable, setLutTable] = useState(new Array(NUM_LUT_POINTS).fill(0));
+            const [isTestingRoutine, setIsTestingRoutine] = useState(false);
+            const [testProgress, setTestProgress] = useState(0);
+
+            // Active Tab
+            const [activeTab, setActiveTab] = useState('error_curve'); // 'error_curve', 'foc_impact', 'lut_table'
+
+            // Animation Loop References
+            const animRef = useRef(null);
+            const lastTimeRef = useRef(performance.now());
+
+            // Computes raw angle error E(theta) based on glued magnet mechanical defects
+            const calculateInlError = (thetaDeg) => {
+                const rad = (thetaDeg * Math.PI) / 180;
+                
+                // 1st Harmonic: Caused by magnet center offset / eccentricity (d_x, d_y)
+                const h1 = eccentricity * 1.25 * Math.sin(rad + 0.3);
+
+                // 2nd Harmonic: Caused by magnet tilting and magnetic axis ellipticity
+                const h2 = (tiltAngle / 5.0) * 0.75 * Math.sin(2 * rad - 0.5);
+
+                // Stator Slotting Harmonic: Flux path variation through motor teeth
+                const hSlot = statorHarmonicAmp * Math.sin(statorSlots * rad);
+
+                // High-frequency sensor noise (~0.03 deg)
+                const noise = (Math.sin(thetaDeg * 17) * 0.02);
+
+                return h1 + h2 + hSlot + noise;
+            };
+
+            // Interpolate calibration correction from 32-point LUT
+            const getLutCorrection = (thetaDeg) => {
+                const step = 360 / NUM_LUT_POINTS;
+                const indexFloat = (thetaDeg % 360) / step;
+                const idx1 = Math.floor(indexFloat) % NUM_LUT_POINTS;
+                const idx2 = (idx1 + 1) % NUM_LUT_POINTS;
+                const frac = indexFloat - Math.floor(indexFloat);
+
+                // Linear interpolation between LUT entry points
+                return lutTable[idx1] * (1 - frac) + lutTable[idx2] * frac;
+            };
+
+            // Calculate Measured Angle & Errors
+            const currentRawError = calculateInlError(mechAngle);
+            const currentCorrection = calibrationActive ? getLutCorrection(mechAngle) : 0;
+            const currentNetError = currentRawError - currentCorrection;
+            const measuredAngle = (mechAngle + currentNetError + 360) % 360;
+
+            // FOC Torque Ripple Calculation (% error in quadrature current Iq)
+            const elecAngle = (mechAngle * polePairs) % 360;
+            const elecError = currentNetError * polePairs; // Electrical angle error is multiplied by Pole Pairs
+            const torqueRipplePercent = (1 - Math.cos((elecError * Math.PI) / 180)) * 100 + Math.abs(Math.sin((elecError * Math.PI) / 180)) * 15;
+
+            useEffect(() => {
+                const updateRotation = (now) => {
+                    const deltaTime = (now - lastTimeRef.current) / 1000;
+                    lastTimeRef.current = now;
+
+                    if (isRotating && !isTestingRoutine) {
+                        const deltaAngle = (rpm * 360 / 60) * deltaTime;
+                        setMechAngle((prev) => (prev + deltaAngle) % 360);
+                    }
+
+                    animRef.current = requestAnimationFrame(updateRotation);
+                };
+
+                lastTimeRef.current = performance.now();
+                animRef.current = requestAnimationFrame(updateRotation);
+
+                return () => cancelAnimationFrame(animRef.current);
+            }, [isRotating, rpm, isTestingRoutine]);
+
+            const runAutoCalibration = () => {
+                setIsTestingRoutine(true);
+                setIsRotating(false);
+                setTestProgress(0);
+
+                let currentTestAngle = 0;
+                const newLut = new Array(NUM_LUT_POINTS).fill(0);
+                const step = 360 / NUM_LUT_POINTS;
+
+                const interval = setInterval(() => {
+                    currentTestAngle += 1;
+                    setMechAngle(currentTestAngle);
+                    setTestProgress(Math.round((currentTestAngle / 360) * 100));
+
+                    // At key 32 points, sample error
+                    if (currentTestAngle % step === 0 && currentTestAngle < 360) {
+                        const pointIdx = Math.round(currentTestAngle / step);
+                        const err = calculateInlError(currentTestAngle);
+                        newLut[pointIdx] = err; // Calibration stores inverse error
+                    }
+
+                    if (currentTestAngle >= 360) {
+                        clearInterval(interval);
+                        setLutTable(newLut);
+                        setCalibrationActive(true);
+                        setIsTestingRoutine(false);
+                        setIsRotating(true);
+                        setMechAngle(0);
+                    }
+                }, 15);
+            };
+
+            const rotorCanvasRef = useRef(null);
+            useEffect(() => {
+                const canvas = rotorCanvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width;
+                const h = canvas.height;
+                const cx = w / 2;
+                const cy = h / 2;
+
+                ctx.clearRect(0, 0, w, h);
+
+                // Background
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, w, h);
+
+                // Draw Stator Teeth / Slots
+                const statorRadius = 110;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.strokeStyle = '#334155';
+                ctx.fillStyle = '#1e293b';
+                
+                for (let i = 0; i < statorSlots; i++) {
+                    const slotAngle = (i * 2 * Math.PI) / statorSlots;
+                    ctx.save();
+                    ctx.rotate(slotAngle);
+                    ctx.beginPath();
+                    ctx.rect(-10, -statorRadius - 15, 20, 25);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Stator Outer Ring
+                ctx.beginPath();
+                ctx.arc(0, 0, statorRadius + 10, 0, 2 * Math.PI);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#475569';
+                ctx.stroke();
+
+                // Air Gap Circle
+                ctx.beginPath();
+                ctx.arc(0, 0, statorRadius - 5, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Draw Rotating Rotor Body
+                ctx.rotate((mechAngle * Math.PI) / 180);
+
+                const rotorRadius = 75;
+                ctx.beginPath();
+                ctx.arc(0, 0, rotorRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = '#334155';
+                ctx.fill();
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw BLDC Permanent Magnet Pole Pairs
+                for (let p = 0; p < polePairs * 2; p++) {
+                    const pAngle = (p * Math.PI) / polePairs;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, rotorRadius - 2, pAngle, pAngle + Math.PI / polePairs);
+                    ctx.lineTo(0, 0);
+                    ctx.fillStyle = p % 2 === 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.4)';
+                    ctx.fill();
+                }
+
+                // Glued Magnet with Eccentricity Offset
+                const offsetX = eccentricity * 28 * Math.cos((tiltAngle * Math.PI) / 180);
+                const offsetY = eccentricity * 28 * Math.sin((tiltAngle * Math.PI) / 180);
+
+                ctx.translate(offsetX, offsetY);
+
+                // Magnet Body
+                const magR = 32;
+                
+                // North Pole
+                ctx.beginPath();
+                ctx.arc(0, 0, magR, -Math.PI / 2, Math.PI / 2);
+                ctx.fillStyle = '#ef4444';
+                ctx.fill();
+                ctx.strokeStyle = '#991b1b';
+                ctx.stroke();
+
+                // South Pole
+                ctx.beginPath();
+                ctx.arc(0, 0, magR, Math.PI / 2, (3 * Math.PI) / 2);
+                ctx.fillStyle = '#3b82f6';
+                ctx.fill();
+                ctx.strokeStyle = '#1e40af';
+                ctx.stroke();
+
+                // Magnet Labels N / S
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('N', magR / 2, 0);
+                ctx.fillText('S', -magR / 2, 0);
+
+                // Shaft Center Pin
+                ctx.beginPath();
+                ctx.arc(0, 0, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = '#f8fafc';
+                ctx.fill();
+
+                // Offset Indicator Line
+                if (eccentricity > 0.05) {
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(-offsetX, -offsetY);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+
+                // Fixed Sensor IC MA600 Target
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx - 16, cy - 16, 32, 32);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+                ctx.fillRect(cx - 16, cy - 16, 32, 32);
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('MA600', cx, cy + 26);
+
+            }, [mechAngle, eccentricity, tiltAngle, statorSlots, polePairs]);
+
+            const graphCanvasRef = useRef(null);
+            useEffect(() => {
+                const canvas = graphCanvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width;
+                const h = canvas.height;
+
+                ctx.clearRect(0, 0, w, h);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, w, h);
+
+                const zeroY = h / 2 + 10;
+                const scaleY = 45; // 1 degree = 45px
+
+                // Grid Lines
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 1;
+                for (let y = 20; y < h - 20; y += 25) {
+                    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 20, y); ctx.stroke();
+                }
+
+                // Zero Center Axis
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(40, zeroY); ctx.lineTo(w - 20, zeroY);
+                ctx.stroke();
+
+                // Draw Raw INL Curve (Red)
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let x = 40; x <= w - 20; x++) {
+                    const angleDeg = ((x - 40) / (w - 60)) * 360;
+                    const err = calculateInlError(angleDeg);
+                    const y = zeroY - err * scaleY;
+                    if (x === 40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Draw Calibrated Curve (Green)
+                if (calibrationActive) {
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    for (let x = 40; x <= w - 20; x++) {
+                        const angleDeg = ((x - 40) / (w - 60)) * 360;
+                        const rawErr = calculateInlError(angleDeg);
+                        const lutCorr = getLutCorrection(angleDeg);
+                        const netErr = rawErr - lutCorr;
+                        const y = zeroY - netErr * scaleY;
+                        if (x === 40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+
+                // Motor Angle Vertical Line Marker
+                const currX = 40 + (mechAngle / 360) * (w - 60);
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(currX, 20);
+                ctx.lineTo(currX, h - 30);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Current Point Dot
+                const currRawErr = calculateInlError(mechAngle);
+                const currY = zeroY - (calibrationActive ? (currRawErr - getLutCorrection(mechAngle)) : currRawErr) * scaleY;
+                ctx.beginPath();
+                ctx.arc(currX, currY, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                // Labels
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '10px monospace';
+                ctx.fillText('+1.5°', 5, zeroY - 1.5 * scaleY);
+                ctx.fillText('0.0°', 10, zeroY + 3);
+                ctx.fillText('-1.5°', 5, zeroY + 1.5 * scaleY);
+
+                ctx.fillText('0°', 40, h - 10);
+                ctx.fillText('90°', 40 + (w - 60) * 0.25, h - 10);
+                ctx.fillText('180°', 40 + (w - 60) * 0.5, h - 10);
+                ctx.fillText('270°', 40 + (w - 60) * 0.75, h - 10);
+                ctx.fillText('360°', w - 30, h - 10);
+
+            }, [mechAngle, eccentricity, tiltAngle, statorSlots, statorHarmonicAmp, calibrationActive, lutTable]);
+
+            return (
+                <div className="min-h-screen flex flex-col p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+                    
+                    {/* Header Banner */}
+                    <header className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                        <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-amber-500/20 border border-amber-500/40 rounded-xl flex items-center justify-center text-amber-400 font-bold text-xl">
+                                BLDC
+                            </div>
+                            <div>
+                                <div className="flex items-center space-x-2">
+                                    <h1 className="text-xl md:text-2xl font-bold text-white tracking-wide">
+                                        Mô Phỏng Test Non-Linear & Calibration Động Cơ BLDC
+                                    </h1>
+                                    <span className="bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                                        Sau Dán Nam Châm
+                                    </span>
+                                </div>
+                                <p className="text-sm text-slate-400 mt-1">
+                                    Phân tích Sai số Phi Tuyến (INL) do Lệch tâm Nam châm & Động cơ • Cảm biến MPS MA600GQ
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Status Readouts */}
+                        <div className="flex flex-wrap items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
+                            <div className="px-3 border-r border-slate-800">
+                                <span className="block text-slate-500">Sai Số Lệch Tâm (1f)</span>
+                                <span className="text-amber-400 font-mono font-bold text-sm">
+                                    {(eccentricity * 1.25).toFixed(2)}°
+                                </span>
+                            </div>
+                            <div className="px-3 border-r border-slate-800">
+                                <span className="block text-slate-500">Sai Số Nghiêng (2f)</span>
+                                <span className="text-sky-400 font-mono font-bold text-sm">
+                                    {((tiltAngle / 5.0) * 0.75).toFixed(2)}°
+                                </span>
+                            </div>
+                            <div className="px-3">
+                                <span className="block text-slate-500">Trạng Thái Hiệu Chuẩn</span>
+                                <span className={`font-bold font-mono text-sm ${calibrationActive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {calibrationActive ? 'ĐÃ CALIB (32-PT LUT)' : 'CHƯA CALIB'}
+                                </span>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* MAIN INTERACTIVE CONTENT GRID */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* LEFT COLUMN: Controls */}
+                        <div className="lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-5 shadow-xl">
+                            <div>
+                                <h2 className="text-md font-semibold text-slate-200 flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                                    <span className="flex items-center gap-2">
+                                        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        </svg>
+                                        Mô Phỏng Sai Lệch Khi Dán Nam Châm
+                                    </span>
+                                    <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono">
+                                        {mechAngle.toFixed(1)}° Cơ học
+                                    </span>
+                                </h2>
+
+                                {/* Rotor Cross Section Canvas */}
+                                <div className="relative flex justify-center items-center bg-slate-950 rounded-xl p-3 border border-slate-800">
+                                    <canvas
+                                        ref={rotorCanvasRef}
+                                        width={320}
+                                        height={260}
+                                        className="rounded-lg shadow-inner cursor-pointer"
+                                        onClick={(e) => {
+                                            const rect = e.target.getBoundingClientRect();
+                                            const x = e.clientX - rect.left - 160;
+                                            const y = e.clientY - rect.top - 130;
+                                            let rad = Math.atan2(y, x);
+                                            let deg = (rad * 180 / Math.PI + 360) % 360;
+                                            setMechAngle(Math.round(deg));
+                                        }}
+                                    />
+                                    <div className="absolute bottom-2 right-3 text-[10px] text-slate-500 italic">
+                                        Click canvas để chỉnh góc quay
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Misalignment Controls */}
+                            <div className="space-y-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 text-xs">
+                                
+                                {/* Eccentricity Slider */}
+                                <div>
+                                    <div className="flex justify-between font-medium text-slate-300 mb-1">
+                                        <span>1. Độ Lệch Tâm Dán Nam Châm (Eccentricity d)</span>
+                                        <span className="font-mono text-amber-400">{eccentricity.toFixed(2)} mm</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="0.8"
+                                        step="0.02"
+                                        value={eccentricity}
+                                        onChange={(e) => setEccentricity(parseFloat(e.target.value))}
+                                        className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                                    />
+                                    <span className="text-[10px] text-slate-500">Tạo ra sai số hài sóng bậc 1 (1f - 1 chu kỳ/vòng)</span>
+                                </div>
+
+                                {/* Tilt Angle Slider */}
+                                <div>
+                                    <div className="flex justify-between font-medium text-slate-300 mb-1">
+                                        <span>2. Độ Nghiêng Mặt Nam Châm (Tilt Angle θ)</span>
+                                        <span className="font-mono text-sky-400">{tiltAngle.toFixed(1)}°</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="4.0"
+                                        step="0.1"
+                                        value={tiltAngle}
+                                        onChange={(e) => setTiltAngle(parseFloat(e.target.value))}
+                                        className="w-full accent-sky-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                                    />
+                                    <span className="text-[10px] text-slate-500">Tạo ra sai số hài sóng bậc 2 (2f - 2 chu kỳ/vòng)</span>
+                                </div>
+
+                                {/* Stator Slotting Effect */}
+                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+                                    <div>
+                                        <label className="block text-slate-400 mb-1">Số Rãnh Stator (Slots)</label>
+                                        <select
+                                            value={statorSlots}
+                                            onChange={(e) => setStatorSlots(parseInt(e.target.value))}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200"
+                                        >
+                                            <option value="6">6 Rãnh (Slots)</option>
+                                            <option value="12">12 Rãnh (Slots)</option>
+                                            <option value="18">18 Rãnh (Slots)</option>
+                                            <option value="24">24 Rãnh (Slots)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-slate-400 mb-1">Số Cặp Cực (Pole Pairs)</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="12"
+                                            value={polePairs}
+                                            onChange={(e) => setPolePairs(Math.max(1, parseInt(e.target.value) || 1))}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Speed Control */}
+                                <div>
+                                    <div className="flex justify-between text-slate-300 mb-1">
+                                        <span>Tốc Độ Quay Động Cơ Test</span>
+                                        <span className="font-mono text-emerald-400">{rpm} RPM</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="10"
+                                        max="600"
+                                        step="10"
+                                        value={rpm}
+                                        onChange={(e) => setRpm(parseInt(e.target.value))}
+                                        className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                                    />
+                                </div>
+
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: Visualizer & Calibration Wizard */}
+                        <div className="lg:col-span-7 flex flex-col space-y-6">
+                            
+                            {/* Readout Dashboard Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md">
+                                    <span className="text-xs text-slate-400 font-medium">Góc Đo Hiện Tại</span>
+                                    <div className="mt-2 flex items-baseline justify-between">
+                                        <span className="text-2xl font-bold font-mono text-sky-400">
+                                            {measuredAngle.toFixed(2)}°
+                                        </span>
+                                        <span className="text-xs text-slate-500 font-mono">15-Bit Absolute</span>
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-slate-400">
+                                        Góc Chuẩn Thực: {mechAngle.toFixed(2)}°
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md">
+                                    <span className="text-xs text-slate-400 font-medium">Sai Số Phi Tuyến INL</span>
+                                    <div className="mt-2 flex items-baseline justify-between">
+                                        <span className={`text-2xl font-bold font-mono ${
+                                            Math.abs(currentNetError) < 0.1 ? 'text-emerald-400' : 'text-amber-400'
+                                        }`}>
+                                            {(currentNetError >= 0 ? '+' : '') + currentNetError.toFixed(3)}°
+                                        </span>
+                                        <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                                            {calibrationActive ? 'Đã Calib' : 'Gốc Thô'}
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-slate-400">
+                                        Tối đa thô: ~{(eccentricity * 1.25 + (tiltAngle / 5.0) * 0.75 + statorHarmonicAmp).toFixed(2)}°
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md">
+                                    <span className="text-xs text-slate-400 font-medium">Đập Mạch Mô-Men FOC</span>
+                                    <div className="mt-2 flex items-baseline justify-between">
+                                        <span className={`text-2xl font-bold font-mono ${
+                                            torqueRipplePercent < 1.0 ? 'text-emerald-400' : 'text-rose-400'
+                                        }`}>
+                                            {torqueRipplePercent.toFixed(2)}%
+                                        </span>
+                                        <span className="text-xs text-slate-500 font-mono">Torque Ripple</span>
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-slate-400">
+                                        Gây rung &amp; tiếng ồn motor
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Signal & Tab Display Section */}
+                            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between">
+                                <div>
+                                    <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 gap-2">
+                                        <h3 className="text-md font-semibold text-slate-200">
+                                            Đồ Thị Sai Số Góc &amp; Quy Trình Hiệu Chuẩn
+                                        </h3>
+
+                                        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                                            <button
+                                                onClick={() => setActiveTab('error_curve')}
+                                                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                                                    activeTab === 'error_curve' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:text-slate-200'
+                                                }`}
+                                            >
+                                                Đường Cong Sai Số INL
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('foc_impact')}
+                                                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                                                    activeTab === 'foc_impact' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:text-slate-200'
+                                                }`}
+                                            >
+                                                Ảnh Hưởng Mô-men FOC
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('lut_table')}
+                                                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                                                    activeTab === 'lut_table' ? 'bg-amber-500 text-slate-950 font-semibold' : 'text-slate-400 hover:text-slate-200'
+                                                }`}
+                                            >
+                                                Bảng Tra LUT (32 Điểm)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* TAB 1: Error Curve View */}
+                                    {activeTab === 'error_curve' && (
+                                        <div className="mt-4">
+                                            <div className="flex justify-between items-center text-xs text-slate-400 mb-2">
+                                                <span>Đồ thị Sai số phi tuyến E(θ) theo góc quay 0° - 360°</span>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="w-3 h-0.5 bg-rose-500"></span> Chưa Calib (Thô)
+                                                    </span>
+                                                    {calibrationActive && (
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-3 h-0.5 bg-emerald-500"></span> Sau Calib (LUT)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
+                                                <canvas
+                                                    ref={graphCanvasRef}
+                                                    width={600}
+                                                    height={210}
+                                                    className="w-full h-auto rounded"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* TAB 2: FOC Motor Drive Impact View */}
+                                    {activeTab === 'foc_impact' && (
+                                        <div className="mt-4 space-y-3 text-xs">
+                                            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 leading-relaxed text-slate-300">
+                                                <h4 className="font-semibold text-amber-400 mb-1 text-sm">
+                                                    Tại sao phải Test &amp; Calib Non-Linear khi điều khiển FOC đĩa từ?
+                                                </h4>
+                                                <p>
+                                                    Trong thuật toán điều khiển vector FOC (Field Oriented Control), góc từ trường rô-to θ_e đóng vai trò biến đổi tọa độ Park/Clarke (I_α, I_β → I_d, I_q).
+                                                </p>
+                                                <ul className="list-disc list-inside mt-2 space-y-1 text-slate-400">
+                                                    <li>Nếu góc đo bị sai lệch phi tuyến E(θ), dòng I_d (Dòng tạo từ trường) và I_q (Dòng tạo mô-men) sẽ bị trộn lẫn nhau.</li>
+                                                    <li>Dẫn đến **đập mạch mô-men quay (Torque Ripple)**, sinh ra tiếng ồn rít tần số cao, rung lắc motor và giảm hiệu suất năng lượng.</li>
+                                                </ul>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
+                                                    <span className="text-slate-400 block mb-1">Mức Độ Đập Mạch Mô-Men (Torque Ripple)</span>
+                                                    <span className={`text-xl font-bold font-mono ${calibrationActive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {torqueRipplePercent.toFixed(2)} %
+                                                    </span>
+                                                </div>
+                                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
+                                                    <span className="text-slate-400 block mb-1">Tỉ Số Biến Dạng Dòng Điện Pha (I_q Distortion)</span>
+                                                    <span className={`text-xl font-bold font-mono ${calibrationActive ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                        {(Math.sin((currentNetError * polePairs * Math.PI) / 180) * 100).toFixed(2)} %
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* TAB 3: LUT Compensation Table View */}
+                                    {activeTab === 'lut_table' && (
+                                        <div className="mt-4 space-y-3 text-xs">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-400">Bảng giá trị bù 32 điểm (32-Point Lookup Table) lưu vào bộ nhớ NVM MA600/MCU</span>
+                                                <button
+                                                    onClick={() => navigator.clipboard?.writeText(JSON.stringify(lutTable.map(v => parseFloat(v.toFixed(3)))))}
+                                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-mono"
+                                                >
+                                                    Copy Array Data
+                                                </button>
+                                            </div>
+
+                                            <div className="max-h-48 overflow-y-auto bg-slate-950 rounded-xl p-2 border border-slate-800">
+                                                <div className="grid grid-cols-4 gap-2 font-mono text-[11px]">
+                                                    {lutTable.map((val, idx) => (
+                                                        <div key={idx} className="bg-slate-900 p-1.5 rounded flex justify-between border border-slate-800/80">
+                                                            <span className="text-slate-500">{(idx * (360 / NUM_LUT_POINTS)).toFixed(0)}°:</span>
+                                                            <span className={val !== 0 ? 'text-amber-400 font-bold' : 'text-slate-600'}>
+                                                                {val > 0 ? '+' : ''}{val.toFixed(3)}°
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* AUTO-CALIBRATION CONTROLS */}
+                                <div className="mt-5 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={runAutoCalibration}
+                                            disabled={isTestingRoutine}
+                                            className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center gap-2 ${
+                                                isTestingRoutine
+                                                    ? 'bg-amber-500/50 text-slate-950 cursor-not-allowed'
+                                                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                                            }`}
+                                        >
+                                            <svg className={`w-4 h-4 ${isTestingRoutine ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                            {isTestingRoutine ? `Đang Quét Auto-Calib (${testProgress}%)...` : 'Chạy Quy Trình Đo Test & Calib 32 Điểm'}
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                setCalibrationActive(!calibrationActive);
+                                            }}
+                                            className={`px-4 py-2.5 rounded-xl font-semibold text-xs border transition-all ${
+                                                calibrationActive
+                                                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                                            }`}
+                                        >
+                                            Bật/Tắt Hiệu Chuẩn: {calibrationActive ? 'ON' : 'OFF'}
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            setLutTable(new Array(NUM_LUT_POINTS).fill(0));
+                                            setCalibrationActive(false);
+                                        }}
+                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl text-xs"
+                                    >
+                                        Reset Bảng Calib
+                                    </button>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* TECHNICAL GUIDELINE FOOTER */}
+                    <footer className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 leading-relaxed">
+                        <h4 className="font-semibold text-slate-200 mb-2 flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Hướng dẫn kiểm tra &amp; xử lý sau khi dán nam châm lên động cơ BLDC:
+                        </h4>
+                        <div className="space-y-1 mt-1 text-slate-300">
+                            <div><strong>1. Đo độ lệch tâm cơ học:</strong> Sử dụng đồng hồ so (Dial Indicator) để đảm bảo nam châm dán lệch tâm d &lt; 0.1 mm. Sai số lệch tâm tạo ra hài bậc 1 (1f) làm sai lệch góc từ trường lớn nhất.</div>
+                            <div><strong>2. Độ nghiêng vuông góc:</strong> Mặt nam châm cần vuông góc tuyệt đối với trục quay (Tilt angle &lt; 0.5°) để tránh sinh ra hài bậc 2 (2f).</div>
+                            <div><strong>3. Quy trình Auto-Calibration 32 điểm trên MA600GQ:</strong> Cho động cơ quay chậm không tải 1 vòng (360°). Thu thập góc đo thô từ cảm biến MA600GQ so với góc chuẩn, vi điều khiển tính toán bảng bù LUT 32 điểm và ghi trực tiếp vào thanh ghi NVM của MA600 qua chuẩn kết nối SPI, giúp triệt tiêu triệt để sai số INL từ ±1.5° xuống &lt; 0.08°.</div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<NonLinearBldcSimulator />);
+    </script>
+</body>
+</html>

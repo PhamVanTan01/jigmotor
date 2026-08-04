@@ -1,0 +1,50 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P05-JIG6-remount01-test-2.txt
+TerminalStatus=COMPLETE
+OfficialValid=3/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+AutoVerdict=PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG6 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P05-JIG6-remount01-test-2.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.7212 RawP2P=3.0772 System_INL=1.5386 RobustP2P=2.9788 Closure=-0.18042 TrackRMS=0.7723 TrackMax=1.8347
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG6 TestID=2 SweepID=2 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P05-JIG6-remount01-test-2.txt
+      RMS_AC=0.7228 RawP2P=3.1379 System_INL=1.5690 RobustP2P=3.0046 Closure=-0.01752 TrackRMS=0.8055 TrackMax=1.9446
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG6 TestID=3 SweepID=3 RunOrder=2 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P05-JIG6-remount01-test-2.txt
+      RMS_AC=0.7230 RawP2P=3.1328 System_INL=1.5664 RobustP2P=2.9788 Closure=-0.08661 TrackRMS=0.8194 TrackMax=1.9391
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG6 TestID=4 SweepID=4 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P05-JIG6-remount01-test-2.txt
+      RMS_AC=0.7211 RawP2P=3.1139 System_INL=1.5569 RobustP2P=2.9923 Closure=-0.11761 TrackRMS=0.8115 TrackMax=1.9391
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG6  (runs total=4, statistically eligible=3)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: mean=0.7223 sd=0.0011 cv=0.15%
+    raw_p2p: mean=3.1282 sd=0.0127 cv=0.40%
+    system_inl_deg: mean=1.5641 sd=0.0063 cv=0.40%
+    robust_p2p: mean=2.9919 sd=0.0129 cv=0.43%
+    closure_error_deg: mean=-0.0739 sd=0.0512 cv=69.32%
+    tracking_rms_deg: mean=0.8121 sd=0.0070 cv=0.86%
+    tracking_max_abs_deg: mean=1.9409 sd=0.0032 cv=0.16%
+    mean_dc: mean=0.3864 sd=0.0139 cv=3.59%
+    p99_abs_deviation: mean=1.5325 sd=0.0029 cv=0.19%
+    A1: mean=0.3172 sd=0.0014 cv=0.44%
+    A2: mean=0.2176 sd=0.0062 cv=2.87%
+    A9: mean=0.2808 sd=0.0030 cv=1.06%
+    A36: mean=0.8590 sd=0.0011 cv=0.13%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

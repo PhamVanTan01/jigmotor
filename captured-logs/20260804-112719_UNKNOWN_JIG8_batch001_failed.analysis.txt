@@ -1,0 +1,47 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260804-112719_UNKNOWN_JIG8_batch001_failed.txt
+TerminalStatus=FAILED
+OfficialValid=0/3
+GatedConfigInvalid=0/1,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=256 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260804-112719_UNKNOWN_JIG8_batch001_failed.txt
+      - END.Status=INVALID
+      - META.MeasurementValid=0
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      - META.ShadowContractVersion=CANONICAL_Q16_1DEG360_V2 is incompatible with AnalysisPoints=256
+      - no usable DATA points (0 of 0..255 present)
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=1, statistically eligible=0)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: END.Status=INVALID; META.MeasurementValid=0; META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics); META.ShadowContractVersion=CANONICAL_Q16_1DEG360_V2 is incompatible with AnalysisPoints=256; no usable DATA points (0 of 0..255 present)
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

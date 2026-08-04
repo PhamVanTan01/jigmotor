@@ -1,0 +1,72 @@
+SavedAtLocal=2026-08-04T00:00:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+
+CodeChange=Core/Src/nonlinear_test.c: same ENABLE_SWEEP_POINT_CREEP=1 feature
+    as builds/sweep-point-creep-experimental-fast3-20260804/ (see that
+    build's build_info.txt for the full original design), PLUS ONE BUG FIX
+    found from that build's own first real hardware test.
+
+BugFound=First hardware test (2026-08-04, new product P08, JIG7 + the
+    2026-08-04 sensor-swap "new sensor", captured-logs/S2-P08-JIG7-remount0
+    {1,2}-test-{1,2}.txt) showed creep making NL WORSE, not better:
+    RobustP2P 3.05-3.07 deg (old firmware, 2 remounts, tight agreement) ->
+    3.46 deg (new firmware, creep on) -- and A36 0.89-0.90 deg -> 1.09 deg.
+    Opposite direction from the hypothesis, with
+    SweepPointCreepPointsCorrected=344/360 confirming creep WAS actually
+    running on almost every point, so this was not "creep did nothing."
+
+RootCause=CreepToUnwrappedTarget pushes its commandPos parameter (aliased
+    to the main loop's own `pos`) PAST the nominal targetPos by however much
+    extra command was needed to physically drag the real rotor close to
+    that target -- correct and necessary for the actual
+    Motor_SetElectricalPos() calls it issues. But `pos` is ALSO read at the
+    top of the NEXT loop iteration as `signedTargetDeg`'s source (the
+    "target" the next point's official 64-sample measurement gets compared
+    against). Leaving `pos` at creep's inflated value silently substituted
+    "however far we had to command to get there" for "the actual nominal
+    grid target" in every subsequent point's own error/NL computation --
+    inflating, not correcting, the reported error on nearly every point
+    creep touched (344/360).
+
+Fix=One line added at the end of the ENABLE_SWEEP_POINT_CREEP block, after
+    all diagnostics are recorded: `pos = targetPos;` -- restores pos to the
+    clean nominal grid value (targetPos, the same value already used for
+    this point's own ramp+settle, already in scope) before the next loop
+    iteration reads it. Does not undo any of creep's real
+    Motor_SetElectricalPos() calls or physical rotor motion -- only
+    corrects the software bookkeeping variable's downstream meaning.
+    Verified this is safe for the NEXT ramp's own use of pos as its
+    interpolation start point (RampCommandToTarget always forces an exact
+    final assignment to that ramp's own targetPos regardless of start
+    point, so this changes ramp SHAPE only, never destination).
+    The existing ENABLE_B0B_APPROACH_CREEP call sites (V2-only, unchanged)
+    do not have this bug: their commandPos is a separate local variable
+    scoped to the approach-leg function, never reused afterward as a
+    measurement-target reference the way the main loop's shared `pos` is.
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - 28/29 PowerShell regression scripts pass; the 1 expected exception is
+      test_preconditioned_10run_contract.ps1 (FAST3, same pattern as every
+      prior FAST3 build this session).
+    - NOT yet re-verified against real hardware -- this build has never
+      been flashed. The previous build's hardware run is what FOUND this
+      bug; this build has not yet been tested itself. Treat the fix as
+      logically sound (traced by hand against the exact failure mode
+      observed) but NOT hardware-confirmed until a fresh log is reviewed.
+
+WorkingTreeState=ENABLE_SWEEP_POINT_CREEP and NL_TEST_REPEAT_3_RUNS/
+    _10_RUNS are the ONLY flags deviating from default in this build.
+    ENABLE_SWEEP_POINT_CREEP will be reverted to 0 after packaging, same as
+    the previous (buggy) build -- still not hardware-validated, still not a
+    permanent working-tree default.
+
+Plan=Settle-time under-travel hypothesis, second hardware A/B test (v2, bug fix)
+BuildLabel=sweep-point-creep-fix-v2-fast3
+HexSHA256=48E99F0A7E4130527916430B47398FADEA5A75C97242D9B37366FEFD5067303D
+ElfSHA256=B50AFDC407B4AC4552285BC6348CAFB2C009A9D050BB5D46A38CD39704AF181

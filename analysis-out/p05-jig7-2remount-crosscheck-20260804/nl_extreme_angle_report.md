@@ -1,0 +1,61 @@
+# NL extreme-angle and cross-jig curve analysis
+
+Only statistically eligible sweeps are included. `DATA.Error` is used with its logged sign; robust NL is unchanged by reversing the sign.
+
+> MA600 raw zero is local to each sensor/jig. Equal raw codes across two jigs are not a shared physical angle. The comparison below uses sweep-relative angle and reports any circular alignment explicitly.
+
+## Extreme points on each batch-mean curve
+
+### P05 / JIG4
+
+- Eligible runs: 9
+- Mean repeat-selection rate: top=82.2%, bottom=100.0%
+- Top 5: 304°(+1.6663°), 303°(+1.6145°), 334°(+1.5976°), 254°(+1.5825°), 333°(+1.5554°)
+- Bottom 5: 76°(-1.8136°), 77°(-1.7967°), 36°(-1.6467°), 37°(-1.6280°), 78°(-1.6102°)
+
+### P05 / JIG5
+
+- Eligible runs: 9
+- Mean repeat-selection rate: top=91.1%, bottom=91.1%
+- Top 5: 264°(+2.1378°), 263°(+2.1133°), 254°(+2.1084°), 253°(+2.0324°), 294°(+1.9550°)
+- Bottom 5: 196°(-1.0315°), 156°(-1.0302°), 157°(-0.9883°), 197°(-0.9869°), 356°(-0.9625°)
+
+### P05 / JIG7
+
+- Eligible runs: 6
+- Mean repeat-selection rate: top=100.0%, bottom=100.0%
+- Top 5: 304°(+1.8024°), 303°(+1.7244°), 294°(+1.6955°), 293°(+1.6589°), 264°(+1.6283°)
+- Bottom 5: 36°(-1.4902°), 37°(-1.4417°), 76°(-1.3130°), 77°(-1.2612°), 38°(-1.2538°)
+
+### P05 / test-1
+
+- Eligible runs: 9
+- Mean repeat-selection rate: top=86.7%, bottom=100.0%
+- Top 5: 304°(+1.9000°), 303°(+1.8280°), 294°(+1.7812°), 264°(+1.7525°), 293°(+1.7511°)
+- Bottom 5: 36°(-1.3184°), 37°(-1.2749°), 76°(-1.1595°), 77°(-1.1162°), 38°(-1.0870°)
+
+### P05 / test-2
+
+- Eligible runs: 9
+- Mean repeat-selection rate: top=86.7%, bottom=91.1%
+- Top 5: 294°(+1.9653°), 293°(+1.9510°), 264°(+1.9427°), 304°(+1.8929°), 263°(+1.8707°)
+- Bottom 5: 196°(-1.1863°), 197°(-1.1137°), 76°(-1.0548°), 77°(-1.0144°), 36°(-1.0038°)
+
+## Same-motor cross-jig comparison
+
+Tail deltas below are differences between the batch means of each run's own top-5/bottom-5 means, so `ΔNL = Δtop-5 - Δbottom-5` matches the per-run robust-NL definition exactly.
+
+| Motor | Pair | r at 0° | Best shift | Best r | Aligned RMSE | Δtop-5 | Δbottom-5 | ΔNL | Top angle distance | Bottom angle distance |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| P05 | JIG4→JIG5 | 0.8605 | 320.0° | 0.8720 | 0.3865° | +0.4625° | +0.6975° | -0.2350° | 15.60° | 111.60° |
+| P05 | JIG4→JIG7 | 0.9643 | 0.0° | 0.9643 | 0.2116° | +0.0941° | +0.3471° | -0.2529° | 18.00° | 8.00° |
+| P05 | JIG4→test-1 | 0.9621 | 0.0° | 0.9621 | 0.2173° | +0.1976° | +0.5079° | -0.3103° | 18.00° | 8.00° |
+| P05 | JIG4→test-2 | 0.9181 | 0.0° | 0.9181 | 0.3112° | +0.3177° | +0.6169° | -0.2992° | 25.60° | 55.60° |
+| P05 | JIG5→JIG7 | 0.9323 | 40.0° | 0.9349 | 0.2603° | -0.3683° | -0.3504° | -0.0179° | 14.00° | 112.40° |
+| P05 | JIG5→test-1 | 0.9345 | 0.0° | 0.9345 | 0.2611° | -0.2649° | -0.1896° | -0.0753° | 26.00° | 103.60° |
+| P05 | JIG5→test-2 | 0.9826 | 0.0° | 0.9826 | 0.1350° | -0.1448° | -0.0806° | -0.0642° | 18.00° | 40.00° |
+| P05 | JIG7→test-1 | 0.9962 | 0.0° | 0.9962 | 0.0629° | +0.1034° | +0.1608° | -0.0574° | 0.00° | 0.00° |
+| P05 | JIG7→test-2 | 0.9698 | 0.0° | 0.9698 | 0.1771° | +0.2235° | +0.2698° | -0.0463° | 8.00° | 63.60° |
+| P05 | test-1→test-2 | 0.9689 | 0.0° | 0.9689 | 0.1797° | +0.1201° | +0.1090° | +0.0111° | 8.00° | 63.60° |
+
+Interpretation guard: high correlation after a shift supports a common periodic shape, but does not by itself assign that shape to the motor. Low correlation or large aligned extreme distances indicates a jig/mount/drive interaction or a localized event not preserved across the two setups.

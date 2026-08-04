@@ -11,6 +11,10 @@ analysis/output/
 # Claude Code working directory
 .claude/
 
+# Third-party reference code (Gremsy old-jig firmware) -- confidential,
+# provided locally for comparison only, must never enter this repo's history.
+datacty/
+
 # Python bytecode cache
 __pycache__/
 *.pyc

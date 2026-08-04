@@ -1,0 +1,135 @@
+SavedAtLocal=2026-08-04T00:00:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default,
+    UNCHANGED -- this is the whole point: ENABLE_SWEEP_POINT_CREEP works under
+    A0, unlike ENABLE_B0B_APPROACH_CREEP which is compile-time incompatible
+    with A0/V3 and only ever applied to V2's own approach legs)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+
+CodeChange=Core/Src/nonlinear_test.c:
+    1) New flag ENABLE_SWEEP_POINT_CREEP=1 (default 0, ON in this build).
+       Motivation (2026-08-04, see docs/session-summary-2026-08-04-*.md):
+       every APPROACH_RESULT record this session (any jig/board, all on the
+       current A0 production approach mode) shows its Final/LocalBackoff
+       legs landing at only ~44-51% of their own commanded delta
+       (FinalCommandDeltaRaw=182 vs FinalObservedDeltaRaw=83-93, consistent
+       across JIG4/6/7/8). A companion check of the EXISTING
+       MOTION.PositionErrorRaw field (already logged, no code change needed
+       to observe this part) across a full 360-point sweep shows the same
+       ~10-point-period pattern as the dominant order-36 NL harmonic, with
+       magnitude up to ~181 raw -- comparable to a full single-point step.
+       WaitForPointSettle's own NL_SETTLE_TARGET_TOLERANCE_RAW (910 raw,
+       ~5 deg) is far too loose to catch any of this on any approach mode.
+    2) CreepToUnwrappedTarget (the existing B0-B endpoint-creep function,
+       function body byte-for-byte UNCHANGED) is now compiled whenever
+       EITHER ENABLE_B0B_APPROACH_CREEP OR ENABLE_SWEEP_POINT_CREEP is on
+       (was ENABLE_B0B_APPROACH_CREEP alone). Its own safety constants
+       (NL_B0B_CREEP_STEP_RAW=8, _DEADBAND_RAW=16, _MAX_TOTAL_RAW=150,
+       _MAX_ITERATIONS=30) are likewise shared, unchanged, and UNTUNED for
+       this new call site -- see point 4 below.
+    3) New call site in the MAIN 360-point sweep loop (the loop shared
+       byte-for-byte by every approach mode, not any approach-mode-specific
+       function): right after each point's WaitForPointSettle succeeds
+       (OK/TIMEOUT/WRONG_POSITION all fall through to creep -- ACQUISITION_
+       ERROR already jumped away before reaching this code), calls
+       CreepToUnwrappedTarget against that same point's own
+       expectedTargetUnwrapped/settleObservation.finalSample, updating pos
+       and settleObservation.finalSample in place so the NEXT loop
+       iteration's official 64-sample measurement reads the corrected
+       position. Scope: corrects points 1..capturedCount-1 (the loop's own
+       ramp-then-settle-for-next-point step); point 0's own pre-loop settle
+       is NOT yet corrected (~1 of ~372 points, deliberately deferred rather
+       than touching the several separate pre-loop settle call-sites shared
+       with every approach-mode variant in this first experimental cut).
+    4) New END fields (always present, all 0 when the flag is off --
+       verified zero-cost/no-op for any build that doesn't use it):
+       SweepPointCreepPointsCorrected, SweepPointCreepTotalIterations,
+       SweepPointCreepTotalCorrectionRaw, SweepPointCreepTimeouts,
+       SweepPointCreepBudgetExceeded. Purpose: the reused NL_B0B_CREEP_*
+       budget (150 raw total, max 30 iterations) was sized for the OLD B0-B
+       approach-leg use case's own observed gaps (~90-120 raw); this new
+       call site's own observed gaps run up to ~181 raw in the same
+       ballpark but close enough to the 150 budget that
+       SweepPointCreepBudgetExceeded/Timeouts are expected to fire on some
+       points -- these counters exist specifically so an under-sized budget
+       shows up in the data instead of being silently absorbed, informing
+       whether NL_B0B_CREEP_MAX_TOTAL_RAW needs raising in a follow-up
+       build rather than guessing.
+    5) sweepPointCreepAcquisition (new NlAcquisitionCounters_t field) is
+       subtracted out of all five schema-v5 "frozen" Acq* totals
+       (AcqReadAttempts/AcqRetries/AcqTransportErrors/AcqJumpRejects/
+       AcqFailedSamples) the same way every existing approach-leg
+       accumulator already is -- confirmed zero/exact-no-op when the flag
+       is off, so this build's own Acq* numbers ARE NOT directly comparable
+       to a flag-off build's Acq* numbers (creep's own extra polling reads
+       are correctly excluded from Acq*, by design, but this means Acq* no
+       longer represents "every SPI transaction this sweep made" the way it
+       would with the flag off -- expected and consistent with how B0-B's
+       own approach-leg reads have always been excluded too).
+    6) NL_TEST_REPEAT_3_RUNS=1, NL_TEST_REPEAT_10_RUNS=0 (was 0/1) --
+       standard FAST3 for quick iteration, per this session's established
+       pattern. No other change from the JIG8-registration build.
+
+Purpose=First hardware test of a working hypothesis: that the several-
+    degree NL curve (and specifically its dominant order-36 component) is
+    materially explained by WaitForPointSettle's own settle-time position
+    error (a real, repeatable, ~44-51%-of-one-step under-travel/cogging-
+    detent-pull effect, confirmed today via existing APPROACH_RESULT and
+    MOTION.PositionErrorRaw data -- no new logging needed to discover it),
+    NOT purely by "true" magnet/cogging-torque wobble as originally assumed
+    when H36 was first classified as the stable "motor" harmonic family.
+    This build adds a real (not diagnostic-only) closed-loop correction at
+    every sweep point and packages it for a direct hardware A/B: run the
+    SAME product/jig/assembly on this build vs. the equivalent flag-off
+    build already on hand, and compare RobustP2P/Motor_System_INL_Deg/H36
+    amplitude before vs after. If H36 drops substantially, a meaningful
+    share of what this session called "the stable motor signal" was
+    actually settle-time approach error, not magnet/cogging physics --
+    a significant revision to this session's own harmonic-family framework
+    that would need documenting either way (confirmed OR refuted).
+
+WhatThisIsNot=Not a replacement for ENABLE_B0B_APPROACH_CREEP (still exists
+    unchanged, still V2-only, still incompatible with A0 by its own
+    #error). Not yet tuned (constants are the OLD B0-B first-estimates,
+    reused as-is, likely undersized for this call site's own ~181-raw
+    gaps -- see point 4 above). Not yet validated against real hardware --
+    this is that first validation run.
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - 28/29 PowerShell regression scripts pass; the 1 expected exception is
+      test_preconditioned_10run_contract.ps1 (FAST3, same pattern as every
+      prior FAST3 build this session).
+    - scripts/test_b0b_creep_contract.ps1 updated (not weakened): the one
+      assertion that changed was the regex expecting
+      "#if ENABLE_B0B_APPROACH_CREEP" immediately before
+      CreepToUnwrappedTarget's definition, now
+      "#if ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP" --
+      updated to match, since the function itself (and every other
+      B0-B-specific invariant the test checks: direction-never-reverses,
+      Motor_SetElectricalPos convention, WaitForPointSettle reuse,
+      deadband/iteration/budget checks, the backoff/point0 B0-B insertion
+      points, APPROACH_RESULT field layout, schema/META non-leakage, the
+      1900-byte line budget) is verified byte-for-byte unchanged by this
+      experiment; only its compile guard is now an OR of two flags instead
+      of one, which is what the updated regex now confirms.
+    - NOT yet run on real hardware -- SweepPointCreep* fields have never
+      been printed on an actual capture. Treat exact field values/whether
+      the 150-raw budget is adequate as unconfirmed until the first real
+      log is reviewed.
+
+WorkingTreeState=ENABLE_SWEEP_POINT_CREEP and NL_TEST_REPEAT_3_RUNS/
+    _10_RUNS are the ONLY flags deviating from default in this build.
+    ENABLE_SWEEP_POINT_CREEP will be reverted to 0 (its default) after this
+    build is packaged, per this session's established build/verify/
+    package/revert pattern for experimental flags -- it is NOT yet a
+    permanent working-tree default the way UART-failure-tracking/
+    MOUNT_PRECHECK_V1 are, since it has not been hardware-validated yet.
+
+Plan=Settle-time under-travel hypothesis, first hardware A/B test
+BuildLabel=sweep-point-creep-experimental-fast3
+HexSHA256=23B1A9577FB2FCE3AB961A056052CA39F7D28402200886C55F2B3E987FC38A7C
+ElfSHA256=DB3074B3FF287D9AFD04A1E6375BF7CAE8C5D954367D7EB0D7A74475EEF2479
