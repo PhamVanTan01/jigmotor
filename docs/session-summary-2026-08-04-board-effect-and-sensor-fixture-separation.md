@@ -233,7 +233,111 @@ board mới, cụm yếu nhạy board hơn cụm mạnh, gá quyết định v�
 nguyên** khi đổi sang chỉ số đúng công thức spec. Chỉ số tuyệt đối và ngưỡng gate (hiện ≤0.05° theo
 RobustP2P) cần quy đổi lại theo tỷ lệ ~0.53 nếu chính thức chuyển sang dùng `Motor_System_INL_Deg`.
 
-## 6. Việc chưa hoàn thành / đề xuất cho phiên sau
+## 5.2. Đánh giá đề xuất gate H1/H2 dạng vector (fingerprint)
+
+Người vận hành đưa 1 đề xuất kỹ thuật (chuyển amplitude/phase H1/H2 sang vector Cartesian
+`C=A·cosθ, S=A·sinθ`, so khớp bằng khoảng cách Euclid thay vì so trực tiếp amplitude/phase) để
+nâng cấp `MountValid`. Đã đánh giá và **xác nhận đúng hướng, có kiểm chứng bằng số liệu thật**:
+
+- Cách chuyển vector giải quyết đúng lỗi wraparound pha (±180°) mà so trực tiếp độ sẽ tính sai.
+- Cảnh báo "không tự trừ H1/H2 của chính DUT" trong đề xuất là đúng và quan trọng — cùng nguyên
+  tắc với mục 5.1 (cần tham chiếu độc lập, không tự tham chiếu chính tín hiệu đang đo).
+- **Kiểm chứng bằng vector thật** (từ toàn bộ `MOUNT_PRECHECK_RESULT` hôm nay): khoảng cách do
+  **đổi board** (cùng 1 cụm, JIG6↔JIG7: D1=0.056, D2=0.047) **lớn hơn** nhiễu remount nội bộ cùng
+  board (0.006-0.028) — xác nhận yêu cầu "khóa fingerprint theo cả Board+Sensor+Mount" trong đề
+  xuất không phải thận trọng thừa mà là **bắt buộc về số liệu**.
+- Phát hiện thêm (đề xuất gốc chưa nêu): độ ổn định vector **không đều** giữa cụm mạnh/yếu — cụm
+  JIG5-gốc (H1 yếu ~0.3°) có độ tán xạ vector nội bộ cao gấp 3-8 lần cụm mạnh, vì biên độ nhỏ làm
+  ước lượng phase nhạy nhiễu hơn — cần ngưỡng thích ứng theo biên độ, không phải 1 hằng số toàn cục.
+
+**Chưa triển khai code** — chỉ mới đánh giá/kiểm chứng đề xuất, để dành hiệu chuẩn khi có đủ dữ liệu
+pilot theo đúng lộ trình mục 5 điểm 3-4.
+
+## 6. Giả thuyết "chưa tới đích khi settle" — từ log cũ tới thí nghiệm thật trên phần cứng
+
+### 6.1. Bằng chứng ban đầu, không cần build mới
+
+Đối chiếu công thức cũ (mục 4.3) dẫn tới câu hỏi: motor có thực sự "rung" lớn tới mức NL ~3° hay
+không? Truy `NL_SETTLE_TARGET_TOLERANCE_RAW=910 raw (~5°)` trong `nonlinear_test.c:805` — comment
+gốc đã tự ghi nhận từ trước: *"WaitForPointSettle chỉ xác nhận rotor ĐÃ DỪNG... không hề xác nhận
+đã tới ĐÚNG vị trí lệnh... 30-52% ĐI THIẾU QUÃNG ĐƯỜNG chưa từng bị gate nào bắt được."*
+
+Kiểm chứng bằng dữ liệu **đã có sẵn**, không cần code mới:
+- `APPROACH_RESULT` (mọi board hôm nay, đều chạy A0): `FinalCommandDeltaRaw=182` nhưng
+  `FinalObservedDeltaRaw` chỉ 83-93 (**45-51%**) — nhất quán tuyệt đối trên cả JIG4/6/7/8.
+- `MOTION.PositionErrorRaw` (đã log sẵn từng điểm) qua 360 điểm: dao động chu kỳ ~10 điểm — **khớp
+  đúng chu kỳ bậc 36** — biên độ tới ~181 raw, xấp xỉ nguyên 1 bước quét (182 raw).
+
+→ Nghi vấn mạnh: phần lớn "tín hiệu motor ổn định" (bậc 36) trước đó thực ra là do chưa tới đích
+khi settle, không phải cogging-torque vật lý thật.
+
+### 6.2. Thiết kế + implement `ENABLE_SWEEP_POINT_CREEP`
+
+Cơ chế `CreepToUnwrappedTarget()` (bù nhỏ có phản hồi encoder) đã có sẵn cho nhánh V2
+(`ENABLE_B0B_APPROACH_CREEP`), nhưng **không tương thích A0** (chặn cứng lúc compile). Giải pháp:
+móc thêm 1 điểm gọi MỚI vào vòng lặp quét chính 360 điểm (dùng chung mọi chế độ tiếp cận, không
+riêng A0/V2/V3) — không cần đổi khỏi A0. Chi tiết đầy đủ: `builds/sweep-point-creep-*-20260804/`.
+
+### 6.3. Lỗi lần 1 (tự phát hiện qua chính lần test đầu) — NL tăng thay vì giảm
+
+Test thật đầu tiên (motor mới P08, JIG7 + sensor mới, so 2 remount fw cũ vs 1 remount fw mới) cho
+kết quả **ngược dự đoán**: RobustP2P 3.05-3.07° (fw cũ) → **3.46°** (fw mới, creep bật), A36
+0.89-0.90° → **1.09°**. `SweepPointCreepPointsCorrected=344/360` xác nhận creep có chạy thật, không
+phải không hoạt động.
+
+**Nguyên nhân**: `CreepToUnwrappedTarget()` đẩy biến `pos` (dùng chung) vượt quá target danh nghĩa
+để bù lệnh — đúng cho lệnh động cơ thật, nhưng `pos` này cũng được đọc lại làm "target" tính sai số
+cho điểm KẾ TIẾP → thay vì so với target danh nghĩa sạch, code so với "đã phải lệnh xa tới đâu" —
+càng bù nhiều càng thổi phồng sai số báo cáo. **Đã fix**: thêm `pos = targetPos;` sau creep, khôi
+phục target sạch cho vòng lặp sau (không đụng chuyển động vật lý đã chạy).
+
+### 6.4. Xác nhận thật sau khi fix — giảm mạnh, lặp lại tốt (nhưng có trôi)
+
+Test lại đúng cấu hình (P08, JIG7, sensor mới), 3x remount với bản đã fix:
+
+| Remount | RobustP2P | A36 |
+|---|---:|---:|
+| 01 | 1.743° | 0.3075° |
+| 02 | 1.778° | 0.3101° |
+| 03 | 1.829° | 0.3127° |
+
+**Giảm ~43% RobustP2P (3.06°→1.78° TB), ~66% A36 (0.90°→0.31° TB)** so với fw cũ — lặp lại xuyên
+suốt 3 remount, không phải may mắn 1 lần. Nhưng cả 2 chỉ số đều **tăng đơn điệu** qua 3 lần đo
+(không phải dao động ngẫu nhiên) — ban đầu nghi ngờ hiệu ứng khởi động nguội (P08 là motor mới,
+chưa test lần nào), sau đó xác định nguyên nhân thật ở mục 6.5.
+
+**Hệ quả với kết luận mục 4-5**: khung phân loại harmonic "geometric (nhạy jig) / motor (ổn định,
+bậc 36)" — phần "ổn định, không đổi theo jig" vẫn đúng (đặc tính firmware/control-loop, không phụ
+thuộc board/sensor), nhưng **diễn giải "phản ánh cogging-torque thật của rotor 6 cặp cực" cần đính
+chính** — phần lớn biên độ bậc 36 đo được bằng firmware cũ là artifact có thể sửa bằng phần mềm
+(chưa tới đích khi settle), không phải giới hạn vật lý cứng của motor. **Chưa verify lại** liệu bậc
+36 (đã giảm) có còn ổn định qua các board/sensor khác nhau như trước hay không — cần làm ở phiên
+sau (xem mục 7).
+
+### 6.5. Vấn đề mới, CHƯA GIẢI QUYẾT: motor nóng hơn và chuyển động giật cục hơn
+
+Người vận hành quan sát trực tiếp trên phần cứng: motor **nóng hơn rõ rệt** và **di chuyển giật cục
+hơn** so với firmware cũ khi chạy bản có creep.
+
+**Nguyên nhân**: creep chạy trên ~345/360 điểm mỗi sweep (95.8%), trung bình ~14 lần lặp/điểm →
+~4800-4900 lệnh động cơ PHỤ THÊM mỗi sweep, mỗi lệnh ở **toàn công suất** (`Motor_SetElectricalPos(...,
+1.0f)`, giống hệt mức ramp chính) — giải thích trực tiếp việc tăng nhiệt. Gần 44% số điểm được bù
+còn chạm trần ngân sách (150 raw) mà chưa đủ gần đích — tốn tối đa gần 19 lần lặp full-power mà kết
+quả vẫn chưa trọn vẹn ở gần một nửa số điểm. Về giật cục: mỗi bước creep là 1 lệnh nhảy tức thời 8
+raw, KHÔNG làm mượt như ramp chính (ramp chính dùng quintic S-curve chính vì lý do tránh giật cục,
+theo đúng comment gốc) — lặp lại hàng nghìn lần mỗi sweep tạo cảm giác giật.
+
+**Khả năng cao đây cũng là nguyên nhân thật của hiện tượng "trôi tăng dần qua 3 remount" ở mục 6.4**
+— nhiệt tích lũy do creep, không phải do bản chất motor P08 khởi động nguội như nghi ngờ ban đầu
+(cần đính chính giả thuyết đó).
+
+**Trạng thái: TẠM DỪNG** chạy thêm nhiều sweep liên tục với bản build hiện tại (nguy cơ ảnh hưởng
+nhiệt/cơ khí nếu chạy kéo dài; dữ liệu thu được có thể đang nhiễu bởi chính hiệu ứng nhiệt này).
+4 hướng sửa đã đề xuất, **chưa chọn/chưa làm**: (1) giảm công suất riêng cho bước creep (không dùng
+1.0f), (2) tăng kích thước bước (giảm số lần lặp), (3) giảm ngân sách/số lần lặp tối đa, (4) làm
+mượt bước creep bằng ramp ngắn thay vì nhảy tức thời.
+
+## 7. Việc chưa hoàn thành / đề xuất cho phiên sau
 
 1. JIG8/cụm-yếu (mục 3, thử nghiệm chưa đóng) — cần xác minh lại lực siết/quy trình lắp, test lại
    3x để xem hiện tượng bất ổn định (range 0.124°) có phải do lắp sai hay là phát hiện thật.
@@ -245,10 +349,23 @@ RobustP2P) cần quy đổi lại theo tỷ lệ ~0.53 nếu chính thức chuy�
    sai sản xuất riêng từng die, hay lỗi/khác biệt lô sensor.
 5. Đánh nhãn vật lý A/B/C độc lập cho từng cụm gá và từng module sensor (khuyến nghị từ phiên trước,
    càng quan trọng hơn sau khi xác nhận gá và sensor tách rời được).
+6. **Ưu tiên cao — mục 6.5**: sửa vấn đề nhiệt/giật cục của `ENABLE_SWEEP_POINT_CREEP` trước khi
+   test thêm (giảm công suất bước creep / tăng kích thước bước / giảm ngân sách / làm mượt bằng
+   ramp ngắn) — chưa chọn hướng, cần quyết định ở phiên sau.
+7. Sau khi mục 6 được giải quyết: verify lại bậc 36 (đã giảm ~66% sau creep) có còn ổn định qua các
+   board/sensor khác nhau như bản cũ hay không — chạy lại 1 vòng so sánh cross-board (mục 2) với
+   creep đã sửa nhiệt/giật, để biết framework "geometric vs motor" (mục 5) còn đúng ở thang đo mới.
+8. Đo lại 1 batch 3x sau khi motor P08 nguội hẳn (nếu vẫn còn trôi dù đã sửa nhiệt creep, cần tìm
+   nguyên nhân khác cho hiện tượng trôi đơn điệu ở mục 6.4).
 
-## 7. Build/dữ liệu
+## 8. Build/dữ liệu
 
-- Build: `builds/jig8-registration-fast3-20260804/`.
-- Dữ liệu thô: `captured-logs/S2-P05-JIG{6,7,8}-remount*-test-*.txt` (kèm `.analysis.*` tự sinh).
+- Build: `builds/jig8-registration-fast3-20260804/`,
+  `builds/sweep-point-creep-experimental-fast3-20260804/` (bản đầu, có bug — xem mục 6.3, KHÔNG dùng
+  để đo thật), `builds/sweep-point-creep-fix-v2-fast3-20260804/` (đã fix bug mục 6.3, nhưng còn vấn
+  đề nhiệt/giật ở mục 6.5 — dùng thận trọng, không chạy liên tục nhiều sweep).
+- Dữ liệu thô: `captured-logs/S2-P05-JIG{6,7,8}-remount*-test-*.txt` (kèm `.analysis.*` tự sinh),
+  `captured-logs/S2-P08-JIG7-remount*-test-{1,2,3}.txt` (motor mới P08, so sánh fw cũ/fw creep lỗi/fw
+  creep đã fix).
 - Phân tích: `analysis-out/p05-jig{6,7,8}-*-20260804/`, `analysis-out/p05-full-crossboard-final-20260804/`,
   `analysis-out/p05-jig7-sensoronly-3remount-final-20260804/`.
