@@ -679,6 +679,119 @@ class FirmwareLoader:
                 )
 
 
+class LiveNlPlot(ttk.Frame):
+    """Dependency-free line chart of ErrorDeg vs point Index for one NL sweep.
+
+    Redrawn live as DATA lines stream in from the UART app monitor (see
+    FlasherApp._feed_plot_line). Pure tk.Canvas -- no matplotlib -- to keep
+    the PyInstaller build (STM32_UART_Flasher.spec) light and avoid a new
+    packaging dependency for a single chart.
+    """
+
+    _MARGIN_LEFT = 46
+    _MARGIN_RIGHT = 12
+    _MARGIN_TOP = 14
+    _MARGIN_BOTTOM = 26
+    _Y_MIN = -3.0
+    _Y_MAX = 3.0
+    _Y_GRID_STEP = 0.5
+    _N_POINTS = 360  # 1 deg/point, matches GRID,NominalStepDeg=1.00000 in every log so far.
+
+    def __init__(self, master: tk.Widget) -> None:
+        super().__init__(master)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+
+        self.title_var = tk.StringVar(
+            value="Chưa có dữ liệu — mở UART app và chạy test để xem đường ErrorDeg theo góc quay."
+        )
+        ttk.Label(self, textvariable=self.title_var).grid(
+            row=0, column=0, sticky="w", pady=(4, 4)
+        )
+
+        self.canvas = tk.Canvas(
+            self, background="white", highlightthickness=1, highlightbackground="#c0c0c0"
+        )
+        self.canvas.grid(row=1, column=0, sticky="nsew")
+        self.canvas.bind("<Configure>", lambda _evt: self._redraw())
+
+        self._points: list[tuple[int, float]] = []
+
+    def reset(self) -> None:
+        """Start a new sweep trace (called on DATA,...,Index=0)."""
+        self._points = []
+        self.title_var.set("Sweep mới đang chạy...")
+        self._redraw()
+
+    def add_point(self, index: int, error_deg: float) -> None:
+        self._points.append((index, error_deg))
+        self.title_var.set(
+            f"Điểm {index + 1}/{self._N_POINTS}  ·  ErrorDeg={error_deg:+.3f}°"
+        )
+        self._redraw()
+
+    def _x(self, index: int, width: int) -> float:
+        plot_w = width - self._MARGIN_LEFT - self._MARGIN_RIGHT
+        return self._MARGIN_LEFT + (index / max(self._N_POINTS - 1, 1)) * plot_w
+
+    def _y(self, value: float, height: int) -> float:
+        plot_h = height - self._MARGIN_TOP - self._MARGIN_BOTTOM
+        clamped = max(self._Y_MIN, min(self._Y_MAX, value))
+        frac = (clamped - self._Y_MIN) / (self._Y_MAX - self._Y_MIN)
+        return self._MARGIN_TOP + (1 - frac) * plot_h
+
+    def _redraw(self) -> None:
+        c = self.canvas
+        c.delete("all")
+        width = c.winfo_width()
+        height = c.winfo_height()
+        if width < 10 or height < 10:
+            return
+
+        y = self._Y_MIN
+        while y <= self._Y_MAX + 1e-9:
+            yp = self._y(y, height)
+            c.create_line(
+                self._MARGIN_LEFT, yp, width - self._MARGIN_RIGHT, yp, fill="#e8e8e8"
+            )
+            c.create_text(
+                self._MARGIN_LEFT - 6, yp, text=f"{y:+.1f}°", anchor="e",
+                font=("Consolas", 8), fill="#808080",
+            )
+            y += self._Y_GRID_STEP
+
+        zero_y = self._y(0.0, height)
+        c.create_line(
+            self._MARGIN_LEFT, zero_y, width - self._MARGIN_RIGHT, zero_y, fill="#a0a0a0"
+        )
+
+        for tick in range(0, self._N_POINTS + 1, 45):
+            xp = self._x(min(tick, self._N_POINTS - 1), width)
+            c.create_line(xp, self._MARGIN_TOP, xp, height - self._MARGIN_BOTTOM, fill="#f2f2f2")
+            c.create_text(
+                xp, height - self._MARGIN_BOTTOM + 12, text=f"{tick}°", anchor="n",
+                font=("Consolas", 8), fill="#808080",
+            )
+
+        c.create_rectangle(
+            self._MARGIN_LEFT, self._MARGIN_TOP, width - self._MARGIN_RIGHT,
+            height - self._MARGIN_BOTTOM, outline="#c0c0c0",
+        )
+
+        if len(self._points) >= 2:
+            coords: list[float] = []
+            for index, error_deg in self._points:
+                coords.append(self._x(index, width))
+                coords.append(self._y(error_deg, height))
+            c.create_line(*coords, fill="#2a78d6", width=2, joinstyle="round", capstyle="round")
+
+        if self._points:
+            last_index, last_error = self._points[-1]
+            xp = self._x(last_index, width)
+            yp = self._y(last_error, height)
+            r = 4
+            c.create_oval(xp - r, yp - r, xp + r, yp + r, fill="#eb6834", outline="")
+
 
 class FlasherApp(tk.Tk):
     def __init__(self) -> None:
@@ -697,6 +810,7 @@ class FlasherApp(tk.Tk):
         self.app_monitor_stop_event = threading.Event()
         self.app_monitor_thread: Optional[threading.Thread] = None
         self.log_recorder = BatchLogRecorder()
+        self._plot_pending = ""  # separate line buffer feeding LiveNlPlot only
 
         self.cancel_event = threading.Event()
         self.worker: Optional[threading.Thread] = None
@@ -861,8 +975,11 @@ class FlasherApp(tk.Tk):
             variable=self.ask_log_filename_var,
         ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
-        log_frame = ttk.LabelFrame(root, text="Nhật ký bootloader / UART app")
-        log_frame.grid(row=7, column=0, columnspan=5, sticky="nsew")
+        view_notebook = ttk.Notebook(root)
+        view_notebook.grid(row=7, column=0, columnspan=5, sticky="nsew")
+
+        log_frame = ttk.Frame(view_notebook)
+        view_notebook.add(log_frame, text="Nhật ký bootloader / UART app")
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         self.log_text = tk.Text(log_frame, wrap="word", state="disabled", font=("Consolas", 10))
@@ -870,6 +987,13 @@ class FlasherApp(tk.Tk):
         scrollbar = ttk.Scrollbar(log_frame, command=self.log_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.log_text.configure(yscrollcommand=scrollbar.set)
+
+        plot_tab = ttk.Frame(view_notebook, padding=(8, 4))
+        view_notebook.add(plot_tab, text="Đồ thị NL — ErrorDeg(θ)")
+        plot_tab.columnconfigure(0, weight=1)
+        plot_tab.rowconfigure(0, weight=1)
+        self.error_plot = LiveNlPlot(plot_tab)
+        self.error_plot.grid(row=0, column=0, sticky="nsew")
 
         self.progress = ttk.Progressbar(
             root, variable=self.progress_var, maximum=100.0, mode="determinate"
@@ -948,6 +1072,35 @@ class FlasherApp(tk.Tk):
         self.after(0, append)
         for capture in completed_captures:
             self.after(0, self._handle_completed_capture, capture)
+
+        # Separate line buffer for the live plot -- independent of log_recorder's
+        # own internal buffering (BatchLogRecorder in auto_log_analysis.py), which
+        # only exposes whole-capture boundaries, not a per-line hook.
+        self._plot_pending += text
+        while "\n" in self._plot_pending:
+            raw_line, self._plot_pending = self._plot_pending.split("\n", 1)
+            self._feed_plot_line(raw_line.rstrip("\r"))
+
+    def _feed_plot_line(self, line: str) -> None:
+        """Parse one DATA,... line and push it to the live NL chart.
+
+        Positional fields per point (matches parse_nl_log.m's documented
+        DATA convention): index 7=Index, 11=ErrorDeg (0-based here).
+        Example: DATA,5,1,1,JIG1,p03,CW,0,5959,5963,32.75574,-0.00797
+        """
+        if not line.startswith("DATA,"):
+            return
+        parts = line.split(",")
+        if len(parts) != 12:
+            return
+        try:
+            index = int(parts[7])
+            error_deg = float(parts[11])
+        except ValueError:
+            return
+        if index == 0:
+            self.after(0, self.error_plot.reset)
+        self.after(0, self.error_plot.add_point, index, error_deg)
 
     def _handle_completed_capture(self, capture: CompletedCapture) -> None:
         """Snapshot Tk options, then save/analyze without blocking the GUI."""
@@ -1396,6 +1549,7 @@ class FlasherApp(tk.Tk):
     def _open_application_monitor(self, port_name: str, baudrate: int) -> None:
         self.app_monitor_stop_event.clear()
         self.log_recorder.reset_session()
+        self._plot_pending = ""
         last_error: Optional[Exception] = None
         app_port: Optional[serial.Serial] = None
 
