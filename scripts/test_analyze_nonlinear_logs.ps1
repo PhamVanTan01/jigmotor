@@ -17,13 +17,14 @@ try {
         (Join-Path $fixtures 'schema-v5-shadow-360-v1-legacy-alias-p05-jig3.txt'),
         (Join-Path $fixtures 'schema-v5-phase3b0-closure-probe-p05-jig3.txt'),
         (Join-Path $fixtures 'schema-v5-preconditioned-10run-p03-jig1.txt'),
+        (Join-Path $fixtures 'schema-v5-preconditioned-diagnostic-invalid-p03-jig7.txt'),
         (Join-Path $fixtures 'schema-v5-360grid-closure-p03-jig1.txt'),
         (Join-Path $fixtures 'schema-v5-postturn-residual-p03-jig1.txt')
     ) -OutCsv $csv | Out-Null
 
     $rows = @(Import-Csv $csv)
-    if ($rows.Count -ne 14) {
-        throw "Expected 14 parsed records, got $($rows.Count)."
+    if ($rows.Count -ne 16) {
+        throw "Expected 16 parsed records, got $($rows.Count)."
     }
 
     $schema5Misleading = $rows | Where-Object {
@@ -141,6 +142,18 @@ try {
             ($preconditionedOfficial.Run -ne '1') -or
             ($preconditionedOfficial.EligibleForStatistics -ne '1')) {
         throw 'Precondition/official statistical eligibility parsing failed.'
+    }
+
+    $diagnosticBatch = @($rows | Where-Object {
+        $_.Source -eq 'schema-v5-preconditioned-diagnostic-invalid-p03-jig7.txt'
+    })
+    if ($diagnosticBatch.Count -ne 2 -or
+            @($diagnosticBatch | Where-Object { $_.EligibleForStatistics -ne '0' }).Count -ne 0 -or
+            @($diagnosticBatch | Where-Object { $_.EndStatus -ne 'INVALID' }).Count -ne 0 -or
+            @($diagnosticBatch | Where-Object {
+                $_.RunRole -eq 'OFFICIAL' -and $_.PreconditionValid -ne '0'
+            }).Count -ne 0) {
+        throw 'Diagnostic-invalid precondition batch was rejected or promoted into statistics.'
     }
 
     # Guards the index-256 -> index-360 closure fix: this fixture declares

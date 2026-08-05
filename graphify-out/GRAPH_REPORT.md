@@ -1,16 +1,16 @@
-# Graph Report - jigmotor  (2026-08-03)
+# Graph Report - jigmotor  (2026-08-05)
 
 ## Corpus Check
-- 394 files · ~8,384,111 words
+- 534 files · ~10,105,172 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5091 nodes · 10915 edges · 267 communities (255 shown, 12 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 837 edges (avg confidence: 0.79)
+- 5595 nodes · 11438 edges · 318 communities (304 shown, 14 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 843 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `172fa7ea`
+- Built from commit: `5d459f0c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -37,7 +37,7 @@
 - stm32f4xx_hal_adc.c
 - cmsis_iccarm.h
 - stm32f4xx_hal_tim_ex.c
-- nonlinear_test.c
+- CaptureSweep
 - DMA_TypeDef
 - stm32f4xx_ll_dma.h
 - __STATIC_INLINE
@@ -47,38 +47,39 @@
 - control_engine.c
 - stm32f4xx_hal_i2c.c
 - core_armv8mml.h
-- core_cm33.h
-- CaptureSweep
+- cmsis_armcc.h
+- core_armv8mbl.h
 - stm32f4xx_ll_bus.h
+- Từ điển thông số đo của JIG motor
 - timers.c
 - stm32f4xx_hal.c
 - HAL_GetTick
 - Thiết kế hệ thống firmware V2 — tái cấu trúc nhưng giữ nguyên thuật toán
 - ma600_acquisition.c
-- core_armv8mbl.h
-- core_cm23.h
+- core_cm33.h
+- V5.2 — adaptive targeted budget with bounded single recovery
 - stream_buffer.c
-- xTaskResumeAll
+- event_groups.c
 - stm32f4xx_ll_cortex.h
 - TIM_TypeDef
-- stm32f4xx_hal_msp.c
-- vListInsertEnd
-- cmsis_armcc.h
+- stm32f4xx_hal_cortex.c
+- task.h
+- analyze_creep_difficulty_spatial.py
 - stm32f4xx_ll_gpio.h
-- control_a5_capture.c
+- ControlRunA5
 - stm32f4xx_it.c
 - core_cm3.h
 - core_cm4.h
 - core_sc300.h
 - ADC_Common_TypeDef
 - stm32f4xx_ll_adc.c
-- TIM_Base_SetConfig
+- core_cm23.h
 - __weak
-- task.h
+- port.c
 - StartDefaultTask
 - mpu_armv8.h
 - Tăng K (NL_SAMPLES_PER_POINT) từ 20 lên 64, giữ N=256
-- Motor_MoveToAngle
+- MA600_AcquireSample
 - stm32f4xx_hal_pwr.c
 - syscalls.c
 - __weak
@@ -91,7 +92,7 @@
 - core_cm0plus.h
 - core_cm1.h
 - core_sc000.h
-- stm32f4xx_hal_cortex.c
+- P08/JIG7 v4 — phân tích không gian độ khó sweep-point-creep
 - main
 - stm32f4xx_hal_dma.c
 - stm32f4xx_hal_exti.c
@@ -107,10 +108,11 @@
 - HAL_GPIO_WritePin
 - analyze_control_a2.ps1
 - analyze_control_a4.ps1
-- cmsis_compiler.h
-- stm32f4xx.h
+- Tổng kết phiên làm việc 2026-08-04: xác nhận hiệu ứng "board mới", tách bạch gá vs sensor, và đề xuất phương án đánh giá NL bền vững theo jig
+- stm32f4xx_ll_utils.h
 - stm32f4xx_hal_dma_ex.c
 - test_canonical_sampler_contract.ps1
+- Tổng kết phiên làm việc 2026-08-03: MOUNT_PRECHECK_V1 M0 + phát hiện root-cause "cụm sensor+gá"
 - void
 - test_control_a5_math_contract.ps1
 - __PACKED_STRUCT
@@ -186,6 +188,7 @@
 - Extreme points on each batch-mean curve
 - Extreme points on each batch-mean curve
 - Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
 - Architecture Migration Baseline
 - Baseline manifest — Motion V2 + SPI DMA trước dual-image
 - NL pointwise-curve analysis tool
@@ -221,6 +224,7 @@
 - 9. Phase C2 — controller P-only
 - graphify reference: GitHub clone and cross-repo merge
 - graphify reference: transcribe video and audio
+- xTaskResumeAll
 - A3 — Căn chỉnh quỹ đạo pha (rotating-capture)
 - 10. Phase C3 — damping và static-error removal
 - 11. Phase M0 — khóa Measurement image
@@ -230,18 +234,65 @@
 - extraction-spec.md
 - schema-v5-phase1-baseline.md
 - MA600A.md
+- LiveNlPlot
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- MoveToZeroAndCheckDirection
+- Tổng kết phiên làm việc 2026-08-03: full-curve peak analysis, MOUNT_PRECHECK pilot pool, jig peak-signature classifier
+- Tổng kết phiên làm việc 2026-08-04: nhiễm artifact creep lan sang H1/H2, giới hạn LUT 32 điểm, đồ thị NL trực tiếp trong flasher
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- cmsis_compiler.h
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- NL extreme-angle and cross-jig curve analysis
+- Hoạt động trong ngày
+- stm32f4xx.h
+- nonlinear_test.c
+- V5.3 — point-66 fine landing and stick-slip jump guard
+- Sweep-point-creep v5 — adaptive targeted budget
+- TIM_Base_SetConfig
+- Sweep-point-creep V5.1 — target-crossing guard
+- NL extreme-angle and cross-jig curve analysis
+- NL extreme-angle and cross-jig curve analysis
 
 ## God Nodes (most connected - your core abstractions)
-1. `HAL_GetTick()` - 66 edges
-2. `FlasherApp` - 46 edges
+1. `HAL_GetTick()` - 67 edges
+2. `FlasherApp` - 47 edges
 3. `__DSB()` - 45 edges
-4. `TIM_CCxChannelCmd()` - 40 edges
-5. `CaptureSweep()` - 37 edges
+4. `CaptureSweep()` - 40 edges
+5. `TIM_CCxChannelCmd()` - 40 edges
 6. `__ISB()` - 34 edges
 7. `HAL_DMA_Start_IT()` - 31 edges
-8. `uxListRemove()` - 28 edges
-9. `BatchLogRecorder` - 28 edges
-10. `xTaskResumeAll()` - 27 edges
+8. `BatchLogRecorder` - 29 edges
+9. `PrintSweepLog()` - 28 edges
+10. `uxListRemove()` - 28 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `ADC_IRQHandler()` --calls--> `HAL_ADC_IRQHandler()`  [INFERRED]
@@ -258,7 +309,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (267 total, 12 thin omitted)
+## Communities (318 total, 14 thin omitted)
 
 ### Community 0 - "stm32f4xx_ll_usart.h"
 Cohesion: 0.04
@@ -277,8 +328,8 @@ Cohesion: 0.04
 Nodes (109): __get_APSR(), __get_BASEPRI(), __get_CONTROL(), __get_FAULTMASK(), __get_IPSR(), __get_MSP(), __get_MSPLIM(), __get_PRIMASK() (+101 more)
 
 ### Community 4 - "cmsis_os2.c"
-Cohesion: 0.04
-Nodes (99): MemPool_t, AllocBlock(), StackType_t, __STATIC_INLINE, StaticTask_t, TaskHandle_t, TimerHandle_t, __WEAK (+91 more)
+Cohesion: 0.03
+Nodes (101): AppEngine_Init(), AppEngine_RequestStart(), ControlA5_CaptureResourcesReleaseForInitFailure(), ControlEngine_Init(), ControlEngine_RequestStart(), ControlEngineTask(), NonlinearEngine_RequestStart(), MemPool_t (+93 more)
 
 ### Community 5 - "stm32f4xx_hal_uart.c"
 Cohesion: 0.06
@@ -305,8 +356,8 @@ Cohesion: 0.08
 Nodes (76): HAL_DMA_Abort_IT(), HAL_StatusTypeDef, HAL_TIM_ChannelStateTypeDef, HAL_TIM_StateTypeDef, TIM_HandleTypeDef, HAL_TIM_Base_DeInit(), HAL_TIM_Base_GetState(), HAL_TIM_Base_MspDeInit() (+68 more)
 
 ### Community 11 - "tasks.c"
-Cohesion: 0.07
-Nodes (68): configSTACK_DEPTH_TYPE, eNotifyAction, eTaskState, MemoryRegion_t, UBaseType_t, uxListRemove(), BaseType_t, StackType_t (+60 more)
+Cohesion: 0.06
+Nodes (85): configSTACK_DEPTH_TYPE, eNotifyAction, MemoryRegion_t, osThreadFlagsWait(), osThreadTerminate(), List_t, ListItem_t, UBaseType_t (+77 more)
 
 ### Community 12 - "stm32f4xx_ll_pwr.h"
 Cohesion: 0.06
@@ -314,11 +365,11 @@ Nodes (62): __STATIC_INLINE, LL_PWR_ClearFlag_SB(), LL_PWR_ClearFlag_UD(), LL_PW
 
 ### Community 13 - "stm32f4xx_hal_spi.c"
 Cohesion: 0.05
-Nodes (86): MA600_ReadMeta_t, MA600_Result_t, MA600_UnwrapContext_t, SPI_HandleTypeDef, Crc32IsoHdlc(), HAL_SPI_ErrorCallback(), HAL_SPI_TxRxCpltCallback(), MA600_ClearErrorFlags() (+78 more)
+Nodes (85): MA600_AcquisitionRunFaultInjectionSelfTest(), MA600_ReadMeta_t, MA600_Result_t, SPI_HandleTypeDef, Crc32IsoHdlc(), HAL_SPI_ErrorCallback(), HAL_SPI_TxRxCpltCallback(), MA600_ClearErrorFlags() (+77 more)
 
 ### Community 14 - "queue.c"
 Cohesion: 0.10
-Nodes (67): osMessageQueueGetCount(), xCoRoutineRemoveFromEventList(), BaseType_t, TaskHandle_t, TickType_t, UBaseType_t, pcQueueGetName(), prvCopyDataFromQueue() (+59 more)
+Nodes (64): List_t, TickType_t, vCoRoutineAddToDelayedList(), xCoRoutineRemoveFromEventList(), BaseType_t, TaskHandle_t, TickType_t, UBaseType_t (+56 more)
 
 ### Community 15 - "analyze_motor_logs.py"
 Cohesion: 0.16
@@ -345,12 +396,12 @@ Cohesion: 0.07
 Nodes (55): __CLZ(), __get_APSR(), __get_MSPLIM(), __get_PSPLIM(), __packed, __STATIC_INLINE, __iar_u32(), __iar_uint16_read() (+47 more)
 
 ### Community 21 - "stm32f4xx_hal_tim_ex.c"
-Cohesion: 0.11
-Nodes (50): DMA_HandleTypeDef, HAL_StatusTypeDef, HAL_TIM_ChannelStateTypeDef, HAL_TIM_StateTypeDef, TIM_HandleTypeDef, TIM_TypeDef, __weak, HAL_TIMEx_BreakCallback() (+42 more)
+Cohesion: 0.10
+Nodes (52): DMA_HandleTypeDef, HAL_StatusTypeDef, HAL_TIM_ChannelStateTypeDef, HAL_TIM_StateTypeDef, TIM_HandleTypeDef, TIM_TypeDef, __weak, HAL_TIMEx_BreakCallback() (+44 more)
 
-### Community 22 - "nonlinear_test.c"
-Cohesion: 0.08
-Nodes (59): Motor_GetCommandedPos(), Motor_ControllerState_t, ClosureProbeStageName(), ComputeFittedMinMaxDenseByOrders(), ComputeHarmonicFull(), ComputeModelMetricsByOrders(), ComputeResidualRms(), ComputeShadowMetrics() (+51 more)
+### Community 22 - "CaptureSweep"
+Cohesion: 0.09
+Nodes (45): Motor_ElectricalOffset(), Motor_GetHomeControllerProfileId(), Motor_GetPoleCount(), Motor_GetPolePairs(), Motor_SetElectricalPos(), AbsI64ToU64(), AccumulateCounterDelta(), MA600_AcquisitionContext_t (+37 more)
 
 ### Community 23 - "DMA_TypeDef"
 Cohesion: 0.04
@@ -377,8 +428,8 @@ Cohesion: 0.12
 Nodes (43): as_float(), as_int(), build_fit_rows(), build_stability_rows(), csv_write(), DataPoint, describe(), dft_amplitude() (+35 more)
 
 ### Community 29 - "control_engine.c"
-Cohesion: 0.07
-Nodes (52): ControlA4Report_t, ControlA4Result_t, AbsI32ToU32(), ControlA5CaptureReport_t, ControlA5Result_t, MA600_Sample_t, ControlA4PhaseProgressRaw(), ControlA4PowerPpm() (+44 more)
+Cohesion: 0.11
+Nodes (25): ControlA4Report_t, ControlA4Result_t, ControlA5Sample_t, ControlA5_GetEvidenceBuffer(), AbsI32ToU32(), ControlA5CaptureReport_t, ControlA5Result_t, MA600_Sample_t (+17 more)
 
 ### Community 30 - "stm32f4xx_hal_i2c.c"
 Cohesion: 0.12
@@ -388,21 +439,25 @@ Nodes (45): HAL_DMA_Start_IT(), HAL_StatusTypeDef, I2C_HandleTypeDef, HAL_I2C_Ad
 Cohesion: 0.12
 Nodes (40): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+32 more)
 
-### Community 32 - "core_cm33.h"
-Cohesion: 0.12
-Nodes (40): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+32 more)
+### Community 32 - "cmsis_armcc.h"
+Cohesion: 0.14
+Nodes (22): __get_APSR(), __get_BASEPRI(), __get_CONTROL(), __get_FAULTMASK(), __get_FPSCR(), __get_IPSR(), __get_MSP(), __get_PRIMASK() (+14 more)
 
-### Community 33 - "CaptureSweep"
-Cohesion: 0.11
-Nodes (37): Motor_SetElectricalPos(), AbsI64ToU64(), AccumulateCounterDelta(), MA600_AcquisitionContext_t, MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_Result_t, MA600_Sample_t (+29 more)
+### Community 33 - "core_armv8mbl.h"
+Cohesion: 0.15
+Nodes (33): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+25 more)
 
 ### Community 34 - "stm32f4xx_ll_bus.h"
 Cohesion: 0.10
 Nodes (38): __STATIC_INLINE, LL_AHB1_GRP1_DisableClock(), LL_AHB1_GRP1_DisableClockLowPower(), LL_AHB1_GRP1_EnableClock(), LL_AHB1_GRP1_EnableClockLowPower(), LL_AHB1_GRP1_ForceReset(), LL_AHB1_GRP1_IsEnabledClock(), LL_AHB1_GRP1_ReleaseReset() (+30 more)
 
+### Community 35 - "Từ điển thông số đo của JIG motor"
+Cohesion: 0.05
+Nodes (37): 10. Controller state và home, 11. Motion profile, 12. Approach, pre-roll và điểm bắt đầu, 13. Acquisition và SPI MA600, 14. Noise tĩnh MA600, 15. Mounting precheck, 16. Cấu hình MA600, 17. Batch, precondition và lịch sử nhiệt (+29 more)
+
 ### Community 36 - "timers.c"
 Cohesion: 0.13
-Nodes (37): osTimerNew(), BaseType_t, TaskHandle_t, TickType_t, TimerHandle_t, UBaseType_t, pcTimerGetName(), prvCheckForValidListAndQueue() (+29 more)
+Nodes (35): osTimerNew(), BaseType_t, TaskHandle_t, TickType_t, TimerHandle_t, UBaseType_t, pcTimerGetName(), prvCheckForValidListAndQueue() (+27 more)
 
 ### Community 37 - "stm32f4xx_hal.c"
 Cohesion: 0.08
@@ -417,24 +472,24 @@ Cohesion: 0.04
 Nodes (48): 10. Timing và deterministic behavior, 11. Configuration và protocol versioning, 12.1 Contract firmware, 12.2 Contract parser, 12. Logging và offline tools, 13. Chiến lược migration không đổi thuật toán, 14. Verification matrix, 15. Acceptance criteria cho kiến trúc mới (+40 more)
 
 ### Community 40 - "ma600_acquisition.c"
-Cohesion: 0.14
-Nodes (30): AbsDeltaI64(), MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_ReadMeta_t, MA600_Result_t, MA600_UnwrapContext_t, ComputeMadFilteredPointMean(), CycleReached() (+22 more)
+Cohesion: 0.13
+Nodes (33): AbsDeltaI64(), MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_ReadMeta_t, MA600_Result_t, MA600_UnwrapContext_t, ComputeMadFilteredPointMean(), CycleReached() (+25 more)
 
-### Community 41 - "core_armv8mbl.h"
-Cohesion: 0.15
-Nodes (33): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+25 more)
+### Community 41 - "core_cm33.h"
+Cohesion: 0.12
+Nodes (40): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+32 more)
 
-### Community 42 - "core_cm23.h"
-Cohesion: 0.15
-Nodes (33): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+25 more)
+### Community 42 - "V5.2 — adaptive targeted budget with bounded single recovery"
+Cohesion: 0.25
+Nodes (7): 1. Why V5.2 exists, 2. Locked motion algorithm, 3. Required telemetry, 4. Software gates, 5. Hardware pilot (FAST3), 6. Packaging rule, V5.2 — adaptive targeted budget with bounded single recovery
 
 ### Community 43 - "stream_buffer.c"
 Cohesion: 0.16
 Nodes (32): BaseType_t, TickType_t, UBaseType_t, prvBytesInBuffer(), prvInitialiseNewStreamBuffer(), prvReadBytesFromBuffer(), prvReadMessageFromBuffer(), prvWriteBytesToBuffer() (+24 more)
 
-### Community 44 - "xTaskResumeAll"
-Cohesion: 0.08
-Nodes (58): BlockLink_t, EventBits_t, EventGroupHandle_t, HeapStats_t, osEventFlagsClear(), osEventFlagsDelete(), osEventFlagsGet(), osEventFlagsNew() (+50 more)
+### Community 44 - "event_groups.c"
+Cohesion: 0.12
+Nodes (34): EventBits_t, EventGroupHandle_t, osEventFlagsClear(), osEventFlagsDelete(), osEventFlagsGet(), osEventFlagsNew(), osEventFlagsSet(), osEventFlagsWait() (+26 more)
 
 ### Community 45 - "stm32f4xx_ll_cortex.h"
 Cohesion: 0.14
@@ -444,25 +499,25 @@ Nodes (26): __STATIC_INLINE, LL_CPUID_GetConstant(), LL_CPUID_GetImplementer(), 
 Cohesion: 0.13
 Nodes (28): TIM_TypeDef, HAL_TIM_ConfigClockSource(), HAL_TIM_ConfigOCrefClear(), HAL_TIM_IC_ConfigChannel(), HAL_TIM_OC_ConfigChannel(), HAL_TIM_OnePulse_ConfigChannel(), HAL_TIM_PWM_ConfigChannel(), HAL_TIM_SlaveConfigSynchro() (+20 more)
 
-### Community 47 - "stm32f4xx_hal_msp.c"
-Cohesion: 0.16
-Nodes (26): ADC_HandleTypeDef, I2C_HandleTypeDef, SPI_HandleTypeDef, TIM_HandleTypeDef, UART_HandleTypeDef, HAL_ADC_MspDeInit(), HAL_ADC_MspInit(), HAL_I2C_MspDeInit() (+18 more)
+### Community 47 - "stm32f4xx_hal_cortex.c"
+Cohesion: 0.10
+Nodes (37): ADC_HandleTypeDef, I2C_HandleTypeDef, SPI_HandleTypeDef, TIM_HandleTypeDef, UART_HandleTypeDef, HAL_ADC_MspDeInit(), HAL_ADC_MspInit(), HAL_I2C_MspDeInit() (+29 more)
 
-### Community 48 - "vListInsertEnd"
+### Community 48 - "task.h"
 Cohesion: 0.14
-Nodes (19): crCOROUTINE_CODE, osThreadFlagsWait(), BaseType_t, List_t, TickType_t, UBaseType_t, prvCheckDelayedList(), prvCheckPendingReadyList() (+11 more)
+Nodes (8): crCOROUTINE_CODE, BaseType_t, UBaseType_t, prvCheckDelayedList(), prvCheckPendingReadyList(), prvInitialiseCoRoutineLists(), vCoRoutineSchedule(), xCoRoutineCreate()
 
-### Community 49 - "cmsis_armcc.h"
-Cohesion: 0.14
-Nodes (22): __get_APSR(), __get_BASEPRI(), __get_CONTROL(), __get_FAULTMASK(), __get_FPSCR(), __get_IPSR(), __get_MSP(), __get_PRIMASK() (+14 more)
+### Community 49 - "analyze_creep_difficulty_spatial.py"
+Cohesion: 0.09
+Nodes (36): ArgumentParser, as_int(), build_argument_parser(), build_curve(), circular_distance(), dominant_harmonics(), end_counter(), extract_record() (+28 more)
 
 ### Community 50 - "stm32f4xx_ll_gpio.h"
 Cohesion: 0.21
 Nodes (25): GPIO_TypeDef, __STATIC_INLINE, LL_GPIO_GetAFPin_0_7(), LL_GPIO_GetAFPin_8_15(), LL_GPIO_GetPinMode(), LL_GPIO_GetPinOutputType(), LL_GPIO_GetPinPull(), LL_GPIO_GetPinSpeed() (+17 more)
 
-### Community 51 - "control_a5_capture.c"
-Cohesion: 0.14
-Nodes (26): ControlA5AbortRequestedFn_t, ControlA5Sample_t, AppEngine_Init(), ControlA5CaptureReport_t, ControlA5Result_t, Motor_ControllerState_t, ControlA5_AbsI32(), ControlA5_CaptureReportInit() (+18 more)
+### Community 51 - "ControlRunA5"
+Cohesion: 0.20
+Nodes (24): ControlA5AbortRequestedFn_t, ControlA5CaptureReport_t, ControlA5Result_t, Motor_ControllerState_t, ControlA5_AbsI32(), ControlA5_CaptureReportInit(), ControlA5_CaptureResourcesReady(), ControlA5_CaptureStaticWindow() (+16 more)
 
 ### Community 52 - "stm32f4xx_it.c"
 Cohesion: 0.11
@@ -488,21 +543,21 @@ Nodes (23): ADC_Common_TypeDef, LL_ADC_GetCommonClock(), LL_ADC_GetCommonPathInt
 Cohesion: 0.14
 Nodes (22): LL_ADC_Disable(), LL_ADC_INJ_SetSequencerLength(), LL_ADC_INJ_SetTriggerSource(), LL_ADC_IsEnabled(), LL_ADC_REG_SetSequencerLength(), LL_ADC_REG_SetTriggerSource(), LL_ADC_SetCommonClock(), ADC_TypeDef (+14 more)
 
-### Community 59 - "TIM_Base_SetConfig"
+### Community 59 - "core_cm23.h"
 Cohesion: 0.15
-Nodes (19): MX_TIM2_Init(), HAL_TIMEx_HallSensor_Init(), HAL_TIM_Base_Init(), HAL_TIM_Base_MspInit(), HAL_TIM_Encoder_Init(), HAL_TIM_Encoder_MspInit(), HAL_TIM_IC_Init(), HAL_TIM_IC_MspInit() (+11 more)
+Nodes (33): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+25 more)
 
 ### Community 60 - "__weak"
 Cohesion: 0.14
 Nodes (22): DMA_HandleTypeDef, __weak, HAL_TIM_ErrorCallback(), HAL_TIM_IC_CaptureCallback(), HAL_TIM_IC_CaptureHalfCpltCallback(), HAL_TIM_IRQHandler(), HAL_TIM_OC_DelayElapsedCallback(), HAL_TIM_PeriodElapsedCallback() (+14 more)
 
-### Community 61 - "task.h"
-Cohesion: 0.07
+### Community 61 - "port.c"
+Cohesion: 0.10
 Nodes (18): eSleepModeStatus, SysTick_Handler(), BaseType_t, StackType_t, TaskFunction_t, TickType_t, prvPortStartFirstTask(), prvTaskExitError() (+10 more)
 
 ### Community 62 - "StartDefaultTask"
-Cohesion: 0.14
-Nodes (13): AppEngine_IsBusy(), AppEngine_ModeId(), AppEngine_ProfileFingerprint(), AppEngine_ProfileId(), AppEngine_RequestStart(), AppEngine_SourceId(), ControlEngine_IsBusy(), MA600_AngleTransportName() (+5 more)
+Cohesion: 0.17
+Nodes (10): AppEngine_IsBusy(), AppEngine_ModeId(), AppEngine_ProfileFingerprint(), AppEngine_ProfileId(), AppEngine_SourceId(), ControlEngine_IsBusy(), MA600_AngleTransportName(), MA600_RawToDegrees() (+2 more)
 
 ### Community 63 - "mpu_armv8.h"
 Cohesion: 0.24
@@ -512,17 +567,17 @@ Nodes (20): ARM_MPU_ClrRegion(), ARM_MPU_ClrRegion_NS(), ARM_MPU_ClrRegionEx(), 
 Cohesion: 0.04
 Nodes (46): 1. `Core/Src/nonlinear_test.c` — tách ramp loop thành helper tự suy chiều, trả lỗi đúng cách, 1. Thêm chế độ thứ 3 vào bộ macro loại-trừ-lẫn-nhau (dòng ~245-263), 1. Thêm `Motor_Error_P2P_Deg`/`Motor_System_INL_Deg` vào RESULT, 2. Flag + hằng số mới, mặc định TẮT, 2. Thêm H4/H8, 2. Thêm `TimeSincePreviousRunMs`, 3. Comment làm rõ khái niệm (đầu file, cạnh comment lịch sử schema), 3. In vào dòng `META` (+38 more)
 
-### Community 65 - "Motor_MoveToAngle"
-Cohesion: 0.32
-Nodes (11): MA600_UnwrappedRawToDegrees(), MA600_Result_t, Motor_MoveToAngle(), Motor_MoveToAngleWithPower(), PositionController_GetCommandedPosition(), PositionController_Init(), PositionController_Reset(), PositionController_RunSelfTest() (+3 more)
+### Community 65 - "MA600_AcquireSample"
+Cohesion: 0.13
+Nodes (27): MA600_AcquisitionContext_t, MA600_Sample_t, MA600_AcquireSample(), MA600_AcquisitionInit(), MA600_UnwrappedRawToDegrees(), MA600_Result_t, Motor_Init(), Motor_MoveToAngle() (+19 more)
 
 ### Community 66 - "stm32f4xx_hal_pwr.c"
 Cohesion: 0.11
 Nodes (5): __weak, HAL_PWR_ConfigPVD(), HAL_PWR_PVD_IRQHandler(), HAL_PWR_PVDCallback(), PWR_PVDTypeDef
 
 ### Community 68 - "__weak"
-Cohesion: 0.22
-Nodes (18): DMA_HandleTypeDef, __weak, HAL_I2C_AbortCpltCallback(), HAL_I2C_ER_IRQHandler(), HAL_I2C_ErrorCallback(), HAL_I2C_ListenCpltCallback(), HAL_I2C_MasterRxCpltCallback(), HAL_I2C_MemRxCpltCallback() (+10 more)
+Cohesion: 0.20
+Nodes (19): DMA_HandleTypeDef, __weak, HAL_I2C_AbortCpltCallback(), HAL_I2C_ER_IRQHandler(), HAL_I2C_ErrorCallback(), HAL_I2C_ListenCpltCallback(), HAL_I2C_MasterRxCpltCallback(), HAL_I2C_MemRxCpltCallback() (+11 more)
 
 ### Community 69 - "stm32f4xx_hal_rcc_ex.c"
 Cohesion: 0.15
@@ -533,8 +588,8 @@ Cohesion: 0.15
 Nodes (8): Add-Reason(), Assert-FieldEquals(), Get-I64(), Get-LinearDiagnostics(), Get-PopulationStdDev(), Get-RequiredField(), Get-SingleRecord(), Get-U32()
 
 ### Community 71 - "control_a5_math.c"
-Cohesion: 0.22
-Nodes (19): ControlA5GoldenVector_t, ControlA5Stats_t, ControlA5Summary_t, AbsI32ToU32(), ControlA5_CycleDelta(), ControlA5_MathSelfTest(), ControlA5_MeanRelRawQ16(), ControlA5_RawWordsCrc32() (+11 more)
+Cohesion: 0.24
+Nodes (17): ControlA5GoldenVector_t, ControlA5Stats_t, ControlA5Summary_t, AbsI32ToU32(), ControlA5_MathSelfTest(), ControlA5_MeanRelRawQ16(), ControlA5_RawWordsCrc32(), ControlA5_StatsFinalize() (+9 more)
 
 ### Community 72 - "stm32f4xx_ll_exti.h"
 Cohesion: 0.21
@@ -560,9 +615,9 @@ Nodes (17): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_DecodePri
 Cohesion: 0.26
 Nodes (15): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), __NVIC_GetEnableIRQ(), __NVIC_GetPendingIRQ(), __NVIC_GetPriority() (+7 more)
 
-### Community 78 - "stm32f4xx_hal_cortex.c"
-Cohesion: 0.16
-Nodes (13): IRQn_Type, __weak, HAL_MPU_ConfigRegion(), HAL_MPU_Disable(), HAL_NVIC_ClearPendingIRQ(), HAL_NVIC_DisableIRQ(), HAL_NVIC_GetActive(), HAL_NVIC_GetPendingIRQ() (+5 more)
+### Community 78 - "P08/JIG7 v4 — phân tích không gian độ khó sweep-point-creep"
+Cohesion: 0.12
+Nodes (16): Data integrity và sanity-check END, Giới hạn diễn giải, Kết luận, Kết luận điều hành, Overlap theo ngưỡng cố định >150 raw, Overlap top 10% (36 điểm/remount), Overlap top 15% (54 điểm/remount), P08/JIG7 v4 — phân tích không gian độ khó sweep-point-creep (+8 more)
 
 ### Community 79 - "main"
 Cohesion: 0.23
@@ -589,8 +644,8 @@ Cohesion: 0.26
 Nodes (12): DataFrame, ndarray, detect_transitions(), format_si_time(), load_waveform(), main(), parse_header(), Path (+4 more)
 
 ### Community 85 - "HAL_I2C_EV_IRQHandler"
-Cohesion: 0.19
-Nodes (14): HAL_I2C_EV_IRQHandler(), HAL_I2C_MasterTxCpltCallback(), HAL_I2C_MemTxCpltCallback(), I2C_ConvertOtherXferOptions(), I2C_Master_ADD10(), I2C_Master_ADDR(), I2C_Master_SB(), I2C_MasterTransmit_BTF() (+6 more)
+Cohesion: 0.21
+Nodes (13): HAL_I2C_EV_IRQHandler(), HAL_I2C_MasterTxCpltCallback(), HAL_I2C_MemTxCpltCallback(), I2C_ConvertOtherXferOptions(), I2C_Master_ADD10(), I2C_Master_ADDR(), I2C_Master_SB(), I2C_MasterTransmit_BTF() (+5 more)
 
 ### Community 86 - "atomic.h"
 Cohesion: 0.28
@@ -616,13 +671,13 @@ Nodes (9): ARM_MPU_ClrRegion(), ARM_MPU_Disable(), ARM_MPU_Enable(), ARM_MPU_Loa
 Cohesion: 0.22
 Nodes (12): gremsyMotorDisable(), gremsyMotorEnable(), GPIO_TypeDef, HAL_StatusTypeDef, __weak, HAL_GPIO_EXTI_Callback(), HAL_GPIO_EXTI_IRQHandler(), HAL_GPIO_LockPin() (+4 more)
 
-### Community 95 - "cmsis_compiler.h"
-Cohesion: 0.36
-Nodes (7): packed, __PACKED_STRUCT, T_UINT16_READ(), T_UINT16_WRITE(), T_UINT32(), T_UINT32_READ(), T_UINT32_WRITE()
+### Community 95 - "Tổng kết phiên làm việc 2026-08-04: xác nhận hiệu ứng "board mới", tách bạch gá vs sensor, và đề xuất phương án đánh giá NL bền vững theo jig"
+Cohesion: 0.11
+Nodes (18): 1. Đăng ký thêm 2 board mới: JIG7 (đã có UID từ trước) và JIG8 (mới đăng ký hôm nay), 2. Phát hiện chính #1: "hiệu ứng board mới" làm giảm biên độ NL, không đổi vị trí lỗi, 3. Phát hiện chính #2: chữ ký "lai" khi gắn cụm yếu hơn lên board mới — tái lập trên 2 board độc lập, 4.3. Đối chiếu bản vẽ thiết kế motor (ASM1807, `1807AS001A2`) — item 8 là nam châm cảm biến riêng, 4.4. Vì sao 2 sensor cùng loại lại cho đỉnh lỗi khác nhau — đối chiếu datasheet MA600A, 4. Phát hiện chính #3 (quan trọng nhất): thí nghiệm tách sensor khỏi gá — lần đầu tách bạch được vai trò của từng thành phần, 5.1. Đối chiếu RobustP2P với công thức spec (MA600A Appendix B, Equation B1), 5.2. Đánh giá đề xuất gate H1/H2 dạng vector (fingerprint) (+10 more)
 
-### Community 96 - "stm32f4xx.h"
-Cohesion: 0.19
-Nodes (9): SystemInit(), SystemInit_ExtMemCtl(), __STATIC_INLINE, LL_GetFlashSize(), LL_GetPackageType(), LL_GetUID_Word0(), LL_GetUID_Word1(), LL_GetUID_Word2() (+1 more)
+### Community 96 - "stm32f4xx_ll_utils.h"
+Cohesion: 0.43
+Nodes (7): __STATIC_INLINE, LL_GetFlashSize(), LL_GetPackageType(), LL_GetUID_Word0(), LL_GetUID_Word1(), LL_GetUID_Word2(), LL_InitTick()
 
 ### Community 97 - "stm32f4xx_hal_dma_ex.c"
 Cohesion: 0.50
@@ -631,6 +686,10 @@ Nodes (7): DMA_HandleTypeDef, HAL_StatusTypeDef, DMA_MultiBufferSetConfig(), HAL
 ### Community 98 - "test_canonical_sampler_contract.ps1"
 Cohesion: 0.39
 Nodes (5): Canonical-MeanQ16(), Div-RoundNearestAwayFromZero(), Model-Schedule(), Signed-CycleDelta(), To-U32()
+
+### Community 99 - "Tổng kết phiên làm việc 2026-08-03: MOUNT_PRECHECK_V1 M0 + phát hiện root-cause "cụm sensor+gá""
+Cohesion: 0.12
+Nodes (15): 1.1. UART transmit failure tracking, 1.2. MOUNT_PRECHECK_V1 — milestone M0, 1. Thay đổi firmware (permanent, không phải flag thử nghiệm), 2. Mở rộng tool `tools/analyze_nl_extreme_angles.py`, 3.1. Nhiễu remount trong 1 jig có thể lớn ngang khoảng cách cross-jig, 3.2. JIG4 (bản gốc) đạt gate repeatability rất sạch; JIG1, JIG5 (bản gốc) thì không, 3.3. NL trôi gần như tuyến tính suốt phiên đo dài trên JIG1, 3.4. Vị trí đỉnh/đáy lỗi (top-5/bottom-5) ổn định trong từng jig, tách biệt đỉnh/đáy khi so 2 jig (+7 more)
 
 ### Community 100 - "void"
 Cohesion: 0.33
@@ -677,8 +736,8 @@ Cohesion: 0.05
 Nodes (37): Baseline and non-goals, Change-control rule, Gate, Gate, Gate, Gate, Gate, Gate (+29 more)
 
 ### Community 160 - "FlasherApp"
-Cohesion: 0.13
-Nodes (3): FlasherApp, Open the application UART directly without sending a bootloader GO command., Reconnect to ROM bootloader, send GO, then reopen as app UART. This button is…
+Cohesion: 0.12
+Nodes (4): FlasherApp, Parse one DATA,... line and push it to the live NL chart. Positional fields per…, Open the application UART directly without sending a bootloader GO command., Reconnect to ROM bootloader, send GO, then reopen as app UART. This button is…
 
 ### Community 161 - "analyze_nl_curve.py"
 Cohesion: 0.16
@@ -742,7 +801,7 @@ Nodes (15): 1.1. Vì sao không có "bias JIG4" ổn định, 1. Tình trạng h
 
 ### Community 176 - "FirmwareSegment"
 Cohesion: 0.23
-Nodes (7): RuntimeError, default_log_directory(), FirmwareLoader, FirmwareSegment, Path, Return a writable, predictable log folder in source and packaged modes., Snapshot Tk options, then save/analyze without blocking the GUI.
+Nodes (7): RuntimeError, default_log_directory(), FirmwareLoader, FirmwareSegment, Path, Snapshot Tk options, then save/analyze without blocking the GUI., Return a writable, predictable log folder in source and packaged modes.
 
 ### Community 177 - "3. Call graph cho 9 luồng yêu cầu"
 Cohesion: 0.13
@@ -904,10 +963,6 @@ Nodes (9): Analysis and closure index sets, Canonical relative error, Compatibil
 Cohesion: 0.22
 Nodes (8): 12. Phase M1 — measurement timing optimization độc lập, 13. Phase O1 — tối ưu CPU sau profiling, 16. Thứ tự commit đề xuất, 17. Definition of done, 1. Nguyên tắc thực hiện, 2. Deliverable cuối, Kế hoạch triển khai dual-image trên STM32F405, Trạng thái triển khai (2026-07-16)
 
-### Community 217 - "Serial"
-Cohesion: 0.20
-Nodes (3): Event, Serial, Open COM exactly like v1 so the DTR transition can reset the board. In v1,…
-
 ### Community 218 - "Extreme points on each batch-mean curve"
 Cohesion: 0.25
 Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P03 / JIG1, P03 / JIG4, P03 / JIG5, P03 / JIG6, Same-motor cross-jig comparison
@@ -919,6 +974,10 @@ Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-j
 ### Community 220 - "Extreme points on each batch-mean curve"
 Cohesion: 0.25
 Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, p03 / JIG1, p03 / JIG4, p05 / JIG1, p05 / JIG4, Same-motor cross-jig comparison
+
+### Community 221 - "Extreme points on each batch-mean curve"
+Cohesion: 0.14
+Nodes (13): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / 20260803-111810_UNKNOWN_JIG1_batch001_complete, P05 / 20260803-115352_UNKNOWN_JIG1_batch001_complete, P05 / S1-P05-JIG4-remount01-test-2, P05 / S1-P05-JIG4-remount02-test-2, P05 / S1-P05-JIG4-remount03-test-2, P05 / S2-P05-JIG1-remount01 (+5 more)
 
 ### Community 222 - "Architecture Migration Baseline"
 Cohesion: 0.25
@@ -1052,6 +1111,10 @@ Nodes (4): 8. Phase C1 — hardware-timed control pipeline, Công việc, Gate, 
 Cohesion: 0.50
 Nodes (4): 9. Phase C2 — controller P-only, Công việc, Gate, Theo dõi
 
+### Community 258 - "xTaskResumeAll"
+Cohesion: 0.12
+Nodes (31): BlockLink_t, ControlA5_CaptureResourcesInit(), eTaskState, HeapStats_t, osKernelGetState(), osKernelLock(), osKernelRestoreLock(), osKernelUnlock() (+23 more)
+
 ### Community 259 - "A3 — Căn chỉnh quỹ đạo pha (rotating-capture)"
 Cohesion: 0.67
 Nodes (3): A3 — Căn chỉnh quỹ đạo pha (rotating-capture), Ngưỡng pass/fail, Thông số đo
@@ -1072,22 +1135,206 @@ Nodes (3): 14. Phase S1 — safety và watchdog, Công việc, Gate
 Cohesion: 0.67
 Nodes (3): 6. Phase P3 — shared platform và ownership, Công việc, Gate
 
+### Community 270 - "LiveNlPlot"
+Cohesion: 0.21
+Nodes (5): Event, LiveNlPlot, Dependency-free line chart of ErrorDeg vs point Index for one NL sweep. Redrawn…, Start a new sweep trace (called on DATA,...,Index=0)., Widget
+
+### Community 271 - "Extreme points on each batch-mean curve"
+Cohesion: 0.18
+Nodes (10): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, p03 / 100554, p03 / 103321, p03 / 112833, p05 / 111810, p05 / 115352, p07 / 112644 (+2 more)
+
+### Community 272 - "Extreme points on each batch-mean curve"
+Cohesion: 0.18
+Nodes (10): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG1-remount01-test-2, P05 / JIG1-remount02-test-2, P05 / JIG1-remount03-test-2, P05 / JIG4-remount01-test-2, P05 / JIG4-remount02-test-2, P05 / JIG4-remount03-test-2 (+2 more)
+
+### Community 273 - "MoveToZeroAndCheckDirection"
+Cohesion: 0.39
+Nodes (8): Motor_GetCommandedPos(), Motor_ControllerState_t, ControllerStateIsReset(), FinishMoveToZeroObservation(), MoveToZeroAndCheckDirection(), RecordControllerObservation(), NlZeroObservation_t, NlZeroResult_t
+
+### Community 274 - "Tổng kết phiên làm việc 2026-08-03: full-curve peak analysis, MOUNT_PRECHECK pilot pool, jig peak-signature classifier"
+Cohesion: 0.18
+Nodes (10): 1. Bối cảnh nhận được giữa phiên, 2.1. So sánh tại 371 điểm (đầy đủ, thay vì 360 điểm `AnalysisPoints`), 2.2. Toàn bộ đỉnh trên/dưới (không chỉ top-5/bottom-5), 2. Phân tích full-curve mở rộng (không phải công cụ mới, chỉ là cách chạy mới trên dữ liệu đã có), 3. Cơ chế phát hiện lỗi cơ khí sensor — tổng hợp từ commit `fb143d4`, 4. Tool mới: `analyze_mount_precheck_batch.m` — pilot pool cho ngưỡng H1/H2, 5. Tool mới: phân loại jig theo toàn bộ đỉnh + góc lỗi tại đỉnh, 6. Trạng thái test (+2 more)
+
+### Community 275 - "Tổng kết phiên làm việc 2026-08-04: nhiễm artifact creep lan sang H1/H2, giới hạn LUT 32 điểm, đồ thị NL trực tiếp trong flasher"
+Cohesion: 0.20
+Nodes (9): 1. Đối chiếu độc lập bộ dữ liệu creep-fix (không dùng tool đã build sẵn của tài liệu creep, dùng lại `analyze_nl_stability_batch.m` + `classify_jig_peak_signatures.m`), 2. Phát hiện mới #1 (quan trọng nhất): artifact settle-creep không chỉ nhiễm H36 — nó nhiễm cả H1/H2, 3. Phát hiện mới #2: offset góc tuyệt đối biến mất, chưa từng được ghi trong tài liệu creep, 4. Review file mô phỏng `tools/m_ph_ng_test_non_linear_ng_c_bldc_sau_d_n_nam_ch_m.html` — phát hiện lỗi mô hình hiệu chuẩn LUT 32 điểm, 5. Xác nhận lại: code hiện tại chưa kiểm tra H1/H2 ở bất kỳ đâu, 6. Đồ thị E(θ) đo thực tế (artifact, không lưu vào repo), 7. Thay đổi code: thêm đồ thị NL trực tiếp vào `tools/stm32_uart_flasher.py`, 8. Việc chưa hoàn thành / đề xuất cho phiên sau (+1 more)
+
+### Community 276 - "Extreme points on each batch-mean curve"
+Cohesion: 0.22
+Nodes (8): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG7, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 277 - "Extreme points on each batch-mean curve"
+Cohesion: 0.22
+Nodes (8): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG7, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 278 - "Extreme points on each batch-mean curve"
+Cohesion: 0.22
+Nodes (8): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG7, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 279 - "Extreme points on each batch-mean curve"
+Cohesion: 0.22
+Nodes (8): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, P05 / test-replay-sensor, Same-motor cross-jig comparison
+
+### Community 280 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P03 / 112833_UNKNOWN_JIG1, P03 / JIG4_batch001, P03 / JIG4_batch002, P03 / JIG5-remount02, Same-motor cross-jig comparison
+
+### Community 281 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 282 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / 111810, P05 / 115352, P05 / remount01, P05 / remount02, Same-motor cross-jig comparison
+
+### Community 283 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / remount01-test-1, P05 / remount01-test-2, P05 / remount02-test-2, P05 / remount03-test-2, Same-motor cross-jig comparison
+
+### Community 284 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 285 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 286 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 287 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG6, P05 / JIG7, Same-motor cross-jig comparison
+
+### Community 288 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG8, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 289 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 290 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG8, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 291 - "Extreme points on each batch-mean curve"
+Cohesion: 0.25
+Nodes (7): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 292 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P03 / JIG4_batch001, P03 / JIG4_batch002, P03 / JIG5-remount02, Same-motor cross-jig comparison
+
+### Community 293 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / remount01-test-2, P05 / remount02-test-2, P05 / remount03-test-2, Same-motor cross-jig comparison
+
+### Community 294 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / remount01-test-2, P05 / remount02-test-2, P05 / remount03-test-2, Same-motor cross-jig comparison
+
+### Community 295 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / remount01-test-1, P05 / remount02-test-1, P05 / remount03-test-1, Same-motor cross-jig comparison
+
+### Community 296 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG6, Same-motor cross-jig comparison
+
+### Community 297 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG6, Same-motor cross-jig comparison
+
+### Community 298 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG6, Same-motor cross-jig comparison
+
+### Community 299 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG7, Same-motor cross-jig comparison
+
+### Community 300 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG7, Same-motor cross-jig comparison
+
+### Community 301 - "Extreme points on each batch-mean curve"
+Cohesion: 0.29
+Nodes (6): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG4, P05 / JIG5, P05 / JIG8, Same-motor cross-jig comparison
+
+### Community 302 - "cmsis_compiler.h"
+Cohesion: 0.36
+Nodes (7): packed, __PACKED_STRUCT, T_UINT16_READ(), T_UINT16_WRITE(), T_UINT32(), T_UINT32_READ(), T_UINT32_WRITE()
+
+### Community 303 - "Extreme points on each batch-mean curve"
+Cohesion: 0.33
+Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / remount01-test-2, P05 / remount02-test-1, Same-motor cross-jig comparison
+
+### Community 304 - "Extreme points on each batch-mean curve"
+Cohesion: 0.33
+Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / JIG1, P05 / JIG5, Same-motor cross-jig comparison
+
+### Community 305 - "Extreme points on each batch-mean curve"
+Cohesion: 0.33
+Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / remount01-test-1, P05 / remount02-test-1, Same-motor cross-jig comparison
+
+### Community 306 - "Extreme points on each batch-mean curve"
+Cohesion: 0.33
+Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P05 / test-1, P05 / test-2, Same-motor cross-jig comparison
+
+### Community 307 - "NL extreme-angle and cross-jig curve analysis"
+Cohesion: 0.40
+Nodes (4): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P08 / JIG7, Same-motor cross-jig comparison
+
+### Community 308 - "Hoạt động trong ngày"
+Cohesion: 0.14
+Nodes (13): 1. Fix v3 cho `ENABLE_SWEEP_POINT_CREEP` — giải quyết vấn đề nhiệt/giật cục (mục 6.5, tài liệu 08-04), 2. v3 THẤT BẠI trên phần cứng thật — công suất 0.6f không đủ lực, revert về v4, 3. v4 bất ổn định (cv 18-39% qua 3 remount) — phân tích không gian "điểm khó", 4. v5-adaptive-budget (phiên song song) — test trên P03, PHÁT HIỆN LỖI MỚI: target-crossing overshoot, 5. v5.1-crossing-guard — test trên P03, KẾT QUẢ: guard hoạt động đúng thiết kế nhưng KHÔNG đủ để dùng được, 6. v5.2 — bounded single recovery: thu hồi dữ liệu sau crossing nhưng chưa xử lý được breakaway lớn, 7.1 Lỗi chỉ chạy một precondition rồi đứng, 7.2 Hardware pilot remount01 — PASS đúng scope (+5 more)
+
+### Community 311 - "nonlinear_test.c"
+Cohesion: 0.09
+Nodes (54): Motor_Disable(), ClosureProbeStageName(), ComputeFittedMinMaxDenseByOrders(), ComputeHarmonicFull(), ComputeModelMetricsByOrders(), ComputeResidualRms(), ComputeShadowMetrics(), FindHarmonic() (+46 more)
+
+### Community 312 - "V5.3 — point-66 fine landing and stick-slip jump guard"
+Cohesion: 0.25
+Nodes (7): 1. Evidence and objective, 2. Locked V5.3 motion contract, 3. Telemetry contract, 4. Software gates, 5. Hardware pilot, 6. V5.3 stack fix after the first hardware run, V5.3 — point-66 fine landing and stick-slip jump guard
+
+### Community 313 - "Sweep-point-creep v5 — adaptive targeted budget"
+Cohesion: 0.14
+Nodes (13): 1. Objective, 2. Locked v5 control change, 3. Explicit non-goals, 4.1 Configuration record, 4.2 Per-point diagnostic record, 4.3 END aggregates, 4. Telemetry contract, 5. RAM and timing constraints (+5 more)
+
+### Community 315 - "TIM_Base_SetConfig"
+Cohesion: 0.12
+Nodes (19): MX_TIM2_Init(), HAL_StatusTypeDef, HAL_InitTick(), HAL_TIM_Base_Init(), HAL_TIM_Base_MspInit(), HAL_TIM_Encoder_Init(), HAL_TIM_Encoder_MspInit(), HAL_TIM_IC_Init() (+11 more)
+
+### Community 317 - "Sweep-point-creep V5.1 — target-crossing guard"
+Cohesion: 0.22
+Nodes (8): 1. Evidence and decision, 2. Locked V5.1 motion change, 3. Validity and batch policy, 4. Telemetry additions, 5. Software gates, 6. Hardware pilot and decision, 7. Implementation checklist, Sweep-point-creep V5.1 — target-crossing guard
+
+### Community 321 - "NL extreme-angle and cross-jig curve analysis"
+Cohesion: 0.40
+Nodes (4): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, Same-motor cross-jig comparison, UNKNOWN / JIG7
+
+### Community 322 - "NL extreme-angle and cross-jig curve analysis"
+Cohesion: 0.40
+Nodes (4): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, Same-motor cross-jig comparison, UNKNOWN / JIG7
+
 ## Knowledge Gaps
-- **820 isolated node(s):** `v`, `Usage`, `What graphify is for`, `Step 0 - GitHub repos and multi-path merge (only if a URL or several paths)`, `Step 1 - Ensure graphify is installed` (+815 more)
+- **1115 isolated node(s):** `v`, `Usage`, `What graphify is for`, `Step 0 - GitHub repos and multi-path merge (only if a URL or several paths)`, `Step 1 - Ensure graphify is installed` (+1110 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `HAL_GetTick()` connect `HAL_GetTick` to `CaptureSweep`, `stm32f4xx_hal.c`, `stm32f4xx_hal_uart.c`, `stm32f4xx_hal_rcc_ex.c`, `stm32f4xx_hal_spi.c`, `stm32f4xx_hal_dma.c`, `control_a5_capture.c`, `stm32f4xx_hal_adc.c`, `nonlinear_test.c`, `stm32f4xx_hal_flash_ex.c`, `control_engine.c`, `stm32f4xx_hal_i2c.c`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+- **Why does `HAL_GetTick()` connect `HAL_GetTick` to `stm32f4xx_hal.c`, `stm32f4xx_hal_uart.c`, `stm32f4xx_hal_rcc_ex.c`, `stm32f4xx_hal_spi.c`, `stm32f4xx_hal_dma.c`, `MoveToZeroAndCheckDirection`, `ControlRunA5`, `stm32f4xx_hal_adc.c`, `CaptureSweep`, `nonlinear_test.c`, `stm32f4xx_hal_flash_ex.c`, `control_engine.c`, `stm32f4xx_hal_i2c.c`?**
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
 - **Why does `LL_MPU_Enable()` connect `stm32f4xx_ll_cortex.h` to `__DSB`?**
-  _High betweenness centrality (0.046) - this node is a cross-community bridge._
-- **Why does `osDelay()` connect `CaptureSweep` to `cmsis_os2.c`, `xTaskResumeAll`, `StartDefaultTask`, `nonlinear_test.c`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
+  _High betweenness centrality (0.037) - this node is a cross-community bridge._
+- **Why does `osDelay()` connect `CaptureSweep` to `MoveToZeroAndCheckDirection`, `tasks.c`, `cmsis_os2.c`, `StartDefaultTask`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
 - **What connects `v`, `Usage`, `What graphify is for` to the rest of the system?**
-  _820 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1115 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `stm32f4xx_ll_usart.h` be split into smaller, more focused modules?**
   _Cohesion score 0.043151567196221555 - nodes in this community are weakly interconnected._
 - **Should `cmsis_gcc.h` be split into smaller, more focused modules?**

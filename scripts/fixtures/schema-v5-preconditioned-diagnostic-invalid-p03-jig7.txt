@@ -1,0 +1,9 @@
+Getting result!
+META,SchemaVersion=5,MCU_UID=004600323235511835383831,JigID=JIG7,JigKnown=1,MotorID=p03,MotorIDSource=BUILD_DEFINE,MotorIDValid=1,TestID=21,SweepID=21,Direction=CW,MeasurementValid=1,TrackingValid=1,AcquisitionResult=OK,BatchID=8,CycleOrder=1,RunOrder=0,BatchRunCount=3,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,RunRole=PRECONDITION,EligibleForStatistics=0,PreconditionValid=NA,ThermalProtocol=COOLDOWN_120S_V1,FirstRunInBatch=1,MotorActiveDurationMs=55000,CooldownTargetMs=NA,CooldownActualMs=NA,CooldownValid=NA,TimeSincePreviousRunMs=NA
+RESULT,SchemaVersion=5,TestID=21,SweepID=21,JigID=JIG7,MotorID=p03,Direction=CW,RMS_AC=0.82000,A36=0.10000,TrackingValid=1
+END,SchemaVersion=5,TestID=21,SweepID=21,Direction=CW,TrackingValid=1,AcquisitionResult=OK,SweepPointCreepIntegrityValid=0,Status=INVALID
+PRECONDITION_RESULT,SchemaVersion=5,BatchID=8,CycleOrder=1,TestID=21,Protocol=ONE_FULL_SWEEP_120S_V1_FAST3,RunRole=PRECONDITION,EligibleForStatistics=0,CreepIntegrityValid=0,Status=DIAGNOSTIC_INVALID
+Getting result!
+META,SchemaVersion=5,MCU_UID=004600323235511835383831,JigID=JIG7,JigKnown=1,MotorID=p03,MotorIDSource=BUILD_DEFINE,MotorIDValid=1,TestID=22,SweepID=22,Direction=CW,MeasurementValid=1,TrackingValid=1,AcquisitionResult=OK,BatchID=8,CycleOrder=2,RunOrder=1,BatchRunCount=3,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,RunRole=OFFICIAL,EligibleForStatistics=0,PreconditionValid=0,ThermalProtocol=COOLDOWN_120S_V1,FirstRunInBatch=0,MotorActiveDurationMs=54800,CooldownTargetMs=120000,CooldownActualMs=120050,CooldownValid=1,TimeSincePreviousRunMs=120050
+RESULT,SchemaVersion=5,TestID=22,SweepID=22,JigID=JIG7,MotorID=p03,Direction=CW,RMS_AC=0.75000,A36=0.10100,TrackingValid=1
+END,SchemaVersion=5,TestID=22,SweepID=22,Direction=CW,TrackingValid=1,AcquisitionResult=OK,SweepPointCreepIntegrityValid=0,Status=INVALID

@@ -1,0 +1,62 @@
+SavedAtLocal=2026-08-05T12:18:36+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=5d459f0cc30e217052220dbeb9f978c4fd41db7b
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-1-crossing-guard-fast3-20260805
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_CROSS_GUARD_V1
+TargetCrossingGuard=STOP_BEFORE_NEXT_COMMAND_V1
+
+AdaptiveRule=Use EXTENDED only when abs(live post-settle initial gap) > 200 raw.
+BaseConfig=budget 220 raw, max iterations 15
+ExtendedConfig=budget 320 raw, max iterations 21
+UnchangedConfig=step 16 raw, deadband 16 raw, power 1.0, ramp/settle/motion profile unchanged
+
+SingleChange=After every creep micro-step and fresh settle sample, deadband
+    success is checked first. If the live signed gap crosses the target and
+    remains outside deadband, stop with TARGET_CROSSED before the next motor
+    command. Do not reverse or attempt recovery in this build. The two B0-B
+    approach-creep call sites explicitly keep the guard disabled.
+
+ValidityPolicy=A target-crossed sweep keeps MeasurementValid separate so the
+    diagnostic FAST3 sequence can continue, but END.Status becomes INVALID,
+    SweepPointCreepIntegrityValid=0, EligibleForStatistics=0, legacy result
+    lines are suppressed and Motor OK is not emitted. A crossed precondition
+    sets PreconditionValid=0 for all subsequent official attempts. Transport,
+    settle and tracking failures retain the existing hard-stop path.
+
+Telemetry=SWEEP_CREEP_CONFIG includes TargetCrossingGuard. SWEEP_CREEP_POINT
+    reports Result=TARGET_CROSSED with signed initial/final gaps and budget
+    class. END includes total, BASE and EXTENDED target-crossing counters plus
+    SweepPointCreepIntegrityValid. All UART emission remains post-capture.
+
+Evidence=The first V5 JIG7 log was firmware-identifiable only as
+    MotorID=UNKNOWN, not P03. Its official runs contained 0/1/3 target
+    crossings outside deadband, including points whose final errors became
+    about 1.7-2.1 degrees. V5 extended success was 83/101 (82.2%) and did not
+    materially reduce BudgetExceeded versus V4. This build stops the
+    identified positive-feedback failure instead of increasing budget again.
+
+Memory=Release map .ccmram_bss=0x5168 (20,840 bytes of 65,536; 31.8%).
+Verification=Default Release build passed. Feature-on FAST3 Release build
+    passed. Default configuration: 31/31 tests passed. FAST3: 30/31 passed;
+    the sole failure is the intentional test_preconditioned_10run_contract.ps1
+    mismatch because this artifact contains 3 official runs. ELF contains the
+    new protocol, guard, FAST3 and integrity telemetry strings.
+
+HardwarePilot=Flash on the same JIG7/motor/mounting used for the V5 batch.
+    Run the complete 1 PRECONDITION + 3 OFFICIAL sequence. Do not classify
+    any sweep with SweepPointCreepIntegrityValid=0. Compare target crossings,
+    NL spikes, BudgetExceeded and repeatability against V4/V5.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0 and
+    10-official-run batch; this artifact retains SweepCreepEnabled=1 + FAST3.
+
+HexSHA256=d903c8522d490fa26b65a6a7da25f7ea0e97df4b897c902e4636a0d8cdefd46e
+ElfSHA256=21877c778effde9b56869cf3f7056876cd7dea0f1231b074d6267c24d3c1494a
+MapSHA256=e7423ef9ba5fda57a19af95ccda3959514d53105c961eb7533d60f8eb9d7206d

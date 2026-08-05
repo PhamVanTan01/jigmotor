@@ -573,7 +573,6 @@ foreach ($inputPath in $Path) {
                         Protocol = $observedPreconditionProtocol
                         RunRole = 'PRECONDITION'
                         EligibleForStatistics = '0'
-                        Status = 'VALID'
                     }
                     foreach ($requiredField in $requiredPreconditionResult.Keys) {
                         if (-not $preconditionResult.ContainsKey($requiredField) -or
@@ -581,6 +580,21 @@ foreach ($inputPath in $Path) {
                                     $requiredPreconditionResult[$requiredField]) {
                             throw "PRECONDITION_RESULT requires $requiredField=$($requiredPreconditionResult[$requiredField]) in $file."
                         }
+                    }
+                    if (-not $preconditionResult.ContainsKey('Status')) {
+                        throw "PRECONDITION_RESULT is missing Status in $file."
+                    }
+                    $preconditionResultValid =
+                        ($preconditionResult['Status'] -eq 'VALID' -and
+                         (-not $preconditionResult.ContainsKey('CreepIntegrityValid') -or
+                          $preconditionResult['CreepIntegrityValid'] -eq '1'))
+                    $preconditionResultDiagnosticInvalid =
+                        ($preconditionResult['Status'] -eq 'DIAGNOSTIC_INVALID' -and
+                         $preconditionResult.ContainsKey('CreepIntegrityValid') -and
+                         $preconditionResult['CreepIntegrityValid'] -eq '0')
+                    if (-not $preconditionResultValid -and
+                            -not $preconditionResultDiagnosticInvalid) {
+                        throw "PRECONDITION_RESULT has inconsistent Status/CreepIntegrityValid in $file."
                     }
                     foreach ($identityField in @('BatchID', 'CycleOrder', 'TestID')) {
                         if (-not $preconditionResult.ContainsKey($identityField) -or
@@ -592,10 +606,15 @@ foreach ($inputPath in $Path) {
                     $cooldownActualMs = [int64]$meta['CooldownActualMs']
                     $timeSincePreviousRunMs = [int64]$meta['TimeSincePreviousRunMs']
                     $maxCycleOrder = 1 + [int]$requiredBatchValues['BatchRunCount']
+                    $eligibilityContractValid =
+                        (($meta['EligibleForStatistics'] -eq '1' -and
+                          $meta['PreconditionValid'] -eq '1') -or
+                         ($meta['EligibleForStatistics'] -eq '0' -and
+                          ($meta['PreconditionValid'] -eq '0' -or
+                           $meta['PreconditionValid'] -eq '1')))
                     if ($cycleOrder -lt 2 -or $cycleOrder -gt $maxCycleOrder -or
                             $runOrder -ne ($cycleOrder - 1) -or
-                            $meta['EligibleForStatistics'] -ne '1' -or
-                            $meta['PreconditionValid'] -ne '1' -or
+                            -not $eligibilityContractValid -or
                             $meta['FirstRunInBatch'] -ne '0' -or
                             $meta['CooldownTargetMs'] -ne '120000' -or
                             $meta['CooldownValid'] -ne '1' -or
@@ -604,6 +623,11 @@ foreach ($inputPath in $Path) {
                             $timeSincePreviousRunMs -lt $cooldownActualMs -or
                             $preconditionResultMatch.Success) {
                         throw "Invalid official role/eligibility/order contract in $file."
+                    }
+                    if ($meta['EligibleForStatistics'] -eq '0' -and
+                            $meta['PreconditionValid'] -eq '1' -and
+                            $end.ContainsKey('Status') -and $end['Status'] -ne 'INVALID') {
+                        throw "Ineligible official record with valid precondition requires END.Status=INVALID in $file."
                     }
                 } else {
                     throw "Unknown preconditioned batch RunRole '$($meta['RunRole'])' in $file."

@@ -1,0 +1,49 @@
+SavedAtLocal=2026-08-05T11:22:49+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=5d459f0cc30e217052220dbeb9f978c4fd41db7b
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-adaptive-budget-fast3-20260805
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_V1
+
+AdaptiveRule=Use EXTENDED only when abs(live post-settle initial gap) > 200 raw.
+BaseConfig=budget 220 raw, max iterations 15
+ExtendedConfig=budget 320 raw, max iterations 21
+UnchangedConfig=step 16 raw, deadband 16 raw, power 1.0, ramp/settle/motion profile unchanged
+
+Purpose=Reduce remaining fixed-budget exhaustion only at points that show a
+    large live physical gap. No product/JIG/angle whitelist is compiled in.
+    The threshold is supported by P08/JIG7 V4 remount data: Pearson
+    correlation 0.979-0.991 between initial gap and correction demand, with
+    56-59 points/sweep above 200 raw versus 56-68 BudgetExceeded events.
+
+Telemetry=SWEEP_CREEP_CONFIG once/sweep and SWEEP_CREEP_POINT for every
+    EXTENDED point or failed BASE point. Per-point data is buffered in CCM
+    and emitted only after capture, so no UART is added to the motion loop.
+    END retains existing totals and adds BASE/EXTENDED aggregate fields.
+    All new records/fields are diagnostic; Official=0 and MeasurementValid,
+    Motor OK, canonical formulas and official schema-v5 semantics are unchanged.
+
+Memory=Release map .ccmram_bss=0x5168 (20,840 bytes of 65,536; 31.8%).
+Verification=Default Release build passed. Feature-on FAST3 Release build
+    passed. Default configuration: 29/29 PowerShell tests passed. FAST3:
+    28/29 passed; the sole failure is the intentional
+    test_preconditioned_10run_contract.ps1 mismatch because this artifact
+    contains 3 official runs. V5 creep contract passed in both configurations.
+
+HardwarePilot=Flash P08/JIG7 under the same sensor/mounting setup as V4.
+    Run the complete batch (1 PRECONDITION + 3 OFFICIAL). Compare extended OK
+    rate, total BudgetExceeded, total iterations, heat/jerkiness and NL
+    integrity metrics against V4 before accepting the change.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0 and
+    10-official-run batch; this artifact retains SweepCreepEnabled=1 + FAST3.
+
+HexSHA256=5c882b58e9ea5c3999d2819e28c655a7a81d710c28e5d5f5b37300914aedf7ac
+ElfSHA256=68aad2f23c3e623381b2cc889e69078ba5fc6e19bb7d1dabfc1e32af4271cba0
+MapSHA256=f84f2a512eaac74dcb4ad573365eb6516610f1c9d4dab4439734ee5bc9cbb997

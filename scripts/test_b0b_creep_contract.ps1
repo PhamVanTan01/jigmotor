@@ -34,6 +34,7 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($creepEnum) -and
         $creepEnum -match 'NL_CREEP_OK,' -and
         $creepEnum -match 'NL_CREEP_TIMEOUT,' -and
         $creepEnum -match 'NL_CREEP_BUDGET_EXCEEDED,' -and
+        $creepEnum -match 'NL_CREEP_TARGET_CROSSED,' -and
         $creepEnum -match 'NL_CREEP_ACQUISITION_ERROR,') `
     'NlCreepResult_t enum is missing or its shape changed.'
 $creepDiagStruct = [regex]::Match($source, '(?s)typedef struct\s*\{[^{}]*?\}\s*NlCreepDiagnostics_t;').Value
@@ -46,8 +47,8 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($creepDiagStruct) -and
 Assert-True ($source -match 'NlCreepDiagnostics_t\s+backoffCreepDiag;\s*[\r\n]+\s*NlCreepDiagnostics_t\s+forwardCreepDiag;') `
     'NlSweepCapture_t is missing the per-leg creep diagnostic fields.'
 
-# --- CreepToUnwrappedTarget: only compiled/called under the flag; never
-# reverses direction; only touches the motor via Motor_SetElectricalPos
+# --- CreepToUnwrappedTarget: only compiled/called under the flag; permits one
+# explicitly bounded recovery reversal; only touches the motor via Motor_SetElectricalPos
 # (same power=1.0 convention as the rest of B0-B); reuses WaitForPointSettle
 # rather than re-implementing settle logic.
 # 2026-08-04: also reused (unchanged) by ENABLE_SWEEP_POINT_CREEP's own
@@ -59,17 +60,27 @@ $creepFn = [regex]::Match($source,
 Assert-True (-not [string]::IsNullOrWhiteSpace($creepFn)) `
     'Could not locate a flag-gated CreepToUnwrappedTarget definition.'
 Assert-True ($creepFn -match 'int direction = \(gap > 0\) \? 1 : -1;' -and
-        $creepFn -notmatch 'direction\s*=\s*-direction' -and
-        $creepFn -notmatch 'direction\s*\*=\s*-1') `
-    'CreepToUnwrappedTarget must fix direction once at entry and never reverse it.'
-Assert-True ($creepFn -match 'Motor_SetElectricalPos\(\(uint16_t\)\*commandPos,\s*1\.0f\)') `
-    'CreepToUnwrappedTarget must command through Motor_SetElectricalPos at full power, matching B0-B.'
+        ([regex]::Matches($creepFn, 'direction\s*=\s*-direction')).Count -eq 1 -and
+        $creepFn -match 'diag->result = NL_CREEP_RECOVERY_RECROSSED;\s*break;') `
+    'CreepToUnwrappedTarget must permit exactly one reversal and stop on a recovery re-cross.'
+# 2026-08-04 v3: power/step/deadband/budget/iterations are now caller-
+# supplied parameters (not hardcoded to the B0-B literals/macros), so
+# ENABLE_SWEEP_POINT_CREEP's own call site can use its own tuning without
+# touching B0-B's behavior. The function body must use its own parameters;
+# B0-B's *call sites* (checked further below) must still pass the exact
+# original literals/macros, which is what actually pins B0-B's behavior.
+Assert-True ($creepFn -match 'int32_t \*commandPos, int64_t targetUnwrapped,\s*[\r\n\s]*MA600_Sample_t \*anchorSample, NlCreepDiagnostics_t \*diag,\s*[\r\n\s]*uint32_t stepRaw, uint32_t deadbandRaw, int64_t maxTotalRaw,\s*[\r\n\s]*uint32_t maxIterations, float power, bool stopOnTargetCrossing,\s*[\r\n\s]*int64_t recoveryMaxTotalRaw, uint32_t recoveryMaxIterations\)') `
+    'CreepToUnwrappedTarget must take ordinary and recovery limits as caller parameters.'
+Assert-True ($creepFn -match 'Motor_SetElectricalPos\(\(uint16_t\)\*commandPos,\s*power\)') `
+    'CreepToUnwrappedTarget must command through Motor_SetElectricalPos using its own power parameter.'
 Assert-True ($creepFn -match 'WaitForPointSettle\(sweepAcquisition,\s*[\r\n\s]*anchor \+ step,\s*false,\s*&microSettle\)') `
     'CreepToUnwrappedTarget must reuse WaitForPointSettle (targetRequired=false) for each micro-step, not new settle logic.'
-Assert-True ($creepFn -match 'diag->iterations >= NL_B0B_CREEP_MAX_ITERATIONS' -and
-        $creepFn -match 'diag->totalCorrectionRaw >= NL_B0B_CREEP_MAX_TOTAL_RAW' -and
-        $creepFn -match 'AbsI64ToU64\(gap\) <= \(uint64_t\)NL_B0B_CREEP_DEADBAND_RAW') `
-    'CreepToUnwrappedTarget must check deadband, iteration cap and budget cap every loop pass.'
+Assert-True ($creepFn -match 'diag->iterations >= maxIterations' -and
+        $creepFn -match 'diag->totalCorrectionRaw >= maxTotalRaw' -and
+        $creepFn -match 'diag->recoveryIterations >= recoveryMaxIterations' -and
+        $creepFn -match 'diag->recoveryCorrectionRaw >= recoveryMaxTotalRaw' -and
+        $creepFn -match 'AbsI64ToU64\(gap\) <= \(uint64_t\)deadbandRaw') `
+    'CreepToUnwrappedTarget must check ordinary/recovery caps and deadband every loop pass.'
 Assert-True ($creepFn -match 'NL_SETTLE_ACQUISITION_ERROR' -and
         $creepFn -match 'NL_CREEP_ACQUISITION_ERROR') `
     'CreepToUnwrappedTarget must propagate a real sensor acquisition error distinctly from timeout/budget.'
@@ -83,10 +94,10 @@ Assert-True ($source -match '(?s)static MA600_Result_t RampCommandToTarget\(\s*M
 # already confirmed NL_SETTLE_OK on the code path above each call site),
 # updates the settle's own finalSample in place, and precedes every
 # downstream use of the corrected anchor. ---
-Assert-True ($source -match '(?s)#if ENABLE_B0B_APPROACH_CREEP\s*/\* 3b\..*?CreepToUnwrappedTarget\(&sweepAcquisition, &commandPos,\s*[\r\n\s]*expectedBackoffUnwrapped, &backoffSettle\.finalSample,\s*[\r\n\s]*&out->backoffCreepDiag\);\s*#endif\s*int64_t backoffAnchorUnwrapped = backoffSettle\.finalSample\.unwrappedRaw;') `
-    'Backoff creep must run against expectedBackoffUnwrapped and update backoffSettle.finalSample BEFORE backoffAnchorUnwrapped is read from it (insertion point moved incorrectly).'
-Assert-True ($source -match '(?s)CreepToUnwrappedTarget\(&sweepAcquisition, &commandPos,\s*[\r\n\s]*expectedPoint0Unwrapped, &point0Settle\.finalSample,\s*[\r\n\s]*&out->forwardCreepDiag\);\s*#endif\s*sweepOriginUnwrapped = point0Settle\.finalSample\.unwrappedRaw;') `
-    'Point-0 creep must run against expectedPoint0Unwrapped and update point0Settle.finalSample before sweepOriginUnwrapped/sample/settleObservation are assigned.'
+Assert-True ($source -match '(?s)#if ENABLE_B0B_APPROACH_CREEP\s*/\* 3b\..*?CreepToUnwrappedTarget\(&sweepAcquisition, &commandPos,\s*[\r\n\s]*expectedBackoffUnwrapped, &backoffSettle\.finalSample,\s*[\r\n\s]*&out->backoffCreepDiag, NL_B0B_CREEP_STEP_RAW, NL_B0B_CREEP_DEADBAND_RAW,\s*[\r\n\s]*NL_B0B_CREEP_MAX_TOTAL_RAW, NL_B0B_CREEP_MAX_ITERATIONS, 1\.0f, false,\s*[\r\n\s]*0LL, 0U\);\s*#endif\s*int64_t backoffAnchorUnwrapped = backoffSettle\.finalSample\.unwrappedRaw;') `
+    'Backoff creep must run against expectedBackoffUnwrapped, pass B0-B''s own unchanged constants + 1.0f power, and update backoffSettle.finalSample BEFORE backoffAnchorUnwrapped is read from it (insertion point or B0-B tuning changed incorrectly).'
+Assert-True ($source -match '(?s)CreepToUnwrappedTarget\(&sweepAcquisition, &commandPos,\s*[\r\n\s]*expectedPoint0Unwrapped, &point0Settle\.finalSample,\s*[\r\n\s]*&out->forwardCreepDiag, NL_B0B_CREEP_STEP_RAW, NL_B0B_CREEP_DEADBAND_RAW,\s*[\r\n\s]*NL_B0B_CREEP_MAX_TOTAL_RAW, NL_B0B_CREEP_MAX_ITERATIONS, 1\.0f, false,\s*[\r\n\s]*0LL, 0U\);\s*#endif\s*sweepOriginUnwrapped = point0Settle\.finalSample\.unwrappedRaw;') `
+    'Point-0 creep must run against expectedPoint0Unwrapped, pass B0-B''s own unchanged constants + 1.0f power, and update point0Settle.finalSample before sweepOriginUnwrapped/sample/settleObservation are assigned.'
 Assert-True ($source -match '(?s)sweepOriginUnwrapped = point0Settle\.finalSample\.unwrappedRaw;.*?sample = point0Settle\.finalSample;\s*settleObservation = point0Settle;') `
     'sample/settleObservation must still be assigned from point0Settle AFTER the creep update, so the official per-sweep anchor (pointAnchorUnwrapped) reflects the corrected position.'
 
@@ -133,6 +144,109 @@ $newFieldsCost = (
 Assert-True (($maxApproachResultLen + $newFieldsCost) -lt 1900) `
     ("APPROACH_RESULT line budget exceeded: longest observed " + $maxApproachResultLen +
      ' + new creep fields worst case ' + $newFieldsCost + ' must stay < 1900.')
+
+# --- ENABLE_SWEEP_POINT_CREEP V5 adaptive targeted-budget.  BASE preserves
+# V4; EXTENDED is selected only from the live post-settle gap, never from a
+# fixed point/angle list. Power/step/deadband and the official gate stay
+# unchanged. ---
+Assert-True ($source -match '#define\s+NL_SWEEP_CREEP_PROTOCOL_ID\s+"ADAPTIVE_GAP_BUDGET_SINGLE_RECOVERY_V1"' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_TARGET_CROSSING_GUARD_ID\s+"STOP_BEFORE_NEXT_COMMAND_V1"' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID\s+"SINGLE_REVERSAL_SAME_STEP_V1"' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING\s+true' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_STEP_RAW\s+16' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW\s+200LL' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW\s+220LL' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_BASE_MAX_ITERATIONS\s+15U' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW\s+320LL' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS\s+21U' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW\s+320LL' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS\s+21U' -and
+        $source -match '#define\s+NL_SWEEP_CREEP_POWER\s+1\.0f') `
+    'NL_SWEEP_CREEP_* V5 adaptive constants missing or changed unexpectedly.'
+
+$adaptiveBlock = [regex]::Match($source,
+    '(?s)int64_t initialGapRaw = expectedTargetUnwrapped.*?MA600_Result_t creepAcqResult = CreepToUnwrappedTarget\(.*?NL_SWEEP_CREEP_POWER,\s*NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING,\s*NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW,\s*NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS\);').Value
+Assert-True (-not [string]::IsNullOrWhiteSpace($adaptiveBlock)) `
+    'Could not locate the V5 adaptive sweep-creep selection/call block.'
+Assert-True ($adaptiveBlock -match 'expectedTargetUnwrapped\s*-\s*settleObservation\.finalSample\.unwrappedRaw' -and
+        $adaptiveBlock -match 'AbsI64ToU64\(initialGapRaw\)\s*>\s*\(uint64_t\)NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW' -and
+        $adaptiveBlock -match 'creepMaxTotalRaw, creepMaxIterations, NL_SWEEP_CREEP_POWER,\s*[\r\n\s]*NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING') `
+    'V5 must select and pass the adaptive budget from the live post-settle initial gap.'
+$budgetSelectionBlock = [regex]::Match($source,
+    '(?s)int64_t initialGapRaw = expectedTargetUnwrapped.*?uint32_t creepMaxIterations =.*?NL_SWEEP_CREEP_BASE_MAX_ITERATIONS;').Value
+Assert-True (-not [string]::IsNullOrWhiteSpace($budgetSelectionBlock) -and
+        $budgetSelectionBlock -notmatch 'pointIndex\s*(==|>=|<=|>|<)' -and
+        $budgetSelectionBlock -notmatch 'DIFFICULT.*POINT|POINT.*WHITELIST') `
+    'V5 budget selection must not contain a fixed point/angle whitelist.'
+
+Assert-True ($source -match 'creepInitialGapRaw\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepFinalGapRaw\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepTotalCorrectionRaw\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepIterations\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepResults\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepBudgetClasses\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepPreCrossGapRaw\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepCrossingGapRaw\[NL_MAX_SWEEP_POINTS\]' -and
+        $source -match 'creepRecoveryIterations\[NL_MAX_SWEEP_POINTS\]') `
+    'V5 per-point creep telemetry must be retained in the CCM shadow storage.'
+Assert-True ($source -match 'SWEEP_CREEP_CONFIG,SchemaVersion=5' -and
+        $source -match 'SWEEP_CREEP_POINT,SchemaVersion=5' -and
+        $source -match 'Official=0,Enabled=1,Protocol=%s' -and
+        $source -match 'TargetCrossingGuard=%s' -and
+        $source -match 'RecoveryProtocol=%s' -and
+        $source -match 'RecoveryAttempted=%d,RecoverySucceeded=%d' -and
+        $source -match 'InitialGapRaw=%s,InitialAbsGapRaw=%s,BudgetClass=%s') `
+    'V5 diagnostic-only config/per-point records are missing.'
+Assert-True ($source -match '(?s)for \(int i = 0; i < NL_MAX_SWEEP_POINTS; i\+\+\).*?creepResults\[i\].*?SWEEP_CREEP_POINT' -and
+        $source -match 'diag->finalGapRaw = targetUnwrapped\s*-\s*microSettle\.finalSample\.unwrappedRaw;') `
+    'V5 must retain/report a next-target acquisition failure with its actual final encoder gap.'
+Assert-True ($source -match 'SweepPointCreepBaseBudgetExceeded=%lu' -and
+        $source -match 'SweepPointCreepExtendedPoints=%lu' -and
+        $source -match 'SweepPointCreepExtendedOk=%lu' -and
+        $source -match 'SweepPointCreepExtendedTotalIterations=%lu' -and
+        $source -match 'SweepPointCreepExtendedTotalCorrectionRaw=%s' -and
+        $source -match 'SweepPointCreepExtendedTimeouts=%lu' -and
+        $source -match 'SweepPointCreepExtendedBudgetExceeded=%lu' -and
+        $source -match 'SweepPointCreepTargetCrossed=%lu' -and
+        $source -match 'SweepPointCreepBaseTargetCrossed=%lu' -and
+        $source -match 'SweepPointCreepExtendedTargetCrossed=%lu' -and
+        $source -match 'SweepPointCreepRecoveryAttempted=%lu' -and
+        $source -match 'SweepPointCreepRecoverySucceeded=%lu' -and
+        $source -match 'SweepPointCreepRecoveryFailed=%lu' -and
+        $source -match 'SweepPointCreepRecoveryRecrossed=%lu' -and
+        $source -match 'SweepPointCreepIntegrityValid=%d') `
+    'END must include the V5.2 BASE/EXTENDED crossing and recovery-integrity fields.'
+
+# V5.2 target-crossing recovery: evaluate only after a fresh micro-settle,
+# reverse once, and stop before another command if the recovery re-crosses.
+$crossingGuard = [regex]::Match($creepFn,
+    '(?s)anchor = microSettle\.finalSample\.unwrappedRaw;\s*gap = targetUnwrapped - anchor;.*?diag->result = NL_CREEP_RECOVERY_RECROSSED;\s*break;.*?diag->finalGapRaw = gap;').Value
+Assert-True (-not [string]::IsNullOrWhiteSpace($crossingGuard) -and
+        $crossingGuard -match 'AbsI64ToU64\(gap\) > \(uint64_t\)deadbandRaw' -and
+        $crossingGuard -match 'direction > 0 && gap < 0' -and
+        $crossingGuard -match 'direction < 0 && gap > 0' -and
+        $crossingGuard -match 'recoveryPhase = true;' -and
+        $crossingGuard -match 'direction = -direction;') `
+    'V5.2 must start one bounded recovery only after a live target sign crossing.'
+
+Assert-True ($source -match 'eligibleForStatistics = !preconditionRun\s*&& preconditionValid\s*&& \(nlCaptures\[i\]\.sweepPointCreepRecoveryFailedCount == 0U\)\s*&& \(nlCaptures\[i\]\.sweepPointCreepStickSlipJumpCount == 0U\)' -and
+        $source -match 'CreepIntegrityValid=%d,Status=%s' -and
+        $source -match 'Motor RESULT INVALID: %s \(SweepPointCreepRecoveryFailed=%lu,StickSlipJump=%lu\)' -and
+        $source -match 'nlPreconditionValid =\s*\(nlCaptures\[0\]\.sweepPointCreepRecoveryFailedCount == 0U\)\s*&& \(nlCaptures\[0\]\.sweepPointCreepStickSlipJumpCount == 0U\)') `
+    'V5.2/V5.3 must accept recovered crossings but suppress recovery/jump integrity failures.'
+
+# Both V5 records must live in PrintSweepLog, not CaptureSweep: UART in
+# the capture loop would perturb the very motion timing being measured.
+$captureStart = $source.IndexOf('static MA600_Result_t CaptureSweep(')
+$captureEnd = $source.IndexOf('static void PrintShadowMadLog', $captureStart)
+$captureSweep = if ($captureStart -ge 0 -and $captureEnd -gt $captureStart) {
+    $source.Substring($captureStart, $captureEnd - $captureStart)
+} else { '' }
+Assert-True (-not [string]::IsNullOrWhiteSpace($captureSweep) -and
+        $captureSweep -notmatch 'SWEEP_CREEP_CONFIG' -and
+        $captureSweep -notmatch 'SWEEP_CREEP_POINT' -and
+        $captureSweep -notmatch '"SWEEP_CREEP_STEP,SchemaVersion') `
+    'V5 must not emit SWEEP_CREEP_* UART records inside CaptureSweep.'
 
 # --- No leakage into the official contract. ---
 Assert-True ($source -match 'out->measurementValid\s*=\s*structuralValid\s*&&\s*out->trackingValid') `

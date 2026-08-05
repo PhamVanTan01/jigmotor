@@ -849,15 +849,67 @@ static bool NlSectorCalibrationSelfTest(void)
  * step); point 0's own pre-loop settle is NOT yet corrected (~1 of ~372
  * points, deferred rather than risking touching the several distinct
  * pre-loop settle call-sites shared with every approach-mode variant).
- * Reuses the SAME NL_B0B_CREEP_* constants as B0-B creep (untuned for this
- * new call site specifically) -- aggregate outcome is logged in END
- * (SweepPointCreepPointsCorrected/TotalIterations/TotalCorrectionRaw/
- * Timeouts/BudgetExceeded) specifically so an over/under-tuned budget or
- * deadband shows up in the data rather than being silently absorbed.
- * Default OFF -- diagnostic/experimental, not yet validated against real
- * hardware. */
+ * Aggregate outcome is logged in END; V5 also records budget-class totals
+ * and selected point diagnostics after capture. Default OFF --
+ * diagnostic/experimental.
+ *
+ * v1 (2026-08-04, first hardware test) reused B0-B's own NL_B0B_CREEP_*
+ * constants/power (8 raw step, 150 raw budget, 30 iterations, 1.0f)
+ * unchanged. Confirmed the core hypothesis on real hardware (P08, JIG7:
+ * RobustP2P -43%, A36 -66%, repeatable across 3 remounts) but exposed two
+ * new problems specific to running creep on ~95% of a sweep's 360 points
+ * (B0-B's own call sites only ever run it twice per sweep): (1) motor ran
+ * measurably hotter and moved more jerkily -- ~345/360 points corrected,
+ * ~14 full-power (1.0f) micro-commands/point average, ~4800-4900 extra
+ * commands/sweep, none smoothed (each is a bare Motor_SetElectricalPos
+ * jump, unlike the main ramp's quintic profile); (2) SweepPointCreepBudget
+ * Exceeded fired on ~44% of corrected points -- the 150-raw budget (sized
+ * for B0-B's own ~90-120 raw approach-leg gaps) was routinely too small for
+ * this call site's own larger, ~181-raw-max gaps, so a large fraction of
+ * the extra heat/motion bought incomplete correction.
+ *
+ * v3 (2026-08-05): CreepToUnwrappedTarget is now parameterized (step/
+ * deadband/budget/iterations/power all caller-supplied, see its own
+ * comment) so this call site can use ITS OWN tuning instead of B0-B's,
+ * without changing B0-B's behavior at all (its two call sites still pass
+ * the original NL_B0B_CREEP_* constants and 1.0f explicitly). New tuning
+ * (NL_SWEEP_CREEP_* below): step 8->16 raw (half the commands for the same
+ * total correction), budget 150->220 raw (comfortably covers the observed
+ * ~181-raw max with margin, aimed at closing BudgetExceeded to near-zero),
+ * iterations 30->15 (sized to the new step/budget ratio, not an
+ * independent loosening). v3 ALSO tried power 1.0->0.6 -- real-hardware
+ * test (P08/JIG7, same day) showed this was too aggressive: torque was
+ * insufficient against real friction/cogging, so each 16-raw commanded
+ * step achieved less real movement, requiring MORE total correction
+ * (TotalCorrectionRaw rose to 60368 vs v2's ~39000) and hitting
+ * BudgetExceeded MORE often (50.7% vs v2's 44%, despite the larger 220
+ * budget) -- consistent with stick-slip motion, and RobustP2P/A36 both
+ * regressed most of the way back to old-firmware levels (3.13/0.42 deg vs
+ * v2's 1.74-1.83/0.31), with within-batch variance spiking too (A2
+ * cv=70%). The user independently reported MORE jerkiness on real
+ * hardware, matching the stick-slip diagnosis. Power reverted to 1.0f
+ * (see NL_SWEEP_CREEP_POWER's own comment) -- step/budget are kept as the
+ * sole heat-reduction lever for now, since they don't carry this same
+ * torque risk.
+ *
+ * v4 (P08/JIG7, three remount logs) confirmed power=1.0 with step=16 and
+ * budget=220 is stable, but 56-68 points/sweep still exhausted the fixed
+ * budget. Offline replay showed initial post-settle gap predicts creep
+ * correction demand with Pearson r=0.979-0.991, and 56-59 points/sweep had
+ * |gap|>200 raw. V5 therefore keeps the validated BASE behavior and grants
+ * an EXTENDED budget only to that live physical condition. */
 #ifndef ENABLE_SWEEP_POINT_CREEP
 #define ENABLE_SWEEP_POINT_CREEP   0
+#endif
+
+/* V5.3 is deliberately a nested diagnostic, never an independent motion
+ * mode.  It may be enabled only with the main-sweep creep path and affects
+ * exactly one point (66); see docs/sweep-point-creep-v5-3-point66-fine-landing-plan.md. */
+#ifndef ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+#define ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING   0
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING && !ENABLE_SWEEP_POINT_CREEP
+#error "V5.3 point-66 fine landing requires ENABLE_SWEEP_POINT_CREEP"
 #endif
 
 #if ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP
@@ -869,18 +921,112 @@ static bool NlSectorCalibrationSelfTest(void)
  * - max total correction = 150 raw, comfortably above the largest
  *   shortfall observed so far (~90-120 raw) with margin, while still far
  *   below NL_B0B_APPROACH_BACKOFF_RAW (182) so a runaway cannot be
- *   mistaken for a normal correction. Shared as-is (untuned) with
- *   ENABLE_SWEEP_POINT_CREEP's main-loop call site, even though that call
- *   site's own gaps (2026-08-04 MOTION.PositionErrorRaw analysis) run up to
- *   ~181 raw -- close enough to this budget that BUDGET_EXCEEDED is
- *   expected to fire on some points; SweepPointCreepBudgetExceeded in END
- *   exists specifically to quantify that rather than hide it.
+ *   mistaken for a normal correction. The main-sweep creep call site now
+ *   has independent NL_SWEEP_CREEP_* tuning; these constants remain frozen
+ *   for B0-B's own two approach legs.
  * - max iterations = 30: at 8 raw/step this reaches the 150-raw budget in
  *   ~19 steps: 30 leaves headroom without an effectively unbounded loop. */
 #define NL_B0B_CREEP_STEP_RAW           8
 #define NL_B0B_CREEP_DEADBAND_RAW       NL_B0B_TARGET_DEADBAND_RAW
 #define NL_B0B_CREEP_MAX_TOTAL_RAW      150LL
 #define NL_B0B_CREEP_MAX_ITERATIONS     30U
+#endif
+#if ENABLE_SWEEP_POINT_CREEP
+/* V5 adaptive targeted-budget for the main-sweep-loop call site only.
+ * Selection is made from the LIVE, signed encoder gap immediately after
+ * the ordinary ramp+settle; there is deliberately no angle/point whitelist.
+ * The BASE branch preserves V4 exactly. Only points whose absolute initial
+ * gap exceeds 200 raw receive the larger budget.  Existing P08/JIG7 V4 logs
+ * put 56-59 of 360 points above that threshold, close to the observed
+ * BudgetExceeded population, while the difficult-angle set moved slightly
+ * between remounts.  A dynamic gap gate therefore targets the physical
+ * condition without baking one mounting's angle list into firmware. */
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+#define NL_SWEEP_CREEP_PROTOCOL_ID              "ADAPTIVE_GAP_BUDGET_POINT66_FINE_LANDING_V1"
+#define NL_SWEEP_CREEP_FINE_LANDING_PROTOCOL_ID "POINT66_FINE_STEP4_JUMP_GUARD_V1"
+#define NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID     "POINT66_FINE_SINGLE_REVERSAL_V1"
+#else
+#define NL_SWEEP_CREEP_PROTOCOL_ID              "ADAPTIVE_GAP_BUDGET_SINGLE_RECOVERY_V1"
+#define NL_SWEEP_CREEP_FINE_LANDING_PROTOCOL_ID "NONE"
+#define NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID     "SINGLE_REVERSAL_SAME_STEP_V1"
+#endif
+#define NL_SWEEP_CREEP_TARGET_CROSSING_GUARD_ID "STOP_BEFORE_NEXT_COMMAND_V1"
+#define NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING  true
+#define NL_SWEEP_CREEP_STEP_RAW                  16
+#define NL_SWEEP_CREEP_DEADBAND_RAW              NL_B0B_TARGET_DEADBAND_RAW
+#define NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW      200LL
+#define NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW        220LL
+#define NL_SWEEP_CREEP_BASE_MAX_ITERATIONS       15U
+#define NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW    320LL
+#define NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS   21U
+#define NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW    320LL
+#define NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS   21U
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+/* Point 66 is the only V5.3 caller. Coarse behavior stays at 16 raw until the
+ * live encoder gap enters +/-64 raw, then the 4-raw step is latched.  The
+ * 81-iteration guard only permits the existing 320-raw budget to be expressed
+ * in 4-raw commands; it does not grant additional commanded travel. */
+#define NL_SWEEP_CREEP_V53_TARGET_POINT            66U
+#define NL_SWEEP_CREEP_V53_FINE_ENTRY_RAW          64U
+#define NL_SWEEP_CREEP_V53_FINE_STEP_RAW           4U
+#define NL_SWEEP_CREEP_V53_JUMP_THRESHOLD_RAW      96U
+#define NL_SWEEP_CREEP_V53_MAX_ITERATIONS          81U
+#define NL_SWEEP_CREEP_V53_RECOVERY_MAX_TOTAL_RAW  64LL
+#define NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS 17U
+#define NL_SWEEP_CREEP_V53_TRACE_CAPACITY          100U
+#if NL_SWEEP_CREEP_V53_MAX_ITERATIONS <= \
+        ((NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW \
+            + NL_SWEEP_CREEP_V53_FINE_STEP_RAW - 1LL) \
+            / NL_SWEEP_CREEP_V53_FINE_STEP_RAW)
+#error "V5.3 max iterations must exceed ceil(extended budget/fine step)"
+#endif
+#if NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS <= \
+        ((NL_SWEEP_CREEP_V53_RECOVERY_MAX_TOTAL_RAW \
+            + NL_SWEEP_CREEP_V53_FINE_STEP_RAW - 1LL) \
+            / NL_SWEEP_CREEP_V53_FINE_STEP_RAW)
+#error "V5.3 recovery iterations must exceed ceil(recovery budget/fine step)"
+#endif
+#if NL_SWEEP_CREEP_V53_TRACE_CAPACITY < \
+        (NL_SWEEP_CREEP_V53_MAX_ITERATIONS \
+            + NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS)
+#error "V5.3 trace capacity must cover ordinary plus recovery iteration guards"
+#endif
+#endif
+/* maxIterations must exceed ceil(budget/step): CreepToUnwrappedTarget checks
+ * the iteration guard before the budget guard.  The +1 lets an exact-budget
+ * correction be re-evaluated and classified as BUDGET_EXCEEDED, not TIMEOUT,
+ * if it still has not entered the deadband. */
+#if NL_SWEEP_CREEP_BASE_MAX_ITERATIONS <= \
+        ((NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW + NL_SWEEP_CREEP_STEP_RAW - 1LL) \
+            / NL_SWEEP_CREEP_STEP_RAW)
+#error "Sweep creep BASE max iterations must exceed ceil(budget/step)"
+#endif
+#if NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS <= \
+        ((NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW + NL_SWEEP_CREEP_STEP_RAW - 1LL) \
+            / NL_SWEEP_CREEP_STEP_RAW)
+#error "Sweep creep EXTENDED max iterations must exceed ceil(budget/step)"
+#endif
+#if NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS <= \
+        ((NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW + NL_SWEEP_CREEP_STEP_RAW - 1LL) \
+            / NL_SWEEP_CREEP_STEP_RAW)
+#error "Sweep creep RECOVERY max iterations must exceed ceil(budget/step)"
+#endif
+/* v3 real-hardware test (2026-08-05, P08/JIG7): 0.6f power was NOT enough
+ * torque -- TotalCorrectionRaw rose (60368 vs v2's ~39000, i.e. the reduced
+ * power made each 16-raw commanded step achieve LESS real movement, so more
+ * steps were needed to close the same gap), BudgetExceeded got WORSE
+ * (50.7% vs v2's 44%, despite the larger 220 budget), RobustP2P/A36 both
+ * regressed close to old-firmware levels (3.13/0.42 deg vs v2's 1.74-1.83/
+ * 0.31), and within-batch variance spiked (A2 cv=70%) -- consistent with
+ * stick-slip motion (insufficient torque against static friction/cogging
+ * causes the rotor to sit still then snap forward once commanded error
+ * accumulates enough), which explains the user's own report of MORE
+ * jerkiness, not less. Reverted to full power -- the step/budget increases
+ * (proven not to carry this risk, since they don't touch how much torque
+ * each command produces) are kept as the sole heat-reduction lever for
+ * now. Do not reduce this again without a documented, incremental
+ * real-hardware test (e.g. try 0.85f next, not another large jump). */
+#define NL_SWEEP_CREEP_POWER            1.0f
 #endif
 #if ENABLE_B0B_APPROACH_CREEP
 #define NL_B0B_CREEP_PROTOCOL_ID        "ENCODER_CREEP_V1"
@@ -1928,8 +2074,53 @@ typedef enum
     NL_CREEP_OK,               /* reached the deadband */
     NL_CREEP_TIMEOUT,          /* NL_B0B_CREEP_MAX_ITERATIONS exhausted */
     NL_CREEP_BUDGET_EXCEEDED,  /* total |correction| exceeded NL_B0B_CREEP_MAX_TOTAL_RAW */
+    NL_CREEP_TARGET_CROSSED,    /* crossed target outside deadband; stopped before next command */
+    NL_CREEP_OK_RECOVERED,      /* one bounded reversal reached the deadband */
+    NL_CREEP_RECOVERY_TIMEOUT,
+    NL_CREEP_RECOVERY_BUDGET_EXCEEDED,
+    NL_CREEP_RECOVERY_RECROSSED,/* second crossing; stopped before next command */
+    NL_CREEP_STICK_SLIP_JUMP,   /* fine command produced an implausibly large settled move */
     NL_CREEP_ACQUISITION_ERROR,
 } NlCreepResult_t;
+
+#if ENABLE_SWEEP_POINT_CREEP
+typedef enum
+{
+    NL_SWEEP_CREEP_BUDGET_BASE = 0,
+    NL_SWEEP_CREEP_BUDGET_EXTENDED = 1,
+} NlSweepCreepBudgetClass_t;
+#endif
+
+typedef enum
+{
+    NL_CREEP_STEP_PHASE_COARSE = 0,
+    NL_CREEP_STEP_PHASE_FINE,
+    NL_CREEP_STEP_PHASE_RECOVERY_COARSE,
+    NL_CREEP_STEP_PHASE_RECOVERY_FINE,
+} NlCreepStepPhase_t;
+
+/* Fixed capture-time record. It is never formatted or transmitted until
+ * after Motor_Disable(); int64 keeps signed gap/delta evidence exact without
+ * relying on the diagnostic staying inside one particular tuning budget. */
+typedef struct
+{
+    uint32_t iteration;
+    NlCreepStepPhase_t phase;
+    int32_t commandStepRaw;
+    int64_t gapBeforeRaw;
+    int64_t observedDeltaRaw;
+    int64_t gapAfterRaw;
+    bool stickSlipJumpDetected;
+} NlCreepStepTrace_t;
+
+typedef struct
+{
+    uint32_t fineEntryRaw;
+    uint32_t fineStepRaw;
+    uint32_t jumpThresholdRaw;
+    NlCreepStepTrace_t *trace;
+    uint32_t traceCapacity;
+} NlCreepFineLandingConfig_t;
 
 typedef struct
 {
@@ -1937,6 +2128,20 @@ typedef struct
     uint32_t iterations;
     int64_t totalCorrectionRaw;  /* sum of |step| actually issued, always >= 0 */
     int64_t finalGapRaw;         /* target - final position, signed */
+    bool targetCrossed;
+    bool recoveryAttempted;
+    bool recoverySucceeded;
+    uint32_t recoveryIterations;
+    int64_t recoveryCorrectionRaw;
+    int64_t preCrossGapRaw;
+    int64_t crossingGapRaw;
+    bool fineLandingAttempted;
+    bool fineLandingSucceeded;
+    uint32_t fineIterations;
+    int64_t fineCorrectionRaw;
+    bool stickSlipJumpDetected;
+    int64_t maxObservedStepDeltaRaw;
+    uint32_t traceCount;
 } NlCreepDiagnostics_t;
 
 typedef struct
@@ -2204,10 +2409,38 @@ static const char *NlCreepResultName(NlCreepResult_t result)
         case NL_CREEP_OK:                  return "OK";
         case NL_CREEP_TIMEOUT:             return "TIMEOUT";
         case NL_CREEP_BUDGET_EXCEEDED:      return "BUDGET_EXCEEDED";
+        case NL_CREEP_TARGET_CROSSED:        return "TARGET_CROSSED";
+        case NL_CREEP_OK_RECOVERED:          return "OK_RECOVERED";
+        case NL_CREEP_RECOVERY_TIMEOUT:      return "RECOVERY_TIMEOUT";
+        case NL_CREEP_RECOVERY_BUDGET_EXCEEDED: return "RECOVERY_BUDGET_EXCEEDED";
+        case NL_CREEP_RECOVERY_RECROSSED:    return "RECOVERY_RECROSSED";
+        case NL_CREEP_STICK_SLIP_JUMP:       return "STICK_SLIP_JUMP";
         case NL_CREEP_ACQUISITION_ERROR:    return "ACQUISITION_ERROR";
         default:                            return "UNKNOWN";
     }
 }
+
+#if ENABLE_SWEEP_POINT_CREEP
+static const char *NlSweepCreepBudgetClassName(uint8_t budgetClass)
+{
+    return (budgetClass == (uint8_t)NL_SWEEP_CREEP_BUDGET_EXTENDED)
+        ? "EXTENDED" : "BASE";
+}
+
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+static const char *NlCreepStepPhaseName(NlCreepStepPhase_t phase)
+{
+    switch (phase)
+    {
+        case NL_CREEP_STEP_PHASE_COARSE:          return "COARSE";
+        case NL_CREEP_STEP_PHASE_FINE:            return "FINE";
+        case NL_CREEP_STEP_PHASE_RECOVERY_COARSE: return "RECOVERY_COARSE";
+        case NL_CREEP_STEP_PHASE_RECOVERY_FINE:   return "RECOVERY_FINE";
+        default:                                  return "UNKNOWN";
+    }
+}
+#endif
+#endif
 
 /* SF-pre-step diagnostic helper: builds a "|"-delimited list of int64
  * values (same convention as LegacyOrders=1|2|3|... elsewhere in this
@@ -2351,55 +2584,110 @@ static NlSettleResult_t WaitForPointSettle(
 #if ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP
 /* Runs only AFTER the caller's own WaitForPointSettle already confirmed the
  * rotor stopped (this function never replaces or races with that check).
- * Moves *commandPos in small NL_B0B_CREEP_STEP_RAW steps toward
- * targetUnwrapped, re-measuring the ACTUAL encoder position after each step
- * (never assuming the commanded step was fully achieved -- that assumption
- * is exactly what caused the original under-travel). Each step is followed
- * by a short stability-only settle (targetRequired=false: creep does not
- * know in advance how many steps remain, so there is no "near target"
- * region to check yet -- only "has it stopped moving"). Never reverses
- * direction relative to the sign of (targetUnwrapped - currentAnchorUnwrapped)
- * at entry -- a target on the wrong side would mean the caller measured the
- * gap wrong, not something to search around for. */
-static MA600_Result_t CreepToUnwrappedTarget(
+ * Moves *commandPos in small stepRaw steps toward targetUnwrapped,
+ * re-measuring the ACTUAL encoder position after each step (never assuming
+ * the commanded step was fully achieved -- that assumption is exactly what
+ * caused the original under-travel). Each step is followed by a short
+ * stability-only settle (targetRequired=false: creep does not know in
+ * advance how many steps remain, so there is no "near target" region to
+ * check yet -- only "has it stopped moving"). The ordinary phase fixes its
+ * direction from the entry gap. Only a caller-enabled crossing guard may
+ * reverse it, exactly once, under a separate bounded recovery budget.
+ *
+ * stepRaw/deadbandRaw/maxTotalRaw/maxIterations/power, the optional
+ * target-crossing guard, and its optional single-reversal recovery budget are
+ * caller-supplied
+ * (2026-08-04: parameterized, was hardcoded to the NL_B0B_CREEP_* macros +
+ * literal 1.0f) so ENABLE_SWEEP_POINT_CREEP's main-loop call site can use
+ * its own tuning (larger step and adaptive budget -- see that
+ * flag's own comment for why) without changing B0-B's own approach-leg
+ * behavior, which still passes the exact original NL_B0B_CREEP_*
+ * constants and 1.0f at its two call sites and explicitly disables both the
+ * main-sweep-only crossing guard and recovery. */
+static MA600_Result_t CreepToUnwrappedTargetProfiled(
     MA600_AcquisitionContext_t *sweepAcquisition,
     int32_t *commandPos, int64_t targetUnwrapped,
-    MA600_Sample_t *anchorSample, NlCreepDiagnostics_t *diag)
+    MA600_Sample_t *anchorSample, NlCreepDiagnostics_t *diag,
+    uint32_t stepRaw, uint32_t deadbandRaw, int64_t maxTotalRaw,
+    uint32_t maxIterations, float power, bool stopOnTargetCrossing,
+    int64_t recoveryMaxTotalRaw, uint32_t recoveryMaxIterations,
+    const NlCreepFineLandingConfig_t *fineLanding)
 {
     memset(diag, 0, sizeof(*diag));
     int64_t anchor = anchorSample->unwrappedRaw;
     int64_t gap = targetUnwrapped - anchor;
     int direction = (gap > 0) ? 1 : -1;
+    bool recoveryPhase = false;
+    bool finePhase = false;
 
     for (;;)
     {
-        if (AbsI64ToU64(gap) <= (uint64_t)NL_B0B_CREEP_DEADBAND_RAW)
+        if (AbsI64ToU64(gap) <= (uint64_t)deadbandRaw)
         {
-            diag->result = NL_CREEP_OK;
+            diag->result = recoveryPhase ? NL_CREEP_OK_RECOVERED : NL_CREEP_OK;
+            diag->recoverySucceeded = recoveryPhase;
+            diag->fineLandingSucceeded = diag->fineLandingAttempted;
             break;
         }
-        if (diag->iterations >= NL_B0B_CREEP_MAX_ITERATIONS)
+        /* Fine mode is latched: after this point a small overshoot/recovery
+         * cannot silently switch back to the coarse command size. */
+        if (!finePhase && fineLanding != NULL
+                && fineLanding->fineStepRaw > 0U
+                && AbsI64ToU64(gap) <= (uint64_t)fineLanding->fineEntryRaw)
+        {
+            finePhase = true;
+            diag->fineLandingAttempted = true;
+        }
+        if (recoveryPhase && diag->recoveryIterations >= recoveryMaxIterations)
+        {
+            diag->result = NL_CREEP_RECOVERY_TIMEOUT;
+            break;
+        }
+        if (recoveryPhase && diag->recoveryCorrectionRaw >= recoveryMaxTotalRaw)
+        {
+            diag->result = NL_CREEP_RECOVERY_BUDGET_EXCEEDED;
+            break;
+        }
+        if (!recoveryPhase && diag->iterations >= maxIterations)
         {
             diag->result = NL_CREEP_TIMEOUT;
             break;
         }
-        if (diag->totalCorrectionRaw >= NL_B0B_CREEP_MAX_TOTAL_RAW)
+        if (!recoveryPhase && diag->totalCorrectionRaw >= maxTotalRaw)
         {
             diag->result = NL_CREEP_BUDGET_EXCEEDED;
             break;
         }
 
-        int64_t stepMagnitude = (AbsI64ToU64(gap) > (uint64_t)NL_B0B_CREEP_STEP_RAW)
-            ? (int64_t)NL_B0B_CREEP_STEP_RAW : (int64_t)AbsI64ToU64(gap);
+        int64_t gapBeforeStep = gap;
+        uint32_t activeStepRaw = finePhase ? fineLanding->fineStepRaw : stepRaw;
+        int64_t stepMagnitude = (AbsI64ToU64(gap) > (uint64_t)activeStepRaw)
+            ? (int64_t)activeStepRaw : (int64_t)AbsI64ToU64(gap);
         int32_t step = (int32_t)(direction * stepMagnitude);
+        int64_t anchorBeforeStep = anchor;
+        NlCreepStepPhase_t stepPhase = recoveryPhase
+            ? (finePhase ? NL_CREEP_STEP_PHASE_RECOVERY_FINE
+                         : NL_CREEP_STEP_PHASE_RECOVERY_COARSE)
+            : (finePhase ? NL_CREEP_STEP_PHASE_FINE
+                         : NL_CREEP_STEP_PHASE_COARSE);
         *commandPos += step;
-        Motor_SetElectricalPos((uint16_t)*commandPos, 1.0f);
+        Motor_SetElectricalPos((uint16_t)*commandPos, power);
 
         NlSettleObservation_t microSettle;
         NlSettleResult_t microResult = WaitForPointSettle(sweepAcquisition,
             anchor + step, false, &microSettle);
         diag->iterations++;
         diag->totalCorrectionRaw += stepMagnitude;
+        if (recoveryPhase)
+        {
+            diag->recoveryIterations++;
+            diag->recoveryCorrectionRaw += stepMagnitude;
+        }
+        if (finePhase)
+        {
+            diag->fineIterations++;
+            diag->fineCorrectionRaw += stepMagnitude;
+        }
         /* Even on a bare settle TIMEOUT the last poll's sample is still a
          * real encoder reading (WaitForPointSettle always records
          * finalSample before returning) -- propagate it to the caller's
@@ -2408,15 +2696,97 @@ static MA600_Result_t CreepToUnwrappedTarget(
         if (microResult == NL_SETTLE_ACQUISITION_ERROR)
         {
             diag->result = NL_CREEP_ACQUISITION_ERROR;
-            diag->finalGapRaw = gap;
+            diag->finalGapRaw = targetUnwrapped
+                - microSettle.finalSample.unwrappedRaw;
             return microSettle.acquisitionResult;
         }
         anchor = microSettle.finalSample.unwrappedRaw;
         gap = targetUnwrapped - anchor;
+        int64_t observedDeltaRaw = anchor - anchorBeforeStep;
+        if (AbsI64ToU64(observedDeltaRaw)
+                > AbsI64ToU64(diag->maxObservedStepDeltaRaw))
+        {
+            diag->maxObservedStepDeltaRaw = observedDeltaRaw;
+        }
+
+        NlCreepStepTrace_t *traceEntry = NULL;
+        if (fineLanding != NULL && fineLanding->trace != NULL
+                && diag->traceCount < fineLanding->traceCapacity)
+        {
+            traceEntry = &fineLanding->trace[diag->traceCount++];
+            traceEntry->iteration = diag->iterations;
+            traceEntry->phase = stepPhase;
+            traceEntry->commandStepRaw = step;
+            traceEntry->gapBeforeRaw = gapBeforeStep;
+            traceEntry->observedDeltaRaw = observedDeltaRaw;
+            traceEntry->gapAfterRaw = gap;
+            traceEntry->stickSlipJumpDetected = false;
+        }
+
+        /* A giant settled movement after a fine command is the exact V5.3
+         * mechanism under test. Classify it before the ordinary crossing
+         * recovery can reverse/chase the rotor. Acquisition remains valid,
+         * but this point and sweep are never eligible for statistics. */
+        if (finePhase && fineLanding->jumpThresholdRaw > 0U
+                && AbsI64ToU64(observedDeltaRaw)
+                    > (uint64_t)fineLanding->jumpThresholdRaw)
+        {
+            diag->stickSlipJumpDetected = true;
+            if (traceEntry != NULL)
+            {
+                traceEntry->stickSlipJumpDetected = true;
+            }
+            diag->result = NL_CREEP_STICK_SLIP_JUMP;
+            break;
+        }
+        /* Deadband success keeps priority (checked at the top of the next
+         * loop). Outside deadband, V5.2 permits exactly one caller-bounded
+         * direction reversal. A second crossing stops before another motor
+         * command; there is no oscillating search around the target. */
+        if (stopOnTargetCrossing
+                && AbsI64ToU64(gap) > (uint64_t)deadbandRaw
+                && ((direction > 0 && gap < 0)
+                    || (direction < 0 && gap > 0)))
+        {
+            if (!recoveryPhase)
+            {
+                diag->targetCrossed = true;
+                diag->preCrossGapRaw = gapBeforeStep;
+                diag->crossingGapRaw = gap;
+                if (recoveryMaxTotalRaw > 0 && recoveryMaxIterations > 0U)
+                {
+                    diag->recoveryAttempted = true;
+                    recoveryPhase = true;
+                    direction = -direction;
+                    continue;
+                }
+                diag->result = NL_CREEP_TARGET_CROSSED;
+                break;
+            }
+            diag->result = NL_CREEP_RECOVERY_RECROSSED;
+            break;
+        }
     }
 
     diag->finalGapRaw = gap;
     return MA600_RESULT_OK;
+}
+
+/* Compatibility wrapper used by both frozen B0-B approach legs and by every
+ * ordinary V5.2 sweep point.  Fine landing is opt-in through the profiled
+ * entry point, so existing callers keep byte-for-byte tuning and behavior. */
+static MA600_Result_t CreepToUnwrappedTarget(
+    MA600_AcquisitionContext_t *sweepAcquisition,
+    int32_t *commandPos, int64_t targetUnwrapped,
+    MA600_Sample_t *anchorSample, NlCreepDiagnostics_t *diag,
+    uint32_t stepRaw, uint32_t deadbandRaw, int64_t maxTotalRaw,
+    uint32_t maxIterations, float power, bool stopOnTargetCrossing,
+    int64_t recoveryMaxTotalRaw, uint32_t recoveryMaxIterations)
+{
+    return CreepToUnwrappedTargetProfiled(sweepAcquisition, commandPos,
+        targetUnwrapped, anchorSample, diag, stepRaw, deadbandRaw,
+        maxTotalRaw, maxIterations, power, stopOnTargetCrossing,
+        recoveryMaxTotalRaw, recoveryMaxIterations, NULL);
 }
 #endif /* ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP */
 
@@ -2510,6 +2880,29 @@ typedef struct
     uint8_t  settleResults[NL_MAX_SWEEP_POINTS];
     uint8_t  settleFlags[NL_MAX_SWEEP_POINTS];
     uint8_t  rampAcceptedSamples[NL_MAX_SWEEP_POINTS];
+#if ENABLE_SWEEP_POINT_CREEP
+    /* V5.2 diagnostic storage is CPU-only and emitted only after capture.
+     * Sized fields keep the additional CCM cost to about 15 KiB/sweep. */
+    int64_t  creepInitialGapRaw[NL_MAX_SWEEP_POINTS];
+    int64_t  creepFinalGapRaw[NL_MAX_SWEEP_POINTS];
+    int64_t  creepPreCrossGapRaw[NL_MAX_SWEEP_POINTS];
+    int64_t  creepCrossingGapRaw[NL_MAX_SWEEP_POINTS];
+    uint16_t creepTotalCorrectionRaw[NL_MAX_SWEEP_POINTS];
+    uint16_t creepRecoveryCorrectionRaw[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepIterations[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepRecoveryIterations[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepResults[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepBudgetClasses[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepRecoveryFlags[NL_MAX_SWEEP_POINTS]; /* bit0 attempted, bit1 succeeded */
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+    uint16_t creepFineCorrectionRaw[NL_MAX_SWEEP_POINTS];
+    int64_t  creepMaxObservedStepDeltaRaw[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepFineIterations[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepFineFlags[NL_MAX_SWEEP_POINTS]; /* bit0 attempted, bit1 succeeded, bit2 jump */
+    uint8_t  creepV53TraceCount;
+    NlCreepStepTrace_t creepV53Trace[NL_SWEEP_CREEP_V53_TRACE_CAPACITY];
+#endif
+#endif
 } NlShadowPointStorage_t;
 
 /* MAD (median absolute deviation) outlier-filtering diagnostic, point-0 and
@@ -2845,11 +3238,9 @@ typedef struct
 
     /* Main-sweep-loop per-point creep diagnostics -- see
      * ENABLE_SWEEP_POINT_CREEP. Always declared, zero-init when the flag is
-     * off. Aggregate over the whole sweep (not per-point) -- a per-point
-     * NlCreepDiagnostics_t[NL_MAX_SWEEP_POINTS] array was considered and
-     * rejected as unnecessary log/RAM volume for a first experimental cut;
-     * the aggregate is enough to judge whether the budget/deadband (reused
-     * from NL_B0B_CREEP_*, untuned for this call site) needs retuning.
+     * off. V5 retains whole-sweep totals and adds budget-class totals; the
+     * point-level details live in CPU-only NlShadowPointStorage_t so capture
+     * cadence never includes UART work.
      * sweepPointCreepAcquisition is subtracted out of the schema-v5 Acq*
      * totals the same way every approach-leg accumulator already is, so
      * turning this flag on never silently changes the meaning of
@@ -2859,6 +3250,27 @@ typedef struct
     int64_t  sweepPointCreepTotalCorrectionRaw;
     uint32_t sweepPointCreepTimeoutCount;
     uint32_t sweepPointCreepBudgetExceededCount;
+    uint32_t sweepPointCreepTargetCrossedCount;
+    uint32_t sweepPointCreepRecoveryAttemptedCount;
+    uint32_t sweepPointCreepRecoverySucceededCount;
+    uint32_t sweepPointCreepRecoveryFailedCount;
+    uint32_t sweepPointCreepRecoveryRecrossedCount;
+    uint32_t sweepPointCreepRecoveryTotalIterations;
+    int64_t  sweepPointCreepRecoveryTotalCorrectionRaw;
+    uint32_t sweepPointCreepBaseBudgetExceededCount;
+    uint32_t sweepPointCreepBaseTargetCrossedCount;
+    uint32_t sweepPointCreepExtendedPointCount;
+    uint32_t sweepPointCreepExtendedOkCount;
+    uint32_t sweepPointCreepExtendedTotalIterations;
+    int64_t  sweepPointCreepExtendedTotalCorrectionRaw;
+    uint32_t sweepPointCreepExtendedTimeoutCount;
+    uint32_t sweepPointCreepExtendedBudgetExceededCount;
+    uint32_t sweepPointCreepExtendedTargetCrossedCount;
+    uint32_t sweepPointCreepFineLandingAttemptedCount;
+    uint32_t sweepPointCreepFineLandingSucceededCount;
+    uint32_t sweepPointCreepFineLandingFailedCount;
+    uint32_t sweepPointCreepStickSlipJumpCount;
+    int64_t  sweepPointCreepMaxObservedStepDeltaRaw;
     NlAcquisitionCounters_t sweepPointCreepAcquisition;
 
     /* B0-B creep-derived endpoint bias diagnostics -- see
@@ -3267,6 +3679,7 @@ static uint32_t nlBatchIdCounter = 0;
 static uint32_t nlBatchId;
 static uint32_t nlCurrentCycle;
 static uint32_t nlCooldownStartTick;
+static uint32_t nlCooldownLastProgressTick;
 static uint32_t nlCooldownActualMs;
 static bool     nlCooldownValid;
 static bool     nlFirstRunInBatch;
@@ -3621,7 +4034,9 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
      * đúng ý nghĩa "settle ban đầu đã OK"). */
     (void)CreepToUnwrappedTarget(&sweepAcquisition, &commandPos,
         expectedBackoffUnwrapped, &backoffSettle.finalSample,
-        &out->backoffCreepDiag);
+        &out->backoffCreepDiag, NL_B0B_CREEP_STEP_RAW, NL_B0B_CREEP_DEADBAND_RAW,
+        NL_B0B_CREEP_MAX_TOTAL_RAW, NL_B0B_CREEP_MAX_ITERATIONS, 1.0f, false,
+        0LL, 0U);
 #endif
     int64_t backoffAnchorUnwrapped = backoffSettle.finalSample.unwrappedRaw;
     /* Chẩn đoán riêng cho ĐOẠN CHUẨN BỊ (không phải đoạn đang so sánh,
@@ -3710,7 +4125,9 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
      * thêm ở đó. */
     (void)CreepToUnwrappedTarget(&sweepAcquisition, &commandPos,
         expectedPoint0Unwrapped, &point0Settle.finalSample,
-        &out->forwardCreepDiag);
+        &out->forwardCreepDiag, NL_B0B_CREEP_STEP_RAW, NL_B0B_CREEP_DEADBAND_RAW,
+        NL_B0B_CREEP_MAX_TOTAL_RAW, NL_B0B_CREEP_MAX_ITERATIONS, 1.0f, false,
+        0LL, 0U);
 #endif
     sweepOriginUnwrapped = point0Settle.finalSample.unwrappedRaw;
     /* Gán lại cho code dùng chung ngay sau #endif (dựng out->rawAtOffset/
@@ -4600,27 +5017,133 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         }
 
 #if ENABLE_SWEEP_POINT_CREEP
-        /* See ENABLE_SWEEP_POINT_CREEP above. settleResult here is never
+        /* V5 adaptive targeted-budget. settleResult here is never
          * NL_SETTLE_ACQUISITION_ERROR (that case already jumped away above)
          * -- OK/TIMEOUT/WRONG_POSITION all fall through to creep, since a
          * timeout/wrong-position settle is exactly the case creep exists to
-         * correct. Updates pos and settleObservation.finalSample in place
+         * correct. Budget selection uses only the live encoder gap after
+         * settle, never pointIndex/angle. Updates pos and
+         * settleObservation.finalSample in place
          * (CreepToUnwrappedTarget's own contract) so the NEXT loop
          * iteration's official 64-sample measurement reads the
          * creep-corrected position, and pointAnchorUnwrapped at the top of
          * that iteration derives from the corrected finalSample too. */
+        int64_t initialGapRaw = expectedTargetUnwrapped
+            - settleObservation.finalSample.unwrappedRaw;
+        NlSweepCreepBudgetClass_t creepBudgetClass =
+            (AbsI64ToU64(initialGapRaw)
+                > (uint64_t)NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW)
+            ? NL_SWEEP_CREEP_BUDGET_EXTENDED
+            : NL_SWEEP_CREEP_BUDGET_BASE;
+        int64_t creepMaxTotalRaw =
+            (creepBudgetClass == NL_SWEEP_CREEP_BUDGET_EXTENDED)
+            ? NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW
+            : NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW;
+        uint32_t creepMaxIterations =
+            (creepBudgetClass == NL_SWEEP_CREEP_BUDGET_EXTENDED)
+            ? NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS
+            : NL_SWEEP_CREEP_BASE_MAX_ITERATIONS;
         NlAcquisitionCounters_t creepBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
         NlCreepDiagnostics_t pointCreepDiag;
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+        bool useV53FineLanding = ((uint32_t)pointIndex
+            == NL_SWEEP_CREEP_V53_TARGET_POINT);
+        NlCreepFineLandingConfig_t fineLandingConfig = {
+            .fineEntryRaw = NL_SWEEP_CREEP_V53_FINE_ENTRY_RAW,
+            .fineStepRaw = NL_SWEEP_CREEP_V53_FINE_STEP_RAW,
+            .jumpThresholdRaw = NL_SWEEP_CREEP_V53_JUMP_THRESHOLD_RAW,
+            .trace = (useV53FineLanding && out->shadowPoints != NULL)
+                ? out->shadowPoints->creepV53Trace : NULL,
+            .traceCapacity = (useV53FineLanding && out->shadowPoints != NULL)
+                ? NL_SWEEP_CREEP_V53_TRACE_CAPACITY : 0U,
+        };
+        if (useV53FineLanding)
+        {
+            /* Same selected raw budget as V5.2; only the guard is expanded so
+             * a 4-raw landing step can legally express that budget. */
+            creepMaxIterations = NL_SWEEP_CREEP_V53_MAX_ITERATIONS;
+        }
+        MA600_Result_t creepAcqResult;
+        if (useV53FineLanding)
+        {
+            creepAcqResult = CreepToUnwrappedTargetProfiled(
+                &sweepAcquisition, &pos, expectedTargetUnwrapped,
+                &settleObservation.finalSample, &pointCreepDiag,
+                NL_SWEEP_CREEP_STEP_RAW, NL_SWEEP_CREEP_DEADBAND_RAW,
+                creepMaxTotalRaw, creepMaxIterations, NL_SWEEP_CREEP_POWER,
+                NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING,
+                NL_SWEEP_CREEP_V53_RECOVERY_MAX_TOTAL_RAW,
+                NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS,
+                &fineLandingConfig);
+        }
+        else
+        {
+            creepAcqResult = CreepToUnwrappedTarget(&sweepAcquisition,
+                &pos, expectedTargetUnwrapped, &settleObservation.finalSample,
+                &pointCreepDiag, NL_SWEEP_CREEP_STEP_RAW,
+                NL_SWEEP_CREEP_DEADBAND_RAW, creepMaxTotalRaw,
+                creepMaxIterations, NL_SWEEP_CREEP_POWER,
+                NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING,
+                NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW,
+                NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS);
+        }
+#else
         MA600_Result_t creepAcqResult = CreepToUnwrappedTarget(&sweepAcquisition,
             &pos, expectedTargetUnwrapped, &settleObservation.finalSample,
-            &pointCreepDiag);
+            &pointCreepDiag, NL_SWEEP_CREEP_STEP_RAW, NL_SWEEP_CREEP_DEADBAND_RAW,
+            creepMaxTotalRaw, creepMaxIterations, NL_SWEEP_CREEP_POWER,
+            NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING,
+            NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW,
+            NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS);
+#endif
         AccumulateCounterDelta(&sweepAcquisition, &creepBefore,
             &out->sweepPointCreepAcquisition);
-        if (creepAcqResult != MA600_RESULT_OK)
+
+        /* Store the point result before any acquisition-error escape.  It is
+         * emitted later by PrintSweepLog; no UART is touched here. */
+        if (out->shadowPoints != NULL && pointIndex < NL_MAX_SWEEP_POINTS)
         {
-            acquisitionResult = creepAcqResult;
-            goto capture_complete;
+            out->shadowPoints->creepInitialGapRaw[pointIndex] = initialGapRaw;
+            out->shadowPoints->creepFinalGapRaw[pointIndex] = pointCreepDiag.finalGapRaw;
+            out->shadowPoints->creepPreCrossGapRaw[pointIndex] =
+                pointCreepDiag.preCrossGapRaw;
+            out->shadowPoints->creepCrossingGapRaw[pointIndex] =
+                pointCreepDiag.crossingGapRaw;
+            out->shadowPoints->creepTotalCorrectionRaw[pointIndex] =
+                SaturateU16((uint32_t)pointCreepDiag.totalCorrectionRaw);
+            out->shadowPoints->creepRecoveryCorrectionRaw[pointIndex] =
+                SaturateU16((uint32_t)pointCreepDiag.recoveryCorrectionRaw);
+            out->shadowPoints->creepIterations[pointIndex] =
+                SaturateU8(pointCreepDiag.iterations);
+            out->shadowPoints->creepRecoveryIterations[pointIndex] =
+                SaturateU8(pointCreepDiag.recoveryIterations);
+            out->shadowPoints->creepResults[pointIndex] = (uint8_t)pointCreepDiag.result;
+            out->shadowPoints->creepBudgetClasses[pointIndex] =
+                (uint8_t)creepBudgetClass;
+            out->shadowPoints->creepRecoveryFlags[pointIndex] =
+                (pointCreepDiag.recoveryAttempted ? 0x01U : 0U)
+                | (pointCreepDiag.recoverySucceeded ? 0x02U : 0U);
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+            out->shadowPoints->creepFineCorrectionRaw[pointIndex] =
+                SaturateU16((uint32_t)pointCreepDiag.fineCorrectionRaw);
+            out->shadowPoints->creepMaxObservedStepDeltaRaw[pointIndex] =
+                pointCreepDiag.maxObservedStepDeltaRaw;
+            out->shadowPoints->creepFineIterations[pointIndex] =
+                SaturateU8(pointCreepDiag.fineIterations);
+            out->shadowPoints->creepFineFlags[pointIndex] =
+                (pointCreepDiag.fineLandingAttempted ? 0x01U : 0U)
+                | (pointCreepDiag.fineLandingSucceeded ? 0x02U : 0U)
+                | (pointCreepDiag.stickSlipJumpDetected ? 0x04U : 0U);
+            if ((uint32_t)pointIndex == NL_SWEEP_CREEP_V53_TARGET_POINT)
+            {
+                out->shadowPoints->creepV53TraceCount =
+                    SaturateU8(pointCreepDiag.traceCount);
+            }
+#endif
         }
+        /* Count issued commands even if the final settle read failed.  Such
+         * a sweep remains invalid, but diagnostics must not erase the real
+         * heat/motion already spent before the acquisition error. */
         out->sweepPointCreepTotalIterations += pointCreepDiag.iterations;
         out->sweepPointCreepTotalCorrectionRaw += pointCreepDiag.totalCorrectionRaw;
         if (pointCreepDiag.iterations > 0U)
@@ -4634,6 +5157,92 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         if (pointCreepDiag.result == NL_CREEP_BUDGET_EXCEEDED)
         {
             out->sweepPointCreepBudgetExceededCount++;
+        }
+        if (pointCreepDiag.targetCrossed)
+        {
+            out->sweepPointCreepTargetCrossedCount++;
+        }
+        if (pointCreepDiag.recoveryAttempted)
+        {
+            out->sweepPointCreepRecoveryAttemptedCount++;
+            out->sweepPointCreepRecoveryTotalIterations +=
+                pointCreepDiag.recoveryIterations;
+            out->sweepPointCreepRecoveryTotalCorrectionRaw +=
+                pointCreepDiag.recoveryCorrectionRaw;
+            if (pointCreepDiag.recoverySucceeded)
+            {
+                out->sweepPointCreepRecoverySucceededCount++;
+            }
+            else
+            {
+                out->sweepPointCreepRecoveryFailedCount++;
+            }
+        }
+        if (pointCreepDiag.result == NL_CREEP_RECOVERY_RECROSSED)
+        {
+            out->sweepPointCreepRecoveryRecrossedCount++;
+        }
+        if (pointCreepDiag.fineLandingAttempted)
+        {
+            out->sweepPointCreepFineLandingAttemptedCount++;
+            if (pointCreepDiag.fineLandingSucceeded)
+            {
+                out->sweepPointCreepFineLandingSucceededCount++;
+            }
+            else
+            {
+                out->sweepPointCreepFineLandingFailedCount++;
+            }
+        }
+        if (pointCreepDiag.stickSlipJumpDetected)
+        {
+            out->sweepPointCreepStickSlipJumpCount++;
+        }
+        if (AbsI64ToU64(pointCreepDiag.maxObservedStepDeltaRaw)
+                > AbsI64ToU64(out->sweepPointCreepMaxObservedStepDeltaRaw))
+        {
+            out->sweepPointCreepMaxObservedStepDeltaRaw =
+                pointCreepDiag.maxObservedStepDeltaRaw;
+        }
+        if (creepBudgetClass == NL_SWEEP_CREEP_BUDGET_EXTENDED)
+        {
+            out->sweepPointCreepExtendedPointCount++;
+            out->sweepPointCreepExtendedTotalIterations += pointCreepDiag.iterations;
+            out->sweepPointCreepExtendedTotalCorrectionRaw +=
+                pointCreepDiag.totalCorrectionRaw;
+            if (pointCreepDiag.result == NL_CREEP_OK
+                    || pointCreepDiag.result == NL_CREEP_OK_RECOVERED)
+            {
+                out->sweepPointCreepExtendedOkCount++;
+            }
+            else if (pointCreepDiag.result == NL_CREEP_TIMEOUT)
+            {
+                out->sweepPointCreepExtendedTimeoutCount++;
+            }
+            else if (pointCreepDiag.result == NL_CREEP_BUDGET_EXCEEDED)
+            {
+                out->sweepPointCreepExtendedBudgetExceededCount++;
+            }
+            if (pointCreepDiag.targetCrossed)
+            {
+                out->sweepPointCreepExtendedTargetCrossedCount++;
+            }
+        }
+        else
+        {
+            if (pointCreepDiag.result == NL_CREEP_BUDGET_EXCEEDED)
+            {
+                out->sweepPointCreepBaseBudgetExceededCount++;
+            }
+            if (pointCreepDiag.targetCrossed)
+            {
+                out->sweepPointCreepBaseTargetCrossedCount++;
+            }
+        }
+        if (creepAcqResult != MA600_RESULT_OK)
+        {
+            acquisitionResult = creepAcqResult;
+            goto capture_complete;
         }
         /* CRITICAL: restore pos to the clean nominal grid target after
          * creep, discarding creep's own commanded-position bookkeeping.
@@ -5243,6 +5852,66 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (unsigned long)c->motionDiagnostics.observedBacktrackCount,
         (unsigned long)c->motionDiagnostics.maxObservedBacktrackRaw);
 
+#if ENABLE_SWEEP_POINT_CREEP
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+    LogLineLarge(
+        "SWEEP_CREEP_CONFIG,SchemaVersion=6,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,Official=0,Enabled=1,Protocol=%s,"
+        "SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=%ld,"
+        "BaseBudgetRaw=%ld,BaseMaxIterations=%lu,"
+        "ExtendedBudgetRaw=%ld,ExtendedMaxIterations=%lu,"
+        "StepRaw=%u,DeadbandRaw=%u,Power=1.000,TargetCrossingGuard=%s,"
+        "RecoveryProtocol=%s,RecoveryBudgetRaw=%ld,RecoveryMaxIterations=%lu,"
+        "FineLandingProtocol=%s,FineTargetPoint=%u,FineEntryRaw=%u,FineStepRaw=%u,"
+        "FineMaxIterations=%lu,JumpThresholdRaw=%u,FineRecoveryBudgetRaw=%ld,"
+        "FineRecoveryMaxIterations=%lu,TraceCapacity=%u\r\n",
+        (unsigned long)c->testId, (unsigned long)c->sweepId, jigId, MOTOR_ID,
+        dirStr, NL_SWEEP_CREEP_PROTOCOL_ID,
+        (long)NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW,
+        (long)NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_BASE_MAX_ITERATIONS,
+        (long)NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS,
+        (unsigned)NL_SWEEP_CREEP_STEP_RAW,
+        (unsigned)NL_SWEEP_CREEP_DEADBAND_RAW,
+        NL_SWEEP_CREEP_TARGET_CROSSING_GUARD_ID,
+        NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID,
+        (long)NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS,
+        NL_SWEEP_CREEP_FINE_LANDING_PROTOCOL_ID,
+        (unsigned)NL_SWEEP_CREEP_V53_TARGET_POINT,
+        (unsigned)NL_SWEEP_CREEP_V53_FINE_ENTRY_RAW,
+        (unsigned)NL_SWEEP_CREEP_V53_FINE_STEP_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V53_MAX_ITERATIONS,
+        (unsigned)NL_SWEEP_CREEP_V53_JUMP_THRESHOLD_RAW,
+        (long)NL_SWEEP_CREEP_V53_RECOVERY_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS,
+        (unsigned)NL_SWEEP_CREEP_V53_TRACE_CAPACITY);
+#else
+    LogLineLarge(
+        "SWEEP_CREEP_CONFIG,SchemaVersion=5,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,Official=0,Enabled=1,Protocol=%s,"
+        "SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=%ld,"
+        "BaseBudgetRaw=%ld,BaseMaxIterations=%lu,"
+        "ExtendedBudgetRaw=%ld,ExtendedMaxIterations=%lu,"
+        "StepRaw=%u,DeadbandRaw=%u,Power=1.000,TargetCrossingGuard=%s,"
+        "RecoveryProtocol=%s,RecoveryBudgetRaw=%ld,RecoveryMaxIterations=%lu\r\n",
+        (unsigned long)c->testId, (unsigned long)c->sweepId, jigId, MOTOR_ID,
+        dirStr, NL_SWEEP_CREEP_PROTOCOL_ID,
+        (long)NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW,
+        (long)NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_BASE_MAX_ITERATIONS,
+        (long)NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS,
+        (unsigned)NL_SWEEP_CREEP_STEP_RAW,
+        (unsigned)NL_SWEEP_CREEP_DEADBAND_RAW,
+        NL_SWEEP_CREEP_TARGET_CROSSING_GUARD_ID,
+        NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID,
+        (long)NL_SWEEP_CREEP_RECOVERY_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_RECOVERY_MAX_ITERATIONS);
+#endif
+#endif
+
     LogLineLarge(
         "CONTROL_STATE,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
         "Direction=%s,Policy=%s,ResetApplied=%d,ResetStateValid=%d,"
@@ -5381,6 +6050,149 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
                 MA600_ResultName((MA600_Result_t)c->shadowPoints->results[i]));
         }
     }
+
+#if ENABLE_SWEEP_POINT_CREEP
+    /* Emit after every standard point record.  Scan the full zeroed storage,
+     * not only capturedCount, so a creep acquisition failure on the next
+     * target still leaves one explicit diagnostic record in an invalid log. */
+    if (c->shadowPoints != NULL)
+    {
+        for (int i = 0; i < NL_MAX_SWEEP_POINTS; i++)
+        {
+            NlCreepResult_t creepResult =
+                (NlCreepResult_t)c->shadowPoints->creepResults[i];
+            uint8_t creepBudgetClass = c->shadowPoints->creepBudgetClasses[i];
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+            bool isV53TargetPoint = ((uint32_t)i
+                == NL_SWEEP_CREEP_V53_TARGET_POINT);
+#else
+            bool isV53TargetPoint = false;
+#endif
+            if (creepResult == NL_CREEP_NOT_RUN
+                    || (!isV53TargetPoint
+                        && creepBudgetClass != (uint8_t)NL_SWEEP_CREEP_BUDGET_EXTENDED
+                        && creepResult == NL_CREEP_OK))
+            {
+                continue;
+            }
+
+            int64_t initialGapRaw = c->shadowPoints->creepInitialGapRaw[i];
+            int64_t initialAbsGapRaw = (int64_t)AbsI64ToU64(initialGapRaw);
+            int64_t selectedBudgetRaw =
+                (creepBudgetClass == (uint8_t)NL_SWEEP_CREEP_BUDGET_EXTENDED)
+                ? NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW
+                : NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW;
+            uint32_t selectedMaxIterations =
+                (creepBudgetClass == (uint8_t)NL_SWEEP_CREEP_BUDGET_EXTENDED)
+                ? NL_SWEEP_CREEP_EXTENDED_MAX_ITERATIONS
+                : NL_SWEEP_CREEP_BASE_MAX_ITERATIONS;
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+            if (isV53TargetPoint)
+            {
+                selectedMaxIterations = NL_SWEEP_CREEP_V53_MAX_ITERATIONS;
+            }
+#endif
+            char initialGapBuf[24], initialAbsGapBuf[24], selectedBudgetBuf[24];
+            char totalCorrectionBuf[24], finalGapBuf[24], preCrossGapBuf[24];
+            char crossingGapBuf[24], recoveryCorrectionBuf[24];
+            FormatI64(initialGapRaw, initialGapBuf, sizeof(initialGapBuf));
+            FormatI64(initialAbsGapRaw, initialAbsGapBuf, sizeof(initialAbsGapBuf));
+            FormatI64(selectedBudgetRaw, selectedBudgetBuf, sizeof(selectedBudgetBuf));
+            FormatI64((int64_t)c->shadowPoints->creepTotalCorrectionRaw[i],
+                totalCorrectionBuf, sizeof(totalCorrectionBuf));
+            FormatI64(c->shadowPoints->creepFinalGapRaw[i], finalGapBuf,
+                sizeof(finalGapBuf));
+            FormatI64(c->shadowPoints->creepPreCrossGapRaw[i], preCrossGapBuf,
+                sizeof(preCrossGapBuf));
+            FormatI64(c->shadowPoints->creepCrossingGapRaw[i], crossingGapBuf,
+                sizeof(crossingGapBuf));
+            FormatI64((int64_t)c->shadowPoints->creepRecoveryCorrectionRaw[i],
+                recoveryCorrectionBuf, sizeof(recoveryCorrectionBuf));
+            bool recoveryAttempted =
+                (c->shadowPoints->creepRecoveryFlags[i] & 0x01U) != 0U;
+            bool recoverySucceeded =
+                (c->shadowPoints->creepRecoveryFlags[i] & 0x02U) != 0U;
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+            char fineCorrectionBuf[24], maxObservedDeltaBuf[24];
+            FormatI64((int64_t)c->shadowPoints->creepFineCorrectionRaw[i],
+                fineCorrectionBuf, sizeof(fineCorrectionBuf));
+            FormatI64(c->shadowPoints->creepMaxObservedStepDeltaRaw[i],
+                maxObservedDeltaBuf, sizeof(maxObservedDeltaBuf));
+            uint8_t fineFlags = c->shadowPoints->creepFineFlags[i];
+            LogLineLarge(
+                "SWEEP_CREEP_POINT,SchemaVersion=6,TestID=%lu,SweepID=%lu,JigID=%s,"
+                "MotorID=%s,Direction=%s,Point=%d,Official=0,"
+                "InitialGapRaw=%s,InitialAbsGapRaw=%s,BudgetClass=%s,"
+                "SelectedBudgetRaw=%s,SelectedMaxIterations=%lu,Iterations=%u,"
+                "TotalCorrectionRaw=%s,PreCrossGapRaw=%s,CrossingGapRaw=%s,"
+                "RecoveryAttempted=%d,RecoverySucceeded=%d,RecoveryIterations=%u,"
+                "RecoveryCorrectionRaw=%s,FineLandingAttempted=%d,"
+                "FineLandingSucceeded=%d,FineIterations=%u,FineCorrectionRaw=%s,"
+                "StickSlipJumpDetected=%d,MaxObservedStepDeltaRaw=%s,TraceCount=%u,"
+                "FinalGapRaw=%s,Result=%s\r\n",
+                (unsigned long)c->testId, (unsigned long)c->sweepId, jigId,
+                MOTOR_ID, dirStr, i, initialGapBuf, initialAbsGapBuf,
+                NlSweepCreepBudgetClassName(creepBudgetClass), selectedBudgetBuf,
+                (unsigned long)selectedMaxIterations,
+                (unsigned)c->shadowPoints->creepIterations[i], totalCorrectionBuf,
+                preCrossGapBuf, crossingGapBuf,
+                recoveryAttempted ? 1 : 0, recoverySucceeded ? 1 : 0,
+                (unsigned)c->shadowPoints->creepRecoveryIterations[i],
+                recoveryCorrectionBuf, (fineFlags & 0x01U) != 0U ? 1 : 0,
+                (fineFlags & 0x02U) != 0U ? 1 : 0,
+                (unsigned)c->shadowPoints->creepFineIterations[i],
+                fineCorrectionBuf, (fineFlags & 0x04U) != 0U ? 1 : 0,
+                maxObservedDeltaBuf,
+                isV53TargetPoint ? (unsigned)c->shadowPoints->creepV53TraceCount : 0U,
+                finalGapBuf, NlCreepResultName(creepResult));
+#else
+            LogLineLarge(
+                "SWEEP_CREEP_POINT,SchemaVersion=5,TestID=%lu,SweepID=%lu,JigID=%s,"
+                "MotorID=%s,Direction=%s,Point=%d,Official=0,"
+                "InitialGapRaw=%s,InitialAbsGapRaw=%s,BudgetClass=%s,"
+                "SelectedBudgetRaw=%s,SelectedMaxIterations=%lu,Iterations=%u,"
+                "TotalCorrectionRaw=%s,PreCrossGapRaw=%s,CrossingGapRaw=%s,"
+                "RecoveryAttempted=%d,RecoverySucceeded=%d,RecoveryIterations=%u,"
+                "RecoveryCorrectionRaw=%s,FinalGapRaw=%s,Result=%s\r\n",
+                (unsigned long)c->testId, (unsigned long)c->sweepId, jigId,
+                MOTOR_ID, dirStr, i, initialGapBuf, initialAbsGapBuf,
+                NlSweepCreepBudgetClassName(creepBudgetClass), selectedBudgetBuf,
+                (unsigned long)selectedMaxIterations,
+                (unsigned)c->shadowPoints->creepIterations[i], totalCorrectionBuf,
+                preCrossGapBuf, crossingGapBuf,
+                recoveryAttempted ? 1 : 0, recoverySucceeded ? 1 : 0,
+                (unsigned)c->shadowPoints->creepRecoveryIterations[i],
+                recoveryCorrectionBuf, finalGapBuf, NlCreepResultName(creepResult));
+#endif
+        }
+
+#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
+        for (uint32_t stepIndex = 0U;
+                stepIndex < (uint32_t)c->shadowPoints->creepV53TraceCount;
+                stepIndex++)
+        {
+            const NlCreepStepTrace_t *trace =
+                &c->shadowPoints->creepV53Trace[stepIndex];
+            char gapBeforeBuf[24], observedDeltaBuf[24], gapAfterBuf[24];
+            FormatI64(trace->gapBeforeRaw, gapBeforeBuf, sizeof(gapBeforeBuf));
+            FormatI64(trace->observedDeltaRaw, observedDeltaBuf,
+                sizeof(observedDeltaBuf));
+            FormatI64(trace->gapAfterRaw, gapAfterBuf, sizeof(gapAfterBuf));
+            LogLineLarge(
+                "SWEEP_CREEP_STEP,SchemaVersion=1,TestID=%lu,SweepID=%lu,JigID=%s,"
+                "MotorID=%s,Direction=%s,Point=%u,Official=0,StepOrder=%lu,"
+                "Iteration=%lu,Phase=%s,CommandStepRaw=%ld,GapBeforeRaw=%s,"
+                "ObservedDeltaRaw=%s,GapAfterRaw=%s,StickSlipJumpDetected=%d\r\n",
+                (unsigned long)c->testId, (unsigned long)c->sweepId, jigId,
+                MOTOR_ID, dirStr, (unsigned)NL_SWEEP_CREEP_V53_TARGET_POINT,
+                (unsigned long)(stepIndex + 1U), (unsigned long)trace->iteration,
+                NlCreepStepPhaseName(trace->phase), (long)trace->commandStepRaw,
+                gapBeforeBuf, observedDeltaBuf, gapAfterBuf,
+                trace->stickSlipJumpDetected ? 1 : 0);
+        }
+#endif
+    }
+#endif
 
     char maxSettleErrorRawBuf[24], maxSettleErrorDegBuf[20];
     FormatI64(c->maxAbsSettlePositionErrorRaw,
@@ -6080,21 +6892,61 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             MA600_ResultName(c->acquisitionResult),
             c->capturedCount - c->notSettledCount, c->capturedCount);
     }
+    else if (c->direction == NL_SWEEP_CW
+            && c->sweepPointCreepRecoveryFailedCount > 0U)
+    {
+        LogLine("Nonlinear %d INVALID: sweep_creep_recovery_failed=%lu\r\n",
+            c->runIndex + 1,
+            (unsigned long)c->sweepPointCreepRecoveryFailedCount);
+    }
+    else if (c->direction == NL_SWEEP_CW
+            && c->sweepPointCreepStickSlipJumpCount > 0U)
+    {
+        LogLine("Nonlinear %d INVALID: sweep_creep_stick_slip_jump=%lu\r\n",
+            c->runIndex + 1,
+            (unsigned long)c->sweepPointCreepStickSlipJumpCount);
+    }
 
-    char sweepPointCreepCorrBuf[24];
+    char sweepPointCreepCorrBuf[24], sweepPointCreepExtendedCorrBuf[24];
+    char sweepPointCreepRecoveryCorrBuf[24];
+    char sweepPointCreepMaxObservedDeltaBuf[24];
     FormatI64(c->sweepPointCreepTotalCorrectionRaw, sweepPointCreepCorrBuf,
         sizeof(sweepPointCreepCorrBuf));
+    FormatI64(c->sweepPointCreepExtendedTotalCorrectionRaw,
+        sweepPointCreepExtendedCorrBuf, sizeof(sweepPointCreepExtendedCorrBuf));
+    FormatI64(c->sweepPointCreepRecoveryTotalCorrectionRaw,
+        sweepPointCreepRecoveryCorrBuf, sizeof(sweepPointCreepRecoveryCorrBuf));
+    FormatI64(c->sweepPointCreepMaxObservedStepDeltaRaw,
+        sweepPointCreepMaxObservedDeltaBuf,
+        sizeof(sweepPointCreepMaxObservedDeltaBuf));
     LogLineLarge(
         "END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,Direction=%s,CapturedPoints=%d,"
         "AnalysisPoints=%d,TrackingValid=%d,SettleStabilityValid=%d,"
         "SettleTargetProximityValid=%d,SettleValid=%d,AcquisitionResult=%s,"
         "UartTransmitFailures=%lu,"
-        /* See ENABLE_SWEEP_POINT_CREEP -- all five stay 0 when the flag is
+        /* See ENABLE_SWEEP_POINT_CREEP -- all aggregates stay 0 when the flag is
          * off, so this is a pure addition, never a change, for every
          * existing build/parser that doesn't know these fields exist. */
         "SweepPointCreepPointsCorrected=%lu,SweepPointCreepTotalIterations=%lu,"
         "SweepPointCreepTotalCorrectionRaw=%s,SweepPointCreepTimeouts=%lu,"
-        "SweepPointCreepBudgetExceeded=%lu,"
+        "SweepPointCreepBudgetExceeded=%lu,SweepPointCreepTargetCrossed=%lu,"
+        "SweepPointCreepRecoveryAttempted=%lu,SweepPointCreepRecoverySucceeded=%lu,"
+        "SweepPointCreepRecoveryFailed=%lu,SweepPointCreepRecoveryRecrossed=%lu,"
+        "SweepPointCreepRecoveryTotalIterations=%lu,"
+        "SweepPointCreepRecoveryTotalCorrectionRaw=%s,"
+        "SweepPointCreepBaseBudgetExceeded=%lu,SweepPointCreepBaseTargetCrossed=%lu,"
+        "SweepPointCreepExtendedPoints=%lu,SweepPointCreepExtendedOk=%lu,"
+        "SweepPointCreepExtendedTotalIterations=%lu,"
+        "SweepPointCreepExtendedTotalCorrectionRaw=%s,"
+        "SweepPointCreepExtendedTimeouts=%lu,"
+        "SweepPointCreepExtendedBudgetExceeded=%lu,"
+        "SweepPointCreepExtendedTargetCrossed=%lu,"
+        "SweepPointCreepFineLandingAttempted=%lu,"
+        "SweepPointCreepFineLandingSucceeded=%lu,"
+        "SweepPointCreepFineLandingFailed=%lu,"
+        "SweepPointCreepStickSlipJump=%lu,"
+        "SweepPointCreepMaxObservedStepDeltaRaw=%s,"
+        "SweepPointCreepIntegrityValid=%d,"
         "Status=%s\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
         c->capturedCount, c->analysisCount, c->trackingValid ? 1 : 0,
@@ -6109,12 +6961,37 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         sweepPointCreepCorrBuf,
         (unsigned long)c->sweepPointCreepTimeoutCount,
         (unsigned long)c->sweepPointCreepBudgetExceededCount,
+        (unsigned long)c->sweepPointCreepTargetCrossedCount,
+        (unsigned long)c->sweepPointCreepRecoveryAttemptedCount,
+        (unsigned long)c->sweepPointCreepRecoverySucceededCount,
+        (unsigned long)c->sweepPointCreepRecoveryFailedCount,
+        (unsigned long)c->sweepPointCreepRecoveryRecrossedCount,
+        (unsigned long)c->sweepPointCreepRecoveryTotalIterations,
+        sweepPointCreepRecoveryCorrBuf,
+        (unsigned long)c->sweepPointCreepBaseBudgetExceededCount,
+        (unsigned long)c->sweepPointCreepBaseTargetCrossedCount,
+        (unsigned long)c->sweepPointCreepExtendedPointCount,
+        (unsigned long)c->sweepPointCreepExtendedOkCount,
+        (unsigned long)c->sweepPointCreepExtendedTotalIterations,
+        sweepPointCreepExtendedCorrBuf,
+        (unsigned long)c->sweepPointCreepExtendedTimeoutCount,
+        (unsigned long)c->sweepPointCreepExtendedBudgetExceededCount,
+        (unsigned long)c->sweepPointCreepExtendedTargetCrossedCount,
+        (unsigned long)c->sweepPointCreepFineLandingAttemptedCount,
+        (unsigned long)c->sweepPointCreepFineLandingSucceededCount,
+        (unsigned long)c->sweepPointCreepFineLandingFailedCount,
+        (unsigned long)c->sweepPointCreepStickSlipJumpCount,
+        sweepPointCreepMaxObservedDeltaBuf,
+        (c->sweepPointCreepRecoveryFailedCount == 0U
+            && c->sweepPointCreepStickSlipJumpCount == 0U) ? 1 : 0,
         /* A transmission failure means some of this sweep's own log lines
          * (DATA/ACQ/MOTION) may be truncated or spliced with the next
          * line's bytes -- the sweep's acquisition can still be genuinely
          * valid, but its LOG cannot be trusted point-for-point, so it must
          * not read as VALID even if every other check passed. */
-        (c->measurementValid && nlUartTransmitFailureCount == 0U) ? "VALID" : "INVALID");
+        (c->measurementValid && nlUartTransmitFailureCount == 0U
+            && c->sweepPointCreepRecoveryFailedCount == 0U
+            && c->sweepPointCreepStickSlipJumpCount == 0U) ? "VALID" : "INVALID");
 }
 
 #if ENABLE_NL_MATH_SELF_TEST
@@ -6393,6 +7270,7 @@ static bool NonlinearTest_Run(void)
     NlZeroResult_t zeroResult = NL_ZERO_OK;
     MA600_Result_t captureResult = MA600_RESULT_OK;
     bool allMeasurementsValid = true;
+    bool allSweepPointCreepIntegrityValid = true;
     int captureCount = 0;
 
     for (int run = 0; run < NL_TEST_COUNT; run++)
@@ -6411,6 +7289,9 @@ static bool NonlinearTest_Run(void)
             &controllerStateBeforeReset, &controllerStateAfterReset,
             &homeObservation);
         allMeasurementsValid = allMeasurementsValid && nlCaptures[captureCount].measurementValid;
+        allSweepPointCreepIntegrityValid = allSweepPointCreepIntegrityValid
+            && (nlCaptures[captureCount].sweepPointCreepRecoveryFailedCount == 0U)
+            && (nlCaptures[captureCount].sweepPointCreepStickSlipJumpCount == 0U);
         /* Run 1 ("Nonlinear 1") is intentionally discarded -- same
          * SKIP_FIRST_COUNT convention as the reference firmware, which
          * gives no inline rationale beyond the constant name; the working
@@ -6434,6 +7315,9 @@ static bool NonlinearTest_Run(void)
             &controllerStateBeforeReset, &controllerStateAfterReset,
             &homeObservation);
         allMeasurementsValid = allMeasurementsValid && nlCaptures[captureCount].measurementValid;
+        allSweepPointCreepIntegrityValid = allSweepPointCreepIntegrityValid
+            && (nlCaptures[captureCount].sweepPointCreepRecoveryFailedCount == 0U)
+            && (nlCaptures[captureCount].sweepPointCreepStickSlipJumpCount == 0U);
         /* CCW is engineering-only: not folded into errorSum/finalAverage, which stays
          * CW-based to match unchanged production semantics. */
         captureCount++;
@@ -6461,7 +7345,14 @@ static bool NonlinearTest_Run(void)
         nlCaptures[i].runOrder = runOrder;
         nlCaptures[i].batchRunCount = batchRunCount;
         nlCaptures[i].preconditionRun = preconditionRun;
-        nlCaptures[i].eligibleForStatistics = !preconditionRun;
+        /* Acquisition validity stays independent so FAST3 can retain a
+         * diagnostic curve after a failed recovery. Successfully recovered
+         * crossings are eligible; a failed recovery (or failed
+         * precondition) is never promoted into official statistics. */
+        nlCaptures[i].eligibleForStatistics = !preconditionRun
+            && preconditionValid
+            && (nlCaptures[i].sweepPointCreepRecoveryFailedCount == 0U)
+            && (nlCaptures[i].sweepPointCreepStickSlipJumpCount == 0U);
         nlCaptures[i].preconditionValid = preconditionValid;
         nlCaptures[i].firstRunInBatch = firstRunInBatch;
         nlCaptures[i].cooldownTargetMs = cooldownTargetMs;
@@ -6561,9 +7452,12 @@ static bool NonlinearTest_Run(void)
 
         LogLineLarge(
             "PRECONDITION_RESULT,SchemaVersion=%d,BatchID=%lu,CycleOrder=%lu,TestID=%lu,"
-            "Protocol=%s,RunRole=PRECONDITION,EligibleForStatistics=0,Status=VALID\r\n",
+            "Protocol=%s,RunRole=PRECONDITION,EligibleForStatistics=0,"
+            "CreepIntegrityValid=%d,Status=%s\r\n",
             NL_LOG_SCHEMA_VERSION, (unsigned long)batchId, (unsigned long)cycleOrder,
-            (unsigned long)testId, NL_PRECONDITION_PROTOCOL_ID);
+            (unsigned long)testId, NL_PRECONDITION_PROTOCOL_ID,
+            allSweepPointCreepIntegrityValid ? 1 : 0,
+            allSweepPointCreepIntegrityValid ? "VALID" : "DIAGNOSTIC_INVALID");
 
 #if ENABLE_MOUNT_PRECHECK_GATE
         if (!mountValid)
@@ -6577,6 +7471,24 @@ static bool NonlinearTest_Run(void)
         return true;
     }
 #endif
+
+    /* A failed single recovery or V5.3 stick-slip jump is a diagnostic
+     * integrity failure, not a transport failure: preserve the completed
+     * curve and let FAST3 advance, but never publish a final average or Motor
+     * OK for this cycle. */
+    bool cycleEligibleForResult = allSweepPointCreepIntegrityValid;
+#if ENABLE_AUTO_BATCH_TEST
+    cycleEligibleForResult = cycleEligibleForResult && preconditionValid;
+#endif
+    if (!cycleEligibleForResult)
+    {
+        LogLine("Motor RESULT INVALID: %s (SweepPointCreepRecoveryFailed=%lu,StickSlipJump=%lu)\r\n",
+            allSweepPointCreepIntegrityValid
+                ? "PRECONDITION_INVALID" : "SWEEP_CREEP_INTEGRITY_FAILED",
+            (unsigned long)nlCaptures[0].sweepPointCreepRecoveryFailedCount,
+            (unsigned long)nlCaptures[0].sweepPointCreepStickSlipJumpCount);
+        return true;
+    }
 
     float finalAverage = errorSum / (float)NL_USED_COUNT;
     char finalBuf[16];
@@ -6687,7 +7599,9 @@ static void RunBatchSweep(void)
             return;
         }
 #else
-        nlPreconditionValid = true;
+        nlPreconditionValid =
+            (nlCaptures[0].sweepPointCreepRecoveryFailedCount == 0U)
+            && (nlCaptures[0].sweepPointCreepStickSlipJumpCount == 0U);
 #endif
     }
 
@@ -6712,16 +7626,18 @@ static void RunBatchSweep(void)
         nlBatchState = NL_BATCH_COMPLETE;
         LogLineLarge(
             "BATCH,BatchID=%lu,Status=COMPLETE,PreconditionCount=%lu,"
-            "RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=1,"
+            "RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=%d,"
             "PreconditionRunsUsed=%lu,PreconditionStabilityDeltaDeg=%s\r\n",
             (unsigned long)nlBatchId, (unsigned long)NL_PRECONDITION_COUNT,
             (unsigned long)NL_OFFICIAL_RUN_COUNT,
             (unsigned long)NL_BATCH_TOTAL_CYCLE_COUNT,
+            nlPreconditionValid ? 1 : 0,
             (unsigned long)nlPreconditionRunsSoFar, preconditionDeltaBuf);
         return;
     }
 
     nlCooldownStartTick = nlLastMotorOffTick;
+    nlCooldownLastProgressTick = HAL_GetTick();
     nlCooldownActualMs = 0;
     nlCooldownValid = false;
     nlBatchState = NL_BATCH_COOLDOWN;
@@ -6732,6 +7648,9 @@ static void RunBatchSweep(void)
         (unsigned long)nlBatchId, (unsigned long)nlCurrentCycle,
         (unsigned long)officialRunOrder, preconditionRun ? "PRECONDITION" : "OFFICIAL",
         (unsigned long)NL_COOLDOWN_TIME_MS, NL_THERMAL_PROTOCOL_ID);
+    LogLine("RUNTIME_CHECKPOINT,Stage=COOLDOWN_START,TestStackHighWaterWords=%lu,FreeHeap=%lu\r\n",
+        (unsigned long)uxTaskGetStackHighWaterMark(NULL),
+        (unsigned long)xPortGetFreeHeapSize());
 }
 #endif /* ENABLE_AUTO_BATCH_TEST */
 
@@ -6823,6 +7742,15 @@ static void NonlinearBatch_Poll(void)
     if (nlBatchState != NL_BATCH_COOLDOWN)
     {
         return;
+    }
+    uint32_t now = HAL_GetTick();
+    if ((uint32_t)(now - nlCooldownLastProgressTick) >= 30000U)
+    {
+        nlCooldownLastProgressTick = now;
+        LogLine("COOLDOWN_PROGRESS,BatchID=%lu,CycleOrder=%lu,ElapsedMs=%lu,TargetMs=%lu\r\n",
+            (unsigned long)nlBatchId, (unsigned long)nlCurrentCycle,
+            (unsigned long)(now - nlCooldownStartTick),
+            (unsigned long)NL_COOLDOWN_TIME_MS);
     }
     if (!HasTimeElapsed(nlCooldownStartTick, NL_COOLDOWN_TIME_MS))
     {
@@ -6939,11 +7867,15 @@ bool NonlinearEngine_Init(void)
 
     static const osThreadAttr_t testTaskAttributes = {
         .name = "TestTask",
-        /* Debug -fstack-usage reports PrintSweepLog(4552) ->
-         * LogLineLarge(1920) = 6472 bytes after the 40-command Motion-V2
-         * trace buffers were enabled. Keep >1.5KB explicit margin for the
-         * engine/run callers and exception stacking. */
-        .stack_size = 8192U,
+        /* V5.3 FAST3 Release .su reports the deepest static call chain as
+         * NonlinearEngine_Task(64) + RunBatchSweep(72) +
+         * NonlinearTest_Run(1456) + PrintSweepLog(4152) +
+         * LogLineLarge(1912) = 7656 bytes before interrupt/context margin.
+         * The former 8192-byte stack left only 536 bytes and hardware logs
+         * stopped exactly after COOLDOWN_START, when the first context switch
+         * can trigger configCHECK_FOR_STACK_OVERFLOW=2. 12 KiB restores more
+         * than 4.5 KiB explicit margin; FreeRTOS heap remains ample. */
+        .stack_size = 12288U,
         .priority = (osPriority_t)osPriorityAboveNormal,
     };
     nlEngineTaskHandle = osThreadNew(NonlinearEngine_Task, NULL, &testTaskAttributes);
