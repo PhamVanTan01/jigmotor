@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-08-06T09:48:41.177528+00:00",
+  "nodes": {
+    "docs_sweep_point_creep_v5_6_three_stage_response_plan_12_4_pilot_a2_generalization_p03_jig8": {
+      "code_fingerprint": "88064dabf6e0461f425332154cb75b9833fb77051ddfc4552344a3c20353b1eb",
+      "label": "12.4 Pilot A2 — generalization P03/JIG8",
+      "last": "2026-08-06T09:41:00.662122+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-06T09:41:00.662122+00:00",
+          "outcome": "useful",
+          "q": "Bạn có muốn tôi cập nhật lại phần Hardware validation trong plan doc theo đề xuất này không?"
+        }
+      ],
+      "score": 0.999876858,
+      "source_file": "docs/sweep-point-creep-v5-6-three-stage-response-plan.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "docs_sweep_point_creep_v5_6_three_stage_response_plan_v5_6_three_stage_16_8_4_response_qualified_landing": {
+      "code_fingerprint": "88064dabf6e0461f425332154cb75b9833fb77051ddfc4552344a3c20353b1eb",
+      "label": "V5.6 — three-stage 16→8→4 response-qualified landing",
+      "last": "2026-08-06T09:41:00.662122+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-06T09:41:00.662122+00:00",
+          "outcome": "useful",
+          "q": "Bạn có muốn tôi cập nhật lại phần Hardware validation trong plan doc theo đề xuất này không?"
+        }
+      ],
+      "score": 0.999876858,
+      "source_file": "docs/sweep-point-creep-v5-6-three-stage-response-plan.md",
+      "status": "tentative",
+      "uses": 1
+    }
+  },
+  "version": 1
+}

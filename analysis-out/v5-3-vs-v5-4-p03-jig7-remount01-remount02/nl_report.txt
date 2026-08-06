@@ -1,0 +1,38 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 9
+Excluded sweeps: 7
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+V5.3-R1: n=3 mean=0.523547 deg SD=0.029985 CV=5.727% range=0.059870 r(2.77s)=0.083058 deg slope=+0.013471 deg/run R2=0.2018
+V5.4-R1: n=3 mean=0.562355 deg SD=0.027276 CV=4.850% range=0.054372 r(2.77s)=0.075554 deg slope=+0.015509 deg/run R2=0.3233
+V5.4-R2: n=3 mean=0.567145 deg SD=0.016726 CV=2.949% range=0.033360 r(2.77s)=0.046331 deg slope=+0.007265 deg/run R2=0.1887
+ALL: n=9 mean=0.551016 deg SD=0.030157 CV=5.473% range=0.096208 r(2.77s)=0.083534 deg slope=+0.007748 deg/run R2=0.4951
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00461000 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00101438 deg
+max |recomputed A36 - shadow A36| = 0.00120754 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=9 r=+0.7139 R2=0.5097 slope=+0.668590 residualSD=0.022574
+RMS_AC_Deg: n=9 r=+0.8520 R2=0.7260 slope=+1.694378 residualSD=0.016877
+A36_Deg: n=9 r=+0.7901 R2=0.6242 slope=+1.042979 residualSD=0.019762
+ClosureErrorDeg: n=9 r=+0.1661 R2=0.0276 slope=+0.351239 residualSD=0.031791
+AnalysisStartRawCentered: n=9 r=+0.6018 R2=0.3622 slope=+0.000124 residualSD=0.025747
+
+EXCLUSIONS
+----------
+S2-P03-JIG7-remount01-test-2-v5-3.txt TestID=5 SweepID=5 RunOrder=0: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-3.txt TestID=9 SweepID=9 RunOrder=0: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-3.txt TestID=10 SweepID=10 RunOrder=1: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-3.txt TestID=11 SweepID=11 RunOrder=2: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-3.txt TestID=12 SweepID=12 RunOrder=3: precondition excluded
+S2-P03-JIG7-remount01-test-2-v5-4.txt TestID=2 SweepID=1 RunOrder=0: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-4.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded

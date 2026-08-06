@@ -54,7 +54,7 @@ Assert-True (([regex]::Matches($source, '\(void\)CreepToUnwrappedTarget\(').Coun
     'Both and only the two B0-B approach legs must retain the compatibility wrapper.'
 
 $callBlock = [regex]::Match($source,
-    '(?s)#if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING\s*bool useV53FineLanding.*?#else\s*MA600_Result_t creepAcqResult = CreepToUnwrappedTarget').Value
+    '(?s)#elif ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING\s*bool useV53FineLanding.*?#else\s*MA600_Result_t creepAcqResult = CreepToUnwrappedTarget').Value
 Assert-True (-not [string]::IsNullOrWhiteSpace($callBlock) -and
         $callBlock -match '\(uint32_t\)pointIndex\s*==\s*NL_SWEEP_CREEP_V53_TARGET_POINT' -and
         $callBlock -match 'creepMaxIterations = NL_SWEEP_CREEP_V53_MAX_ITERATIONS;' -and

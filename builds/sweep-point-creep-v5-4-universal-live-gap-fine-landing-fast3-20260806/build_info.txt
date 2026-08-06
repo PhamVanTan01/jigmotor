@@ -1,0 +1,67 @@
+SavedAtLocal=2026-08-06T09:01:59+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=75a6b9e141aa8d2f8f0a62a5becae8a3ba47313a
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-4-universal-live-gap-fine-landing-fast3-20260806
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepV53Point66FineLandingEnabled=0
+SweepCreepV54UniversalFineLandingEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_UNIVERSAL_FINE_LANDING_V1
+FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1
+FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY
+TracePolicy=FIRST_INTEGRITY_FAILURE_V1
+
+MotionPolicy=Every main-sweep creep point uses one profiled engine. Runtime
+    selection depends only on live encoder gap, never point index. Coarse
+    step is 16 raw; once abs(live gap) <= 64 raw, fine step 4 raw latches.
+
+BudgetPolicy=Raw budgets remain exactly V5.2/V5.3: BASE 220 raw and
+    EXTENDED 320 raw, selected by abs(initial post-settle gap) > 200 raw.
+    Iteration guards are BASE 56 and EXTENDED 81 only so the same raw
+    budgets can be expressed after the 4-raw fine latch.
+
+SafetyPolicy=Deadband 16 raw, power 1.0, fine jump guard 96 raw. A detected
+    jump stops before crossing recovery; no chase command follows it.
+    Normal fine recovery is one reversal, 64 raw / 17 iterations maximum.
+
+TracePolicyDetail=One 100-entry RAM buffer is reused across points and
+    locks only on the first integrity failure. Telemetry reports the dynamic
+    trace point; storage is O(1), not 360 x trace capacity.
+
+Telemetry=SWEEP_CREEP_CONFIG and SWEEP_CREEP_POINT schema 7; dynamic
+    SWEEP_CREEP_STEP schema 2; END adds base/extended fine-attempt counts
+    and SweepPointCreepTracePoint. All UART formatting remains after motion.
+
+B0BIsolation=Both B0-B approach-creep legs retain the compatibility wrapper
+    with fine profile NULL. B0-B motion parameters and behavior are unchanged.
+
+ValidityPolicy=Recovery failure or STICK_SLIP_JUMP sets
+    SweepPointCreepIntegrityValid=0, END.Status=INVALID, and
+    EligibleForStatistics=0. Ordinary timeout/budget exhaustion retains the
+    pre-V5.4 diagnostic/validity semantics.
+
+Memory=Release text 89604 bytes, data 96 bytes, bss 165288 bytes.
+    .ccmram_bss=0x92B0 (37552 bytes of 65536; 57.3%).
+
+StackAudit=Compiler .su deepest relevant static chain is 7664 bytes:
+    NonlinearEngine_Task 64 + RunBatchSweep 72 + NonlinearTest_Run 1464 +
+    PrintSweepLog 4152 + LogLineLarge 1912. TestTask stack is 12288 bytes,
+    leaving 4624 bytes static margin before interrupt/context overhead.
+
+HardwarePilot=Flash this artifact on P03/JIG7. Run the complete 1
+    PRECONDITION + 3 OFFICIAL batch without remount. First evaluate integrity,
+    trace point, point 66/26 and the historical one-time crossings; only then
+    compare NL/H1/H2/H36 against V5.3.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0,
+    V53FineLandingEnabled=0, V54FineLandingEnabled=0, and the normal
+    10-official-run batch. This artifact retains V5.4 and FAST3 enabled.
+
+HexSHA256=3b550c3275a0cc580d5186c071d850b3a5c2d0fb872acfb41ac967d5fcfe6cc0
+ElfSHA256=175345061a6caf080e52c9e6ae49ea8a94380a3fb9965d4758c3588cbbb85885
+MapSHA256=61adf673e023665f6753d42810fdcdf27d94d1deb943e8d5b2ef5d9f7ebb3232

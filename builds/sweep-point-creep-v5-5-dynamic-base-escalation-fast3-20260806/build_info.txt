@@ -1,0 +1,83 @@
+SavedAtLocal=2026-08-06T13:41:50+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=75a6b9e141aa8d2f8f0a62a5becae8a3ba47313a
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-5-dynamic-base-escalation-fast3-20260806
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepV53Point66FineLandingEnabled=0
+SweepCreepV54UniversalFineLandingEnabled=1
+SweepCreepV54aFineFailureTraceEnabled=0
+SweepCreepV55DynamicBaseEscalationEnabled=1
+SweepCreepProtocol=ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_UNIVERSAL_FINE_LANDING_V2
+BudgetEscalationProtocol=BASE_EXHAUSTION_TO_EXTENDED_CAP_V1
+FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1
+FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY
+TracePolicy=FIRST_HARD_CAP_BUDGET_OR_INTEGRITY_FAILURE_V1
+
+Evidence=V5.4a usable official traces repeatedly locked point 9. Four complete
+    fine traces commanded 60-92 raw in 4-raw steps, made 20-46 raw directed
+    net progress (33.3-53.9 percent efficiency), and stopped only 1-15 raw
+    outside the +/-16-raw deadband. One point-8 trace consumed 224 raw before
+    fine entry, then stopped at -57 raw without issuing a fine command.
+
+MotionChange=BASE keeps a 220-raw primary allowance. If it remains outside
+    deadband and needs a command beyond 220 raw, it may continue to the same
+    320-raw hard cap already used by EXTENDED. Successful BASE points stop
+    before escalation, so no angle/point whitelist or global 360-point budget
+    increase is introduced.
+
+LockedMotion=Coarse step 16 raw, fine entry 64 raw, fine step 4 raw,
+    deadband 16 raw, power 1.0, jump guard 96 raw, recovery 64 raw / 17
+    iterations, one reversal, ramp/settle/acquisition cadence unchanged.
+
+IterationPolicy=V5.5 BASE and EXTENDED use the existing V5.4 81-iteration
+    guard sufficient to express the 320-raw hard cap with a 4-raw latched
+    fine step. No recovery iteration or raw allowance was added.
+
+Telemetry=SWEEP_CREEP_CONFIG/POINT schema 8. CONFIG reports primary/hard cap
+    and BudgetEscalationProtocol. POINT reports PrimaryBudgetRaw,
+    HardBudgetRaw, BudgetEscalated and EscalationCorrectionRaw. END reports
+    attempted/succeeded/failed escalation counts and total extra correction.
+
+Trace=The existing one-buffer 100-entry trace locks on the first remaining
+    hard-cap BUDGET_EXCEEDED (fine or no-fine) or first integrity failure.
+    CaptureSweep remains UART-silent.
+
+B0BIsolation=Both B0-B approach-creep legs retain the compatibility wrapper
+    with fine profile NULL. B0-B motion parameters and behavior are unchanged.
+
+ValidityPolicy=Unchanged. Ordinary hard-cap BUDGET_EXCEEDED is an
+    effectiveness diagnostic. Recovery failure or STICK_SLIP_JUMP remains
+    integrity-invalid.
+
+Verification=Relevant V5.5/V5.4/V5.4a/V5.3/B0-B feature contracts pass.
+    FAST3 feature configuration passes 32/32 applicable PowerShell tests;
+    the default-only 10-official assertion is intentionally skipped. Release
+    feature build passes. Default-off Release build also passed before the
+    feature build.
+
+Memory=Release text 90292 bytes, data 96 bytes, bss 165312 bytes.
+
+StackAudit=Compiler .su deepest relevant static chain remains 7664 bytes:
+    NonlinearEngine_Task 64 + RunBatchSweep 72 + NonlinearTest_Run 1456 +
+    PrintSweepLog 4160 + LogLineLarge 1912. TestTask stack is 12288 bytes,
+    leaving 4624 bytes static margin before interrupt/context overhead.
+
+HardwarePilot=Flash this artifact on P03/JIG7 without remount during the
+    batch. Run the complete 1 PRECONDITION + 3 OFFICIAL batch. The capture
+    must contain every DATA index 0-359 in all three official runs. Evaluate
+    BASE escalation success separately from remaining EXTENDED hard-cap
+    failures and compare the complete 360-point curve to V5.4a.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0,
+    V53=0, V54=0, V54a=0, V55=0 and the normal 10-official-run batch. This
+    artifact retains V5.4, V5.5 and FAST3 enabled.
+
+HexSHA256=a9b71370a42d679db129445daaf3c79db2b7e6078e5f49adfedb8ab60287b10e
+ElfSHA256=288b7e1d15f79071c4c4805c2bc9dfdafd715e7c6c72229a7f87021a4146a929
+MapSHA256=363084eb00cc222ff523b6748b2c003b7a5a627f5e5f9c2279aa090a13067cb2

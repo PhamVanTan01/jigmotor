@@ -1,0 +1,46 @@
+RUNTIME,FreeHeap=85544,MinEverFreeHeap=85544,TestStackHighWaterWords=1024
+MA600 noise (last 5s): P2P=179.58deg StdDev=57.94deg Drift=178.74deg MaxStep=177.26deg N=25 valid=0
+MA600 noise (last 5s): P2P=0.07deg StdDev=0.02deg Drift=0.01deg MaxStep=0.04deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.03deg StdDev=0.01deg Drift=0.03deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=0.01deg MaxStep=0.04deg N=25 valid=1
+MA600 noise (last 5s): P2P=12.49deg StdDev=3.15deg Drift=12.45deg MaxStep=10.79deg N=25 valid=0
+BATCH,BatchID=3,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,PreconditionCount=1,RunCount=3,TotalCycleCount=4,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug  6 2026 13:40:02,MCU_UID=003E00323235511835383831,JigID=JIG8,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=132.18 deg settled=0/500 cmdPos=51743
+MA600 move-to-zero: error=168.30 deg settled=0/500 cmdPos=-21042
+MA600 move-to-zero: error=130.35 deg settled=0/500 cmdPos=-99250
+MA600 move-to-zero: error=150.74 deg settled=0/500 cmdPos=-177080
+MA600 move-to-zero: error=82.51 deg settled=0/500 cmdPos=-233442
+MA600 move-to-zero: error=-160.97 deg settled=0/500 cmdPos=-272981
+MA600 move-to-zero: error=78.74 deg settled=0/500 cmdPos=-296084
+MA600 move-to-zero: error=54.26 deg settled=0/500 cmdPos=-336680
+MA600 move-to-zero: error=84.18 deg settled=0/500 cmdPos=-353998
+MA600 move-to-zero: error=113.57 deg settled=0/500 cmdPos=-401725
+MA600 move-to-zero: error=97.70 deg settled=0/500 cmdPos=-458400
+MA600 move-to-zero: error=43.99 deg settled=0/500 cmdPos=-499013
+MA600 move-to-zero: error=75.99 deg settled=0/500 cmdPos=-548268
+MA600 move-to-zero: error=102.40 deg settled=0/500 cmdPos=-586986
+MA600 move-to-zero: error=111.02 deg settled=0/500 cmdPos=-632236
+MA600 move-to-zero: error=72.60 deg settled=0/500 cmdPos=-679044
+MA600 move-to-zero: error=45.32 deg settled=0/500 cmdPos=-718717
+MA600 move-to-zero: error=39.95 deg settled=0/500 cmdPos=-760160
+MA600 move-to-zero: error=80.64 deg settled=0/500 cmdPos=-776246
+MA600 move-to-zero: error=126.62 deg settled=0/500 cmdPos=-813510
+MA600 move-to-zero: error=118.15 deg settled=0/500 cmdPos=-848959
+MA600 move-to-zero: error=81.89 deg settled=0/500 cmdPos=-886842
+MA600 move-to-zero: error=48.99 deg settled=0/500 cmdPos=-926282
+MA600 move-to-zero: error=104.07 deg settled=0/500 cmdPos=-958815
+MA600 move-to-zero: error=85.68 deg settled=0/500 cmdPos=-996037
+MA600 move-to-zero: error=42.95 deg settled=0/500 cmdPos=-1045125
+MA600 move-to-zero: error=73.15 deg settled=0/500 cmdPos=-1085399
+MA600 move-to-zero: error=3.74 deg settled=0/500 cmdPos=-1125068
+MA600 move-to-zero: error=133.87 deg settled=0/500 cmdPos=-1146979
+MA600 move-to-zero: error=69.16 deg settled=0/500 cmdPos=-1193032
+MA600 move-to-zero: error=44.77 deg settled=0/500 cmdPos=-1232654
+MA600 move-to-zero: error=43.25 deg settled=0/500 cmdPos=-1273566
+MA600 move-to-zero: error=72.08 deg settled=0/500 cmdPos=-1321890
+MA600 move-to-zero: error=44.26 deg settled=0/500 cmdPos=-1362266
+MA600 move-to-zero: error=146.22 deg settled=0/500 cmdPos=-1401837
+MA600 move-to-zero: error=71.15 deg settled=0/500 cmdPos=-1446093
+MA600 move-to-zero: error=51.41 deg settled=0/500 cmdPos=-1494523

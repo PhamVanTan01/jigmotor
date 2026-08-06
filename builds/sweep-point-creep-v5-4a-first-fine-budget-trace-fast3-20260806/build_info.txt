@@ -1,0 +1,71 @@
+SavedAtLocal=2026-08-06T12:14:33+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=75a6b9e141aa8d2f8f0a62a5becae8a3ba47313a
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-4a-first-fine-budget-trace-fast3-20260806
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepV53Point66FineLandingEnabled=0
+SweepCreepV54UniversalFineLandingEnabled=1
+SweepCreepV54aFineFailureTraceEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_UNIVERSAL_FINE_LANDING_V1
+FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1
+FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY
+TracePolicy=FIRST_FINE_BUDGET_OR_INTEGRITY_FAILURE_V1
+
+DiagnosticChange=The existing one-buffer step trace now locks on the first
+    point with FineLandingAttempted=1 and Result=BUDGET_EXCEEDED. Existing
+    integrity failures remain fallback trace candidates. No new trace array,
+    motor command, encoder read, settle operation, delay or UART-in-motion
+    operation was added.
+
+MotionPolicy=Identical to V5.4. Every main-sweep creep point uses coarse
+    step 16 raw; once abs(live gap) <= 64 raw, fine step 4 raw latches.
+
+BudgetPolicy=Identical to V5.4. BASE 220 raw / 56 iterations and EXTENDED
+    320 raw / 81 iterations, selected by abs(initial gap) > 200 raw.
+
+SafetyPolicy=Identical to V5.4. Deadband 16 raw, power 1.0, fine jump guard
+    96 raw, and at most one recovery reversal bounded to 64 raw / 17
+    iterations.
+
+Telemetry=SWEEP_CREEP_CONFIG/POINT schema 7 and SWEEP_CREEP_STEP schema 2.
+    TracePolicy explicitly versions the new selection semantics. TracePoint,
+    TraceCaptured and TraceCount retain their existing field meanings.
+
+B0BIsolation=Both B0-B approach-creep legs retain the compatibility wrapper
+    with fine profile NULL. B0-B motion parameters and behavior are unchanged.
+
+ValidityPolicy=Unchanged. Ordinary BUDGET_EXCEEDED remains an effectiveness
+    diagnostic and does not become hard-invalid. Recovery failure or
+    STICK_SLIP_JUMP remains integrity-invalid.
+
+Verification=Default configuration: 32/32 PowerShell tests pass and Release
+    build passes. Frozen V5.3 FAST3 and base V5.4 FAST3 Release builds also
+    pass their feature contracts and compile successfully. V5.4a FAST3:
+    31/31 applicable tests pass; the default-only 10-official assertion is
+    intentionally excluded. Release build passes.
+
+Memory=Release text 89620 bytes, data 96 bytes, bss 165288 bytes.
+
+StackAudit=Compiler .su deepest relevant static chain is unchanged at 7664
+    bytes: NonlinearEngine_Task 64 + RunBatchSweep 72 + NonlinearTest_Run
+    1464 + PrintSweepLog 4152 + LogLineLarge 1912. TestTask stack is 12288
+    bytes, leaving 4624 bytes static margin before interrupt/context overhead.
+
+HardwarePilot=Flash this artifact on P03/JIG7 without remount during the
+    batch. Run the complete 1 PRECONDITION + 3 OFFICIAL batch. Each sweep with
+    FineLandingFailed>0 must report TracePoint>=0 and SWEEP_CREEP_STEP rows for
+    a FineLandingAttempted=1, Result=BUDGET_EXCEEDED point.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0,
+    V53=0, V54=0, V54a=0 and the normal 10-official-run batch. This artifact
+    retains V5.4, V5.4a and FAST3 enabled.
+
+HexSHA256=12bc90f9db020f2c3230d0dc56c4ca415d62a511c3aa0cd2f97109eff4a410b0
+ElfSHA256=a859898c6feb123c314ab8123a534768333cdb95d6fc373ef92474b914510282
+MapSHA256=70c814d458997a512c6ebed688e4c56c2713fe15efc82586738dbfb8c449486a

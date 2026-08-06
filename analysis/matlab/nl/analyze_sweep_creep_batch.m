@@ -7,9 +7,10 @@ function result = analyze_sweep_creep_batch(filePaths, labels)
 %   existed (see docs/session-summary-2026-08-05.md sections 3-7). This is
 %   the direct-evidence input V5.4 "generalized targeted fine landing"
 %   needs: which points beyond the hardcoded point 66 also see crossing/
-%   stick-slip/budget-exceeded, pooled across every V5.1/V5.2/V5.3 run
+%   stick-slip/budget-exceeded, pooled across every V5.1-V5.4 run
 %   captured so far (parse_sweep_creep_log.m tolerates the schema
-%   differences between those firmware versions).
+%   differences between those firmware versions, including V5.5 dynamic
+%   BASE-budget escalation fields).
 %
 %   result = ANALYZE_SWEEP_CREEP_BATCH(filePaths, labels) labels defaults
 %   to each file's own basename (one label per file; pass the same label
@@ -31,7 +32,7 @@ function result = analyze_sweep_creep_batch(filePaths, labels)
 %                       (fraction not OK -- the single ranking metric).
 %     ByLabel       -- one row per label/file: N points, IntegrityValid
 %                       rate (from SweepSummary), TargetCrossed/
-%                       RecoveryRecrossed totals -- lets V5.1/V5.2/V5.3
+%                       RecoveryRecrossed totals -- lets V5.1-V5.4
 %                       stability be compared at a glance.
 
 arguments
@@ -139,6 +140,10 @@ IntegrityValidRatePct = NaN(numel(labelNames), 1);
 TotalTargetCrossed = NaN(numel(labelNames), 1);
 TotalRecoveryRecrossed = NaN(numel(labelNames), 1);
 TotalStickSlipJump = NaN(numel(labelNames), 1);
+TotalBaseEscalationAttempted = NaN(numel(labelNames), 1);
+TotalBaseEscalationSucceeded = NaN(numel(labelNames), 1);
+TotalBaseEscalationFailed = NaN(numel(labelNames), 1);
+BaseEscalationSuccessRatePct = NaN(numel(labelNames), 1);
 
 for i = 1:numel(labelNames)
     NPointRows(i) = sum(points.Label == labelNames(i));
@@ -150,12 +155,23 @@ for i = 1:numel(labelNames)
             TotalTargetCrossed(i) = sum(subset.SweepPointCreepTargetCrossed, "omitnan");
             TotalRecoveryRecrossed(i) = sum(subset.SweepPointCreepRecoveryRecrossed, "omitnan");
             TotalStickSlipJump(i) = sum(subset.SweepPointCreepStickSlipJump, "omitnan");
+            TotalBaseEscalationAttempted(i) = sum( ...
+                subset.SweepPointCreepBaseEscalationAttempted, "omitnan");
+            TotalBaseEscalationSucceeded(i) = sum( ...
+                subset.SweepPointCreepBaseEscalationSucceeded, "omitnan");
+            TotalBaseEscalationFailed(i) = sum( ...
+                subset.SweepPointCreepBaseEscalationFailed, "omitnan");
+            if TotalBaseEscalationAttempted(i) > 0
+                BaseEscalationSuccessRatePct(i) = 100.0 ...
+                    * TotalBaseEscalationSucceeded(i) / TotalBaseEscalationAttempted(i);
+            end
         end
     end
 end
 
 byLabel = table(Label, NPointRows, NSweeps, IntegrityValidRatePct, TotalTargetCrossed, ...
-    TotalRecoveryRecrossed, TotalStickSlipJump);
+    TotalRecoveryRecrossed, TotalStickSlipJump, TotalBaseEscalationAttempted, ...
+    TotalBaseEscalationSucceeded, TotalBaseEscalationFailed, BaseEscalationSuccessRatePct);
 end
 
 function names = fullfile_basenames(paths)

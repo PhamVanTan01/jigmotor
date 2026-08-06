@@ -1,0 +1,38 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 10
+Excluded sweeps: 6
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+V5.4a-R1: n=3 mean=0.533975 deg SD=0.015907 CV=2.979% range=0.028496 r(2.77s)=0.044062 deg slope=+0.013249 deg/run R2=0.6937
+V5.5-R1: n=2 mean=0.393657 deg SD=0.079395 CV=20.169% range=0.112282 r(2.77s)=0.219925 deg slope=-0.112282 deg/run R2=1.0000
+V5.4a-R2: n=2 mean=0.586933 deg SD=0.005443 CV=0.927% range=0.007698 r(2.77s)=0.015078 deg slope=+0.007698 deg/run R2=1.0000
+V5.5-R2: n=3 mean=0.474814 deg SD=0.013451 CV=2.833% range=0.024764 r(2.77s)=0.037259 deg slope=-0.012382 deg/run R2=0.8474
+ALL: n=10 mean=0.498755 deg SD=0.074747 CV=14.987% range=0.253266 r(2.77s)=0.207049 deg slope=-0.003457 deg/run R2=0.0196
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00435600 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00073721 deg
+max |recomputed A36 - shadow A36| = 0.00087302 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=10 r=+0.7815 R2=0.6108 slope=+0.879160 residualSD=0.049461
+RMS_AC_Deg: n=10 r=+0.8920 R2=0.7956 slope=+3.351904 residualSD=0.035839
+A36_Deg: n=10 r=+0.8727 R2=0.7615 slope=+2.944057 residualSD=0.038716
+ClosureErrorDeg: n=10 r=+0.1414 R2=0.0200 slope=+0.853201 residualSD=0.078484
+AnalysisStartRawCentered: n=10 r=+0.1084 R2=0.0117 slope=+0.000071 residualSD=0.078814
+
+EXCLUSIONS
+----------
+S2-P03-JIG7-remount01-test-2-v5-4a.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+S2-P03-JIG7-remount01-test-1-v5-5.txt TestID=1 SweepID=1 RunOrder=0: precondition excluded
+S2-P03-JIG7-remount01-test-1-v5-5.txt TestID=4 SweepID=4 RunOrder=3: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-4a.txt TestID=5 SweepID=5 RunOrder=0: precondition excluded
+S2-P03-JIG7-remount02-test-2-v5-4a.txt TestID=8 SweepID=8 RunOrder=3: missing 76/360 analysis DATA rows
+S2-P03-JIG7-remount02-test-1-v5-5.txt TestID=5 SweepID=5 RunOrder=0: precondition excluded

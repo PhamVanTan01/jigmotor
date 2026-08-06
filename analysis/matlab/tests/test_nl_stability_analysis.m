@@ -884,7 +884,7 @@ assert(all(abs(detailAC.ValueB_Deg - 1.6 * detailAC.ValueA_Deg) < 1e-9));
 end
 
 function test_sweep_creep_analysis()
-% Two synthetic sweeps mimicking the real V5.1->V5.3 schema evolution
+% Four synthetic sweeps mimicking the real V5.1->V5.5 schema evolution
 % (docs/session-summary-2026-08-05.md): sweep A is "V5.1-style" (POINT
 % lines missing PreCrossGapRaw/Recovery*/FineLanding* -- must fill NaN/""
 % rather than error); sweep B is "V5.3-style" (full fields). Point 66 is
@@ -908,7 +908,20 @@ linesB(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=1,TestID=5,SweepID=5,JigID=JIG
 linesB(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=1,TestID=5,SweepID=5,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,StepOrder=9,Iteration=9,Phase=COARSE,CommandStepRaw=-16,GapBeforeRaw=-18,ObservedDeltaRaw=-211,GapAfterRaw=193,StickSlipJumpDetected=1";
 linesB(end + 1) = "END,SchemaVersion=6,TestID=5,SweepID=5,Status=INVALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=2,SweepPointCreepTotalIterations=24,SweepPointCreepTotalCorrectionRaw=384,SweepPointCreepTimeouts=0,SweepPointCreepBudgetExceeded=0,SweepPointCreepTargetCrossed=1,SweepPointCreepRecoveryAttempted=1,SweepPointCreepRecoverySucceeded=0,SweepPointCreepRecoveryFailed=1,SweepPointCreepRecoveryRecrossed=1,SweepPointCreepRecoveryTotalIterations=9,SweepPointCreepRecoveryTotalCorrectionRaw=144,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=0,SweepPointCreepExtendedPoints=1,SweepPointCreepExtendedOk=0,SweepPointCreepExtendedTotalIterations=21,SweepPointCreepExtendedTotalCorrectionRaw=336,SweepPointCreepExtendedTimeouts=0,SweepPointCreepExtendedBudgetExceeded=0,SweepPointCreepExtendedTargetCrossed=1,SweepPointCreepFineLandingAttempted=0,SweepPointCreepFineLandingSucceeded=0,SweepPointCreepFineLandingFailed=0,SweepPointCreepStickSlipJump=1,SweepPointCreepMaxObservedStepDeltaRaw=211,SweepPointCreepIntegrityValid=0";
 fileB = write_temp_log(linesB);
-cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB})); %#ok<NASGU>
+
+linesC = strings(0, 1);
+linesC(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=7,TestID=9,SweepID=9,JigID=JIG7,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_GAP_BUDGET_UNIVERSAL_FINE_LANDING_V1,SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=200,BaseBudgetRaw=220,BaseMaxIterations=56,ExtendedBudgetRaw=320,ExtendedMaxIterations=81,StepRaw=16,DeadbandRaw=16,Power=1.000,FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1,FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY,FineTargetPoint=-1,FineEntryRaw=64,FineStepRaw=4,FineBaseMaxIterations=56,FineExtendedMaxIterations=81,JumpThresholdRaw=96,TracePolicy=FIRST_INTEGRITY_FAILURE_V1,TraceCapacity=100";
+linesC(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=7,TestID=9,SweepID=9,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,InitialGapRaw=35,InitialAbsGapRaw=35,BudgetClass=BASE,SelectedBudgetRaw=220,SelectedMaxIterations=56,Iterations=5,TotalCorrectionRaw=20,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,FineLandingAttempted=1,FineLandingSucceeded=0,FineIterations=5,FineCorrectionRaw=20,StickSlipJumpDetected=1,MaxObservedStepDeltaRaw=105,TraceCaptured=1,TraceCount=5,FinalGapRaw=-70,Result=STICK_SLIP_JUMP";
+linesC(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=2,TestID=9,SweepID=9,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,StepOrder=5,Iteration=5,Phase=FINE,CommandStepRaw=4,GapBeforeRaw=35,ObservedDeltaRaw=105,GapAfterRaw=-70,StickSlipJumpDetected=1";
+linesC(end + 1) = "END,SchemaVersion=7,TestID=9,SweepID=9,Status=INVALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=1,SweepPointCreepTotalIterations=5,SweepPointCreepTotalCorrectionRaw=20,SweepPointCreepTimeouts=0,SweepPointCreepBudgetExceeded=0,SweepPointCreepTargetCrossed=0,SweepPointCreepRecoveryAttempted=0,SweepPointCreepRecoverySucceeded=0,SweepPointCreepRecoveryFailed=0,SweepPointCreepRecoveryRecrossed=0,SweepPointCreepRecoveryTotalIterations=0,SweepPointCreepRecoveryTotalCorrectionRaw=0,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=0,SweepPointCreepExtendedPoints=0,SweepPointCreepExtendedOk=0,SweepPointCreepExtendedTotalIterations=0,SweepPointCreepExtendedTotalCorrectionRaw=0,SweepPointCreepExtendedTimeouts=0,SweepPointCreepExtendedBudgetExceeded=0,SweepPointCreepExtendedTargetCrossed=0,SweepPointCreepFineLandingAttempted=1,SweepPointCreepFineLandingSucceeded=0,SweepPointCreepFineLandingFailed=1,SweepPointCreepFineBaseAttempted=1,SweepPointCreepFineExtendedAttempted=0,SweepPointCreepTracePoint=66,SweepPointCreepStickSlipJump=1,SweepPointCreepMaxObservedStepDeltaRaw=105,SweepPointCreepIntegrityValid=0";
+fileC = write_temp_log(linesC);
+
+linesD = strings(0, 1);
+linesD(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=8,TestID=12,SweepID=12,JigID=JIG7,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_UNIVERSAL_FINE_LANDING_V2,SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=200,BudgetEscalationProtocol=BASE_EXHAUSTION_TO_EXTENDED_CAP_V1,BaseBudgetRaw=220,BasePrimaryBudgetRaw=220,BaseHardBudgetRaw=320,BaseMaxIterations=56,BaseEscalatedMaxIterations=81,ExtendedBudgetRaw=320,ExtendedMaxIterations=81,StepRaw=16,DeadbandRaw=16,Power=1.000,FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1,FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY,FineTargetPoint=-1,FineEntryRaw=64,FineStepRaw=4,FineBaseMaxIterations=81,FineExtendedMaxIterations=81,JumpThresholdRaw=96,TracePolicy=FIRST_HARD_CAP_BUDGET_OR_INTEGRITY_FAILURE_V1,TraceCapacity=100";
+linesD(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=8,TestID=12,SweepID=12,JigID=JIG7,MotorID=p03,Direction=CW,Point=9,Official=0,InitialGapRaw=-122,InitialAbsGapRaw=122,BudgetClass=BASE,SelectedBudgetRaw=220,PrimaryBudgetRaw=220,HardBudgetRaw=320,BudgetEscalated=1,EscalationCorrectionRaw=44,SelectedMaxIterations=81,Iterations=26,TotalCorrectionRaw=264,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,FineLandingAttempted=1,FineLandingSucceeded=1,FineIterations=16,FineCorrectionRaw=64,StickSlipJumpDetected=0,MaxObservedStepDeltaRaw=-14,TraceCaptured=0,TraceCount=0,FinalGapRaw=-14,Result=OK";
+linesD(end + 1) = "END,SchemaVersion=5,TestID=12,SweepID=12,Status=VALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=1,SweepPointCreepTotalIterations=26,SweepPointCreepTotalCorrectionRaw=264,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=0,SweepPointCreepBaseEscalationAttempted=1,SweepPointCreepBaseEscalationSucceeded=1,SweepPointCreepBaseEscalationFailed=0,SweepPointCreepBaseEscalationCorrectionRaw=44,SweepPointCreepFineLandingAttempted=1,SweepPointCreepFineLandingSucceeded=1,SweepPointCreepFineLandingFailed=0,SweepPointCreepFineBaseAttempted=1,SweepPointCreepFineExtendedAttempted=0,SweepPointCreepTracePoint=-1,SweepPointCreepStickSlipJump=0,SweepPointCreepIntegrityValid=1";
+fileD = write_temp_log(linesD);
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB, fileC, fileD})); %#ok<NASGU>
 
 % parse_sweep_creep_log.m on the V5.1-style file: fields absent from that
 % schema (PreCrossGapRaw, RecoveryAttempted, FineLandingAttempted, ...)
@@ -931,10 +944,30 @@ assert(row66B.RecoveryAttempted == 1);
 assert(row66B.StickSlipJumpDetected == 1);
 assert(row66B.Result == "RECOVERY_RECROSSED");
 
-result = analyze_sweep_creep_batch([fileA, fileB], ["V5.1", "V5.3"]);
-assert(height(result.Points) == 5);
-assert(height(result.Steps) == 2);
-assert(height(result.SweepSummary) == 2);
+parsedC = parse_sweep_creep_log(fileC);
+assert(parsedC.Config.FineSelectionRule == "ALL_POINTS_LIVE_GAP_LE_ENTRY");
+assert(parsedC.Config.TracePolicy == "FIRST_INTEGRITY_FAILURE_V1");
+assert(parsedC.Points.TraceCaptured == 1);
+assert(parsedC.Points.TraceCount == 5);
+assert(parsedC.Steps.SchemaVersion == 2);
+assert(parsedC.SweepSummary.SweepPointCreepFineBaseAttempted == 1);
+assert(parsedC.SweepSummary.SweepPointCreepFineExtendedAttempted == 0);
+assert(parsedC.SweepSummary.SweepPointCreepTracePoint == 66);
+
+parsedD = parse_sweep_creep_log(fileD);
+assert(parsedD.Config.SchemaVersion == 8);
+assert(parsedD.Config.BudgetEscalationProtocol == "BASE_EXHAUSTION_TO_EXTENDED_CAP_V1");
+assert(parsedD.Config.BasePrimaryBudgetRaw == 220);
+assert(parsedD.Config.BaseHardBudgetRaw == 320);
+assert(parsedD.Points.BudgetEscalated == 1);
+assert(parsedD.Points.EscalationCorrectionRaw == 44);
+assert(parsedD.SweepSummary.SweepPointCreepBaseEscalationSucceeded == 1);
+
+result = analyze_sweep_creep_batch([fileA, fileB, fileC, fileD], ...
+    ["V5.1", "V5.3", "V5.4", "V5.5"]);
+assert(height(result.Points) == 7);
+assert(height(result.Steps) == 3);
+assert(height(result.SweepSummary) == 4);
 
 byPoint = result.ByPoint;
 assert(byPoint.Point(1) == 66);
@@ -952,11 +985,16 @@ assert(abs(point66Row.MaxAbsFinalGapRaw - 311) < 1e-9); % max(|-311|, |-100|)
 byLabel = result.ByLabel;
 v51Row = byLabel(byLabel.Label == "V5.1", :);
 v53Row = byLabel(byLabel.Label == "V5.3", :);
+v55Row = byLabel(byLabel.Label == "V5.5", :);
 assert(v51Row.NPointRows == 3);
 assert(v53Row.NPointRows == 2);
 assert(abs(v51Row.IntegrityValidRatePct - 0.0) < 1e-9); % the one sweep is INVALID
 assert(v53Row.TotalRecoveryRecrossed == 1);
 assert(v53Row.TotalStickSlipJump == 1);
+assert(v55Row.TotalBaseEscalationAttempted == 1);
+assert(v55Row.TotalBaseEscalationSucceeded == 1);
+assert(v55Row.TotalBaseEscalationFailed == 0);
+assert(abs(v55Row.BaseEscalationSuccessRatePct - 100.0) < 1e-9);
 end
 
 function file = write_temp_log(lines)

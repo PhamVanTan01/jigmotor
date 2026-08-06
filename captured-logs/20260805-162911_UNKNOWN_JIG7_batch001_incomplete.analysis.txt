@@ -1,0 +1,58 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt
+TerminalStatus=INCOMPLETE
+OfficialValid=1/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  WARN: D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt: sweep TestID=3 SweepID=3 has no END record (truncated log?) -- treated as not officially valid
+  WARN: D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt: sweep TestID=4 SweepID=4 has no END record (truncated log?) -- treated as not officially valid
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.1116 RawP2P=0.6666 System_INL=0.3333 RobustP2P=0.5669 Closure=-0.07758 TrackRMS=0.1182 TrackMax=0.4724
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG7 TestID=2 SweepID=2 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt
+      RMS_AC=0.0962 RawP2P=0.5720 System_INL=0.2860 RobustP2P=0.5105 Closure=-0.07632 TrackRMS=0.1018 TrackMax=0.4449
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=3 SweepID=3 RunOrder=2 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt
+      - no END record (truncated capture?)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      - 32 of 360 analysis points missing (indices [309, 310, 311, 312, 313, 314, 315, 316, 317, 318]...)
+      RMS_AC=0.1053 RawP2P=0.9312 System_INL=0.4656 RobustP2P=0.6231 Closure=-0.06653 TrackRMS=0.1078 TrackMax=0.6207
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=4 SweepID=4 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-162911_UNKNOWN_JIG7_batch001_incomplete.txt
+      - no END record (truncated capture?)
+      - 31 of 360 analysis points missing (indices [278, 279, 280, 281, 282, 283, 284, 285, 286, 287]...)
+      RMS_AC=0.1003 RawP2P=0.6053 System_INL=0.3026 RobustP2P=0.5132 Closure=-0.09012 TrackRMS=0.1047 TrackMax=0.4779
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG7  (runs total=4, statistically eligible=1)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=3 SweepID=3 RunOrder=2: no END record (truncated capture?); META.EligibleForStatistics=0 (excluded from official statistics); 32 of 360 analysis points missing (indices [309, 310, 311, 312, 313, 314, 315, 316, 317, 318]...)
+      - TestID=4 SweepID=4 RunOrder=3: no END record (truncated capture?); 31 of 360 analysis points missing (indices [278, 279, 280, 281, 282, 283, 284, 285, 286, 287]...)
+    rms_ac: mean=0.0962 sd=0.0000 cv=0.00%
+    raw_p2p: mean=0.5720 sd=0.0000 cv=0.00%
+    system_inl_deg: mean=0.2860 sd=0.0000 cv=0.00%
+    robust_p2p: mean=0.5105 sd=0.0000 cv=0.00%
+    closure_error_deg: mean=-0.0763 sd=0.0000 cv=0.00%
+    tracking_rms_deg: mean=0.1018 sd=0.0000 cv=0.00%
+    tracking_max_abs_deg: mean=0.4449 sd=0.0000 cv=0.00%
+    mean_dc: mean=-0.0264 sd=0.0000 cv=0.00%
+    p99_abs_deviation: mean=0.3329 sd=0.0000 cv=0.00%
+    A1: mean=0.0203 sd=0.0000 cv=0.00%
+    A2: mean=0.0022 sd=0.0000 cv=0.00%
+    A9: mean=0.0223 sd=0.0000 cv=0.00%
+    A36: mean=0.1000 sd=0.0000 cv=0.00%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================
