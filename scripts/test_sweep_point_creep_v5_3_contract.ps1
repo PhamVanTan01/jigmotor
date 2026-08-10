@@ -35,8 +35,10 @@ $profiled = [regex]::Match($source,
     '(?s)static MA600_Result_t CreepToUnwrappedTargetProfiled\(.*?\n\}\s*\n\s*/\* Compatibility wrapper').Value
 Assert-True (-not [string]::IsNullOrWhiteSpace($profiled)) `
     'Could not locate the V5.3 profiled creep engine.'
-Assert-True ($profiled -match 'finePhase = true;\s*diag->fineLandingAttempted = true;' -and
-        $profiled -match 'uint32_t activeStepRaw = finePhase \? fineLanding->fineStepRaw : stepRaw;' -and
+Assert-True (($profiled -match 'finePhase = true;\s*diag->fineLandingAttempted = true;' -or
+            $profiled -match 'landingPhase = NL_CREEP_LANDING_PHASE_FINE;\s*diag->fineLandingAttempted = true;') -and
+        ($profiled -match 'uint32_t activeStepRaw = finePhase \? fineLanding->fineStepRaw : stepRaw;' -or
+            $profiled -match 'landingPhase == NL_CREEP_LANDING_PHASE_FINE') -and
         $profiled -match 'observedDeltaRaw = anchor - anchorBeforeStep;' -and
         $profiled -match 'diag->result = NL_CREEP_STICK_SLIP_JUMP;\s*break;') `
     'V5.3 fine latch, live observed-delta calculation, or jump stop is missing.'

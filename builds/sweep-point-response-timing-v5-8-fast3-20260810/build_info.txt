@@ -1,0 +1,58 @@
+Build: sweep-point-response-timing-v5-8-fast3-20260810
+Date: 2026-08-10
+Source branch: codex/motion-control-v2-dma
+Base commit: abdb6dd (worktree contains V5.8 response-timing changes)
+MCU: STM32F405RGTx
+
+Purpose
+-------
+Diagnostic-only build to measure the complete per-point motor response path:
+ramp, initial settle, creep feedback, command-to-stop, reached-only
+command-to-deadband, legacy 64-sample capture, shadow 64-sample capture, and
+command-to-data-frozen latency.
+
+Motion configuration
+--------------------
+- V5.5 dynamic BASE escalation: ON and unchanged.
+- V5.4 universal live-gap fine landing: ON and unchanged.
+- V5.6 three-stage response experiment: OFF.
+- V5.7 passive hard-cap hold: OFF.
+- V5.8 DWT point response timing: ON.
+- Sweep-point creep: full power 1.0, deadband +/-16 raw.
+- Test schedule: 1 PRECONDITION + 3 OFFICIAL cycles (FAST3).
+
+Timing contract
+---------------
+- Clock source: DWT->CYCCNT; ClockHz is logged on every timing row.
+- No extra MA600 acquisition, motor command, wait, or UART write occurs in
+  the motor-on path. Only DWT reads and CCM stores are added.
+- SWEEP_POINT_TIMING is emitted once for every captured point.
+- TimeToDeadbandCycles is numeric only for OK/OK_RECOVERED; a point stopped
+  outside deadband reports NA and retains CommandToStopCycles as stop latency.
+- Command/response evidence is self-contained: nominal target/step, initial
+  and final gap, creep iterations/correction command, settle poll count.
+- SWEEP_POINT_TIMING_END declares expected/emitted/valid/reached counts.
+
+Statistical status
+------------------
+Every run from this build has EligibleForStatistics=0. It is a dynamics
+characterization build, not a production NL qualification build. NL/A36 may
+only be compared against matched V5.5 as an instrumentation-regression check.
+
+Recommended first test
+----------------------
+- Use P08 on JIG8, matching the V5.7 dataset.
+- Run the full FAST3 batch (1 PRECONDITION + 3 OFFICIAL).
+- Save the full UART log with the app. It automatically creates:
+  *.analysis.txt, *.metrics.csv, *.analysis.json, and *.response.csv.
+- The app reports DIAGNOSTIC PASS/FAIL separately; EligibleForStatistics=0
+  is expected and is not mislabeled as a measurement failure.
+- Repeat once after remount to test timing signature repeatability.
+
+Build verification
+------------------
+- Release compile: PASS.
+- ARM size: text=92500, data=96, bss=177584 bytes.
+- CCMRAM: 0xC2A0 = 49,824 / 65,536 bytes; 15,712 bytes free.
+- V5.8 feature firmware: PASS.
+- Python response analyzer unit tests: PASS (8 tests).

@@ -16,6 +16,7 @@
 - Tự lưu log nguyên bản, không cần copy/paste từ cửa sổ monitor.
 - Hỏi tên file sau mỗi batch; Cancel vẫn lưu an toàn bằng tên tự động.
 - Tự chạy `analyze_motor_logs.py`, tái tính kết quả từ các dòng `DATA` và xuất TXT/CSV/JSON.
+- Với firmware V5.8-TIME-DIAG, tự xuất thêm `<tên-log>.response.csv` và chèn thống kê command-to-deadband/stop-latency vào `<tên-log>.analysis.txt`.
 - Lưu log với trạng thái `incomplete` nếu monitor bị đóng khi batch chưa hoàn tất.
 
 ## Kết nối STM32F405
@@ -144,3 +145,26 @@ dist\STM32_UART_Flasher.exe
 - Không dùng với firmware cần giữ lại bootloader hoặc dữ liệu riêng trong một vùng Flash khác, trừ khi đã sửa quy trình erase.
 - Readout Protection hoặc Write Protection có thể làm lệnh đọc, ghi hoặc xóa bị NACK.
 - Không ngắt nguồn khi đang erase hoặc write.
+
+## Thay đổi v1.10 — chống mất DATA khi UART tải cao
+
+Từ v1.10, luồng đọc UART không còn chờ Tkinter cập nhật textbox hoặc vẽ từng
+điểm. Byte nhận được được đưa ngay vào `BatchLogRecorder`; giao diện chỉ nhận
+các burst đã gom qua một queue và vẽ một lần cho cả nhóm điểm. App đồng thời:
+
+- yêu cầu RX buffer 1 MiB trên driver hỗ trợ `set_buffer_size`;
+- đọc tối đa 64 KiB mỗi lượt thay vì phụ thuộc vào callback giao diện;
+- giữ nguyên byte stream qua các chunk UTF-8 bị cắt giữa ký tự;
+- lưu cả capture đã hoàn thành nhưng còn nằm trong queue khi đóng app;
+- kiểm tra đủ `META`, `END`, toàn bộ index `DATA`, closure, số OFFICIAL khai
+  báo và lỗi giải mã trước khi cho phép verdict `PASS`.
+
+Nếu mất một hoặc nhiều dòng `DATA`, batch bây giờ được báo rõ là:
+
+```text
+AUTO ANALYSIS: CAPTURE INVALID | ...
+```
+
+`CAPTURE INVALID` là lỗi tính toàn vẹn file nhận được, không phải motor FAIL.
+Không dùng batch đó để kết luận NL; giữ nguyên firmware/mounting và chạy lại
+sau khi kiểm tra cáp USB-UART, baudrate và tình trạng COM.

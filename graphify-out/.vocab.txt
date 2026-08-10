@@ -9,6 +9,7 @@ ack
 acknowledge
 acquire
 acquisition
+across
 action
 activation
 active
@@ -46,10 +47,12 @@ and
 ang
 angle
 angles
+answer
 any
 apb
 api
 app
+append
 appendix
 application
 apply
@@ -102,10 +105,12 @@ ban
 bands
 bandwidth
 bank
+bao
 base
 baseline
 basepri
 batch
+batches
 baud
 baudrate
 before
@@ -161,6 +166,7 @@ cache
 caches
 cal
 calc
+calculation
 calib
 calibration
 call
@@ -172,9 +178,12 @@ cancel
 cancelled
 cancels
 canonical
+cao
+cap
 capacity
 capture
 captured
+captures
 case
 catch
 cause
@@ -233,6 +242,7 @@ clz
 cmd
 cmpcr
 cmsis
+coalesce
 coarse
 code
 codex
@@ -276,6 +286,7 @@ conditioned
 conf
 config
 configuration
+configure
 configured
 confirm
 confirmation
@@ -368,6 +379,7 @@ def
 default
 defaults
 defects
+defer
 deferred
 definition
 definitions
@@ -385,6 +397,7 @@ dense
 dependency
 deprecated
 depth
+derive
 derived
 describe
 deselect
@@ -435,6 +448,7 @@ divr
 dma
 dmb
 dme
+doc
 docs
 does
 domain
@@ -443,6 +457,7 @@ done
 double
 down
 drag
+drain
 drift
 drive
 driver
@@ -467,6 +482,7 @@ electrical
 elf
 eligibility
 eligible
+else
 empty
 enable
 enabled
@@ -486,6 +502,7 @@ eocs
 equal
 equals
 equation
+equilibrium
 equivalence
 equivalent
 erase
@@ -543,6 +560,7 @@ failure
 falkor
 falkordb
 falling
+family
 fast
 fault
 faultmask
@@ -658,10 +676,12 @@ handler
 handles
 handoff
 hard
+hardcap
 hardware
 harmonic
 harmonics
 has
+hay
 hclk
 hdlc
 header
@@ -695,6 +715,7 @@ identical
 identity
 idle
 image
+immediately
 implement
 implementation
 implemented
@@ -746,6 +767,7 @@ interrupted
 interval
 into
 ints
+invalid
 invalidate
 invariants
 invoke
@@ -978,6 +1000,7 @@ nhau
 nhi
 nmi
 node
+nodes
 noise
 non
 nonlinear
@@ -1076,6 +1099,7 @@ pend
 pended
 pending
 per
+percentile
 performance
 performed
 period
@@ -1190,6 +1214,7 @@ psplim
 psr
 pull
 pulse
+pump
 pure
 purpose
 push
@@ -1268,6 +1293,7 @@ registry
 regression
 regul
 regulator
+reject
 rejects
 rel
 relationships
@@ -1291,6 +1317,7 @@ repetition
 replay
 repo
 report
+reported
 reporter
 reporting
 repos
@@ -1320,6 +1347,7 @@ retry
 return
 returns
 rev
+reverify
 reversal
 revert
 revid
@@ -1341,6 +1369,7 @@ root
 rootcause
 ror
 rotating
+rotor
 round
 rounding
 routine
@@ -1413,6 +1442,7 @@ send
 sending
 sensor
 sensoronly
+separates
 separation
 seq
 sequence
@@ -1443,6 +1473,7 @@ show
 shown
 shsax
 shsub
+shutdown
 signature
 signatures
 signed
@@ -1557,6 +1588,7 @@ suggested
 summarize
 summary
 sung
+supports
 suppress
 suspend
 suspended
@@ -1565,6 +1597,7 @@ svc
 svg
 swap
 swapping
+swee
 sweep
 sweeps
 swi
@@ -1657,6 +1690,7 @@ transport
 traversal
 tree
 trend
+treo
 trg
 tri
 trig
@@ -1665,7 +1699,9 @@ trim
 trimming
 trong
 true
+trung
 truy
+tuc
 tuning
 turn
 tuy
@@ -1721,6 +1757,7 @@ uxtb
 vai
 val
 valid
+validat
 validate
 validation
 validity
@@ -1735,12 +1772,14 @@ vault
 vector
 verdict
 verification
+verify
 version
 versioning
 vfp
 video
 void
 voltage
+volume
 vos
 wait
 waiting

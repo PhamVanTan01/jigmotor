@@ -27,7 +27,9 @@ or send GO before reopening the application monitor at 8N1.
 
 from __future__ import annotations
 
+import codecs
 import os
+import queue
 import struct
 import sys
 import threading
@@ -62,13 +64,17 @@ except ImportError:  # handled when an ELF file is selected
 
 
 APP_NAME = "STM32 UART Flasher"
-APP_VERSION = "1.9.1"
+APP_VERSION = "1.10.0"
 DEFAULT_FLASH_ADDRESS = 0x08000000
 DEFAULT_APPLICATION_BAUD = 921600
 DEFAULT_WRITE_BLOCK_SIZE = 128
 DEFAULT_WRITE_RETRIES = 10
 DEFAULT_INTER_FRAME_DELAY = 0.008
 MIN_ADAPTIVE_BLOCK_SIZE = 32
+APPLICATION_RX_BUFFER_BYTES = 1024 * 1024
+APPLICATION_READ_CHUNK_BYTES = 64 * 1024
+SERIAL_UI_PUMP_INTERVAL_MS = 40
+SERIAL_UI_MAX_BYTES_PER_PUMP = 512 * 1024
 
 
 def default_log_directory() -> Path:
@@ -724,7 +730,17 @@ class LiveNlPlot(ttk.Frame):
         self._redraw()
 
     def add_point(self, index: int, error_deg: float) -> None:
-        self._points.append((index, error_deg))
+        self.add_points([(index, error_deg)])
+
+    def add_points(self, points: list[tuple[int, float]]) -> None:
+        """Append a UART burst and redraw once, not once per DATA record."""
+        if not points:
+            return
+        for index, error_deg in points:
+            if index == 0:
+                self._points = []
+            self._points.append((index, error_deg))
+        index, error_deg = points[-1]
         self.title_var.set(
             f"Điểm {index + 1}/{self._N_POINTS}  ·  ErrorDeg={error_deg:+.3f}°"
         )
@@ -811,6 +827,13 @@ class FlasherApp(tk.Tk):
         self.app_monitor_thread: Optional[threading.Thread] = None
         self.log_recorder = BatchLogRecorder()
         self._plot_pending = ""  # separate line buffer feeding LiveNlPlot only
+        # Never make the high-rate UART reader wait for Tk. At 921600 baud,
+        # one Tk callback and one canvas redraw per chunk/point can starve the
+        # reader long enough to overflow the Windows COM receive buffer.
+        self._serial_ui_queue: queue.SimpleQueue[tuple[int, str, object]] = queue.SimpleQueue()
+        self._serial_ui_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._serial_ui_epoch = 0
+        self._closing = False
 
         self.cancel_event = threading.Event()
         self.worker: Optional[threading.Thread] = None
@@ -839,6 +862,7 @@ class FlasherApp(tk.Tk):
         self._build_ui()
         self.refresh_ports()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.after(SERIAL_UI_PUMP_INTERVAL_MS, self._drain_serial_ui_queue)
 
     def _build_ui(self) -> None:
         root = ttk.Frame(self, padding=12)
@@ -1059,27 +1083,75 @@ class FlasherApp(tk.Tk):
 
         self.after(0, append)
 
-    def log_serial_data(self, data: bytes) -> None:
-        text = data.decode("utf-8", errors="replace")
+    def log_serial_data(self, data: bytes, epoch: Optional[int] = None) -> None:
+        """Capture UART bytes immediately; defer all Tk work to one UI pump."""
+        if epoch is None:
+            epoch = self._serial_ui_epoch
         completed_captures = self.log_recorder.feed(data)
+        self._serial_ui_queue.put((epoch, "data", data))
+        for capture in completed_captures:
+            self._serial_ui_queue.put((epoch, "capture", capture))
 
-        def append() -> None:
+    def _drain_serial_ui_queue(self) -> None:
+        """Coalesce UART text, plot points, and completed batches on Tk's thread."""
+        if self._closing:
+            return
+        text_chunks: list[str] = []
+        captures: list[CompletedCapture] = []
+        byte_count = 0
+        while byte_count < SERIAL_UI_MAX_BYTES_PER_PUMP:
+            try:
+                epoch, kind, payload = self._serial_ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            if epoch != self._serial_ui_epoch:
+                continue
+            if kind == "reset":
+                self._serial_ui_decoder = codecs.getincrementaldecoder("utf-8")(
+                    errors="replace"
+                )
+                self._plot_pending = ""
+                continue
+            if kind == "data":
+                raw = payload
+                assert isinstance(raw, bytes)
+                byte_count += len(raw)
+                text_chunks.append(self._serial_ui_decoder.decode(raw, final=False))
+            elif kind == "capture":
+                assert isinstance(payload, CompletedCapture)
+                captures.append(payload)
+
+        if text_chunks:
+            text = "".join(text_chunks)
             self.log_text.configure(state="normal")
             self.log_text.insert("end", text)
             self.log_text.see("end")
             self.log_text.configure(state="disabled")
 
-        self.after(0, append)
-        for capture in completed_captures:
-            self.after(0, self._handle_completed_capture, capture)
+            self._plot_pending += text
+            plot_points: list[tuple[int, float]] = []
+            while "\n" in self._plot_pending:
+                raw_line, self._plot_pending = self._plot_pending.split("\n", 1)
+                point = self._parse_plot_line(raw_line.rstrip("\r"))
+                if point is not None:
+                    plot_points.append(point)
+            self.error_plot.add_points(plot_points)
 
-        # Separate line buffer for the live plot -- independent of log_recorder's
-        # own internal buffering (BatchLogRecorder in auto_log_analysis.py), which
-        # only exposes whole-capture boundaries, not a per-line hook.
-        self._plot_pending += text
-        while "\n" in self._plot_pending:
-            raw_line, self._plot_pending = self._plot_pending.split("\n", 1)
-            self._feed_plot_line(raw_line.rstrip("\r"))
+        for capture in captures:
+            self._handle_completed_capture(capture)
+        self.after(SERIAL_UI_PUMP_INTERVAL_MS, self._drain_serial_ui_queue)
+
+    @staticmethod
+    def _parse_plot_line(line: str) -> Optional[tuple[int, float]]:
+        if not line.startswith("DATA,"):
+            return None
+        parts = line.split(",")
+        if len(parts) != 12:
+            return None
+        try:
+            return int(parts[7]), float(parts[11])
+        except ValueError:
+            return None
 
     def _feed_plot_line(self, line: str) -> None:
         """Parse one DATA,... line and push it to the live NL chart.
@@ -1088,19 +1160,9 @@ class FlasherApp(tk.Tk):
         DATA convention): index 7=Index, 11=ErrorDeg (0-based here).
         Example: DATA,5,1,1,JIG1,p03,CW,0,5959,5963,32.75574,-0.00797
         """
-        if not line.startswith("DATA,"):
-            return
-        parts = line.split(",")
-        if len(parts) != 12:
-            return
-        try:
-            index = int(parts[7])
-            error_deg = float(parts[11])
-        except ValueError:
-            return
-        if index == 0:
-            self.after(0, self.error_plot.reset)
-        self.after(0, self.error_plot.add_point, index, error_deg)
+        point = self._parse_plot_line(line)
+        if point is not None:
+            self.error_plot.add_points([point])
 
     def _handle_completed_capture(self, capture: CompletedCapture) -> None:
         """Snapshot Tk options, then save/analyze without blocking the GUI."""
@@ -1164,9 +1226,26 @@ class FlasherApp(tk.Tk):
         # not lost if the operator closes the window immediately afterward.
         threading.Thread(target=task, daemon=False).start()
 
-    def _flush_active_log_capture(self) -> None:
+    def _flush_active_log_capture(self, epoch: Optional[int] = None) -> None:
+        if epoch is None:
+            epoch = self._serial_ui_epoch
         for capture in self.log_recorder.flush_incomplete():
-            self.after(0, self._handle_completed_capture, capture)
+            self._serial_ui_queue.put((epoch, "capture", capture))
+
+    def _take_pending_captures_for_shutdown(self) -> list[CompletedCapture]:
+        captures: list[CompletedCapture] = []
+        while True:
+            try:
+                epoch, kind, payload = self._serial_ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            if (
+                epoch == self._serial_ui_epoch
+                and kind == "capture"
+                and isinstance(payload, CompletedCapture)
+            ):
+                captures.append(payload)
+        return captures
 
     def set_status(self, status: str) -> None:
         self.after(0, self.status_var.set, status)
@@ -1295,6 +1374,20 @@ class FlasherApp(tk.Tk):
         port.rts = False
         port.open()
         return port
+
+    @staticmethod
+    def _configure_application_rx_buffer(port: serial.Serial) -> bool:
+        """Request a large driver RX buffer when the platform supports it."""
+        try:
+            port.set_buffer_size(
+                rx_size=APPLICATION_RX_BUFFER_BYTES,
+                tx_size=64 * 1024,
+            )
+            return True
+        except (AttributeError, NotImplementedError, serial.SerialException, OSError):
+            # pyserial exposes set_buffer_size only on selected backends. The
+            # queue-based reader still works when the driver ignores this hint.
+            return False
 
     @staticmethod
     def _open_serial_legacy_v1_reset(
@@ -1549,7 +1642,9 @@ class FlasherApp(tk.Tk):
     def _open_application_monitor(self, port_name: str, baudrate: int) -> None:
         self.app_monitor_stop_event.clear()
         self.log_recorder.reset_session()
-        self._plot_pending = ""
+        self._serial_ui_epoch += 1
+        monitor_epoch = self._serial_ui_epoch
+        self._serial_ui_queue.put((monitor_epoch, "reset", b""))
         last_error: Optional[Exception] = None
         app_port: Optional[serial.Serial] = None
 
@@ -1578,7 +1673,13 @@ class FlasherApp(tk.Tk):
                 f"Chi tiết: {last_error}"
             )
 
+        large_rx_buffer = self._configure_application_rx_buffer(app_port)
         self.app_serial = app_port
+        self.log(
+            "UART RX buffer: "
+            + (f"requested {APPLICATION_RX_BUFFER_BYTES} bytes."
+               if large_rx_buffer else "driver default (large-buffer request unsupported).")
+        )
         self.log(f"Đã mở UART APP {port_name} tại {baudrate} baud, 8N1.")
         self.set_status(f"APP ĐANG CHẠY — UART {baudrate} 8N1")
         self.after(0, self._update_button_states)
@@ -1589,9 +1690,11 @@ class FlasherApp(tk.Tk):
                 while not self.app_monitor_stop_event.is_set():
                     if not local_port.is_open:
                         break
-                    data = local_port.read(local_port.in_waiting or 1)
+                    waiting = local_port.in_waiting
+                    read_size = min(max(waiting, 1), APPLICATION_READ_CHUNK_BYTES)
+                    data = local_port.read(read_size)
                     if data:
-                        self.log_serial_data(data)
+                        self.log_serial_data(data, monitor_epoch)
                     else:
                         time.sleep(0.001)
             except (serial.SerialException, OSError) as exc:
@@ -1599,7 +1702,7 @@ class FlasherApp(tk.Tk):
                     self.log(f"UART APP bị ngắt: {exc}")
                     self.set_status("UART APP đã ngắt")
             finally:
-                self._flush_active_log_capture()
+                self._flush_active_log_capture(monitor_epoch)
                 try:
                     if local_port.is_open:
                         local_port.close()
@@ -2044,10 +2147,16 @@ class FlasherApp(tk.Tk):
         self.worker.start()
 
     def on_close(self) -> None:
+        self._closing = True
         self.cancel_event.set()
-        # Preserve an interrupted batch synchronously. A callback queued with
-        # ``after`` would be discarded as soon as Tk is destroyed.
-        captures = self.log_recorder.flush_incomplete()
+        # Stop the producer before draining the queue. A completed capture may
+        # already be queued but not yet handled by Tk; preserve that case as
+        # well as an interrupted active batch.
+        self._close_app_serial_safely()
+        monitor_thread = self.app_monitor_thread
+        if monitor_thread is not None and monitor_thread.is_alive():
+            monitor_thread.join(timeout=0.5)
+        captures = self._take_pending_captures_for_shutdown()
         if self.auto_save_log_var.get():
             directory_text = self.log_directory_var.get().strip()
             output_dir = Path(directory_text or str(default_log_directory())).expanduser()
@@ -2057,7 +2166,6 @@ class FlasherApp(tk.Tk):
                 except Exception:
                     # Shutdown must continue even if the chosen drive vanished.
                     pass
-        self._close_app_serial_safely()
         self._close_bootloader_safely()
         self.destroy()
 

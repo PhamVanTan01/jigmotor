@@ -1,0 +1,79 @@
+SavedAtLocal=2026-08-10T09:40:43+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=abdb6dd4d95a8bae831ea1dc48102d5d825d3e8b
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-6-three-stage-response-fast3-20260810
+BuildMethod=Release object compiled with explicit V5.4/V5.5/V5.6 + FAST3
+    command-line defines while checked-in source remained default-off.
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepV53Point66FineLandingEnabled=0
+SweepCreepV54UniversalFineLandingEnabled=1
+SweepCreepV54aFineFailureTraceEnabled=0
+SweepCreepV55DynamicBaseEscalationEnabled=1
+SweepCreepV56ThreeStageLandingEnabled=1
+
+SweepCreepProtocol=ADAPTIVE_BASE_TO_EXTENDED_THREE_STAGE_LANDING_V3
+BudgetEscalationProtocol=BASE_EXHAUSTION_TO_EXTENDED_CAP_V1
+LandingProtocol=LIVE_GAP_MONOTONIC_16_8_4_DIAG_V1
+StepSelectionRule=COARSE_GT96_MID_GT64_FINE_LE64
+ResponsePolicy=MEASURE_ONLY_NO_RUNTIME_ADAPTATION_V1
+RecoveryProtocol=MONOTONIC_PHASE_SINGLE_REVERSAL_V2
+TracePolicy=FIRST_HARD_CAP_BUDGET_OR_INTEGRITY_FAILURE_V1
+
+MotionChange=Monotonic live-gap landing uses COARSE 16 raw above 96 raw,
+    MID 8 raw from 96 down to above 64 raw, and FINE 4 raw at or below
+    64 raw. Deadband remains +/-16 raw. A point may skip COARSE or MID.
+
+LockedMotion=BASE primary 220 raw, BASE/EXTENDED hard cap 320 raw,
+    ordinary guard 81, power 1.0, jump guard 96 raw, recovery 64 raw / 17
+    iterations, one reversal, ramp/settle/acquisition cadence unchanged.
+
+Safety=MID and FINE classify abs(settled observed delta)>96 raw as
+    STICK_SLIP_JUMP before crossing/recovery. Recovery keeps the phase that
+    was latched at the first crossing; it never grows the command step.
+
+ResponseTelemetry=Measure-only. SWEEP_CREEP_RESPONSE schema 1 reports
+    signed directed response, command raw, iteration, zero/opposite/large
+    counts for COARSE/MID/FINE and recovery. COARSE-tail is exactly the last
+    three COARSE commands before MID (or all commands when fewer than three).
+
+PointTelemetry=SWEEP_CREEP_CONFIG/POINT schema 9 and STEP schema 3.
+    Every creep-run point 1..370 is emitted, including BASE-OK points.
+    END reports expected/emitted POINT and STEP counts. One 100-entry trace
+    buffer remains O(1) and locks only the first hard-cap/integrity failure.
+
+SchemaResourceDecision=Phase response is a separate bounded record instead
+    of being appended to END. A single expanded END exceeded the 1900-byte
+    logger and a static 4096-byte buffer overflowed RAM. The final 2600-byte
+    candidate logger keeps END below a conservative 2155-byte bound and the
+    response record below 1060 bytes while retaining stack/RAM margin.
+
+B0BIsolation=Both B0-B approach-creep legs retain the compatibility wrapper
+    with fine profile NULL. B0-B motion parameters and behavior are unchanged.
+
+Verification=V5.6 dedicated contract passes. All 33 PowerShell tests
+    applicable to FAST3 pass; the default-only 10-official assertion is
+    intentionally skipped. Direct ARM compile matrix passes default, V5.3,
+    V5.4, V5.4a, V5.5 and V5.6. Release feature ELF links and HEX is generated.
+    MATLAB runtime was not installed on this build host; the schema-9/response
+    synthetic regression was added and is covered structurally by the contract.
+
+Memory=Release text 92772 bytes, data 96 bytes, bss 169336 bytes.
+
+StackAudit=Compiler .su deepest relevant static chain is 8640 bytes:
+    NonlinearEngine_Task 64 + RunBatchSweep 72 + NonlinearTest_Run 1704 +
+    PrintSweepLog 4184 + LogLineLarge 2616. TestTask stack is 12288 bytes,
+    leaving 3648 bytes (912 words) static margin before interrupts/context.
+
+HardwarePilot=Flash P03/JIG7 first with no remount during the FAST3 batch.
+    Then run P03/JIG8 and P09/JIG8 non-regression as locked in the plan.
+    P02 is exploratory and must not promote/reject this isolated-point branch.
+
+WorkingTreeAfterPackaging=Source defaults restored to all V5.x flags off and
+    the normal 10-official-run batch. This artifact retains V5.4/V5.5/V5.6
+    plus FAST3 enabled.

@@ -58,6 +58,10 @@ try {
         'Firmware UID registry is missing the JIG7 profile (new control board, 2026-07-28; registered from a single real CONFIG read, matching JIG1-6 -- needs re-verification across more reads before full trust).'
     Assert-True ($analyzerSource -match "004600323235511835383831'\s*=\s*'JIG7'") `
         'Host UID registry is missing JIG7.'
+    Assert-True ($source -match '(?s)0x003E0032,\s*0x32355118,\s*0x35383831,\s*"JIG8".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the JIG8 placeholder profile (new control board, 2026-08-04; PLACEHOLDER from BOOT_SMOKE-only reads so far, matching JIG1-7 -- needs re-verification against a real post-assembly read).'
+    Assert-True ($analyzerSource -match "003E00323235511835383831'\s*=\s*'JIG8'") `
+        'Host UID registry is missing JIG8.'
 
     & (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1') -Path @(
         $fixture, $fixtureV2, $fixtureLegacyAlias) -OutCsv $csv | Out-Null

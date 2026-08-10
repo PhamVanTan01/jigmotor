@@ -1,8 +1,9 @@
 # V5.6 — three-stage 16→8→4 response-qualified landing
 
-Date: 2026-08-06
+Date: 2026-08-06; implementation verified 2026-08-10; hardware pilot + REJECT decision 2026-08-10
 
-Status: PLAN AUDITED / READY FOR IMPLEMENTATION — NOT CODED
+Status: **V5.6a REJECTED trên phần cứng thật (H1 không được xác nhận, MID-8 kém hơn COARSE-tail ~200‰
+cả 2 remount) — đã quay lại V5.5**. Xem mục 17.
 
 ## 1. Quyết định
 
@@ -81,15 +82,56 @@ failure”:
 | P03/JIG8 | 88.76% | point 347 fail 4/4; 187 fail 3/4; 107 fail 2/4 | 0.221163°, CV 1.16% | kiểm tra tổng quát cross-jig |
 | P09/JIG8 | 100% | 0 hard-cap/crossing/recovery/jump ở 4/4 cycle | 0.218865°, CV 0.17% | non-regression control |
 | P02/JIG7 | BASE success cao nhưng 93–116 point EXTENDED/sweep | không cùng kiểu 2–3 endpoint cô lập | 0.8119°, CV 17.95% | exploratory/product-characteristic |
+| P08/JIG8 | BASE 100% (4/4 sweep) | point 308 fail 4/4; point 148 fail 1/4 | 0.2275°, CV 1.47% | corroboration thêm cho A2 (khác motor với P03 — xem lưu ý dưới) |
 
-Kết luận dùng cho thiết kế thực nghiệm:
+**Lưu ý phương pháp — không so point-index qua khác motor**: point 308 (P08/JIG8) và point 347
+(P03/JIG8) KHÔNG được dùng để kết luận "cùng hay khác vùng vật lý", vì P08 và P03 là hai motor khác
+nhau. Muốn khẳng định hai point-index khác nhau đại diện cùng một vùng vật lý (hoặc khác), điều kiện
+tối thiểu là: (1) cùng một motor, (2) circular-align toàn bộ curve hoặc có witness-mark/datum cơ khí
+chung, (3) sau alignment mới so sánh fail sector và cực trị NL. Kết luận hợp lệ duy nhất rút ra được
+từ P08/JIG8 là: tổ hợp này CÓ family hard-cap riêng của nó (point 308) — không suy rộng thêm.
+
+**Khung đánh giá "thuật toán" — tách 3 trục độc lập** (không gộp chung thành "có vấn đề hay không"):
+
+- **Stability** (kết quả có đổi ngẫu nhiên giữa các sweep cùng 1 tổ hợp không?) — hiện tại **ổn định**,
+  bằng chứng deterministic rõ: final gap gần như giống hệt nhau qua các sweep tại đúng 1 điểm —
+  `P03/JIG8 point 347: -26/-25/-19/-22 raw`
+  ([log](D:/tanpham/QAtoool/jigtest/motor/jigmotor/captured-logs/S2-P03-JIG8-remount02-test-1-v5-5.txt:2192)),
+  `P08/JIG8 point 308: -30/-29/-27/-26 raw`
+  ([log](D:/tanpham/QAtoool/jigtest/motor/jigmotor/captured-logs/S2-P08-JIG8-remount01-test-1-v5-5.txt:2163)),
+  `P03/JIG7 point 8/28: fail 3/3 và 4/4 official`
+  ([log](D:/tanpham/QAtoool/jigtest/motor/jigmotor/captured-logs/S2-P03-JIG7-remount02-test-1-v5-5.txt:1879))
+  — loại trừ mạnh giả thuyết nhiễu ngẫu nhiên.
+- **Correctness** (state/budget/gap có tính đúng không?) — chưa có bằng chứng bug.
+- **Effectiveness/robustness** (thuật toán có đưa MỌI điểm dự kiến vào deadband không?) — **chưa đạt**
+  ở một số vùng tải/góc có tính hệ thống (đúng những điểm liệt kê ở trên).
+
+Nguyên nhân vật lý (cogging/ma sát theo góc) và giới hạn hiệu quả thuật toán **không loại trừ nhau**:
+plant có đặc tính vật lý đó là nguyên nhân gốc, còn controller (budget/step cố định) chưa đủ hiệu quả
+để thắng nó tại đúng những vùng đó là giới hạn robustness — cả hai đều đúng cùng lúc.
+
+**Kết luận dùng cho thiết kế thực nghiệm** (điều chỉnh theo khung 3 trục ở trên):
 
 - point 8/28/66 là marker chẩn đoán riêng của P03/JIG7, không phải whitelist hay gate phổ quát;
 - P03/JIG8 chứng minh hard-cap family thay đổi theo tổ hợp motor×jig, nên cần gate theo tỷ lệ thành công và
   số family lặp lại thay vì ép mọi jig phải lỗi tại cùng góc;
+- P08/JIG8 xác nhận tổ hợp của nó cũng có family hard-cap riêng (point 308) — không dùng để so sánh vùng
+  vật lý với P03 (khác motor, chưa alignment);
 - P09/JIG8 là control sạch để phát hiện thuật toán mới tự tạo dao động;
 - P02 không được dùng để promote/reject V5.6 vì failure mode chính là vùng EXTENDED rộng, khác giả thuyết
-  “step quá thô tại một số endpoint”.
+  “step quá thô tại một số endpoint”;
+- **Đặc tả hiện trạng chính xác**: thuật toán V5.5 **ổn định (stable)** nhưng **chưa đủ robust
+  (effectiveness)** ở một số vùng tải/góc có tính hệ thống theo từng tổ hợp motor×jig. V5.6 nhắm đúng
+  trục effectiveness này, không phải sửa lỗi ổn định (vì không có lỗi ổn định để sửa).
+
+**Cách V5.6 sẽ phân xử** (khớp cây quyết định mục 13):
+
+- MID-8 đưa các điểm lặp lại vào deadband, không tạo family lỗi mới → xác nhận V5.5 trước đó thiếu
+  hiệu quả (effectiveness), V5.6 cải thiện đúng đòn bẩy;
+- MID-8 không cải thiện response/final gap → ủng hộ H3 (step size không phải đòn bẩy đúng), chuyển
+  hướng điều tra static equilibrium/ma sát/cogging thay vì tiếp tục chỉnh step;
+- fail point bắt đầu đổi ngẫu nhiên giữa sweep, hoặc crossing/recross tăng → lúc đó mới kết luận V5.6
+  làm giảm Stability (khác hẳn effectiveness), phải reject và quay lại V5.5.
 
 ## 3. Giả thuyết cần kiểm định
 
@@ -97,6 +139,27 @@ Kết luận dùng cho thiết kế thực nghiệm:
 
 Trong vùng 64–96 raw, step 8 tạo response có hướng tốt hơn step 16 và giảm stored command deficit
 trước khi latch fine-4. Khi đó point 8/28 cần ít tổng command hơn để vào ±16 raw.
+
+**Confound đã biết**: MID chỉ chạy SAU khi COARSE đã ra ít nhất vài lệnh (trừ khi initial gap đã ≤96
+raw ngay từ đầu) — trạng thái cơ học lúc MID bắt đầu (backlash đã ăn hết, ma sát tĩnh đã bị phá vỡ...)
+khác trạng thái lúc COARSE bắt đầu. Vì vậy so `phaseEfficiencyPermille` của MID với COARSE **không
+phải phép so sánh step-size thuần túy**. Kiểm soát một phần bằng cách: chỉ so MID-phase efficiency với
+đoạn COARSE-phase efficiency NGAY TRƯỚC lúc latch MID (cùng vùng gap gần latch, không so với COARSE
+efficiency toàn cục từ lúc bắt đầu xa target).
+
+**Định nghĩa "COARSE-tail" (field mới, chưa tồn tại trong schema — phải thêm trước khi tính được
+ngưỡng)**: `directedObservedRaw`/`commandStepRaw` của đúng **3 lệnh COARSE cuối cùng** trước khi latch
+MID (hoặc toàn bộ lệnh COARSE nếu có dưới 3 lệnh). Thêm accumulator riêng trong `SWEEP_CREEP_POINT`
+(mục 8.1): `CoarseTailDirectedRaw`, `CoarseTailCommandRaw`, `CoarseTailCommandCount`,
+`CoarseTailOppositeSteps` — tính từ đúng dữ liệu step-trace hiện có (không cần thêm sample mới), chỉ
+cần accumulate 3 lệnh cuối trước latch thay vì toàn bộ COARSE. `phaseEfficiencyPermille(COARSE-tail) =
+1000 × CoarseTailDirectedRaw / CoarseTailCommandRaw`.
+
+**Ngưỡng quyết định H1 (khóa trước khi có dữ liệu, không suy ra sau)**: MID-8 được coi là "cải thiện"
+chỉ khi `phaseEfficiencyPermille(MID)` cao hơn `phaseEfficiencyPermille(COARSE-tail)` (định nghĩa trên)
+tối thiểu **150 permille (15 điểm phần trăm)** VÀ `OppositeResponseSteps(MID)/MidCorrectionRaw` không
+cao hơn `CoarseTailOppositeSteps/CoarseTailCommandRaw`. Dưới ngưỡng này, coi H1 KHÔNG được xác nhận
+(ngả về H3), không diễn giải theo hướng có lợi cho MID chỉ vì số dương.
 
 ### H2 — MID-8 giảm crossing/breakaway
 
@@ -280,6 +343,7 @@ Response recovery được tổng hợp riêng, không trộn vào efficiency c�
 - `SWEEP_CREEP_CONFIG`: schema 9;
 - `SWEEP_CREEP_POINT`: schema 9;
 - `SWEEP_CREEP_STEP`: schema 3 vì có phase `MID` và `RECOVERY_MID`;
+- `SWEEP_CREEP_RESPONSE`: schema 1, một record/sweep cho signed phase-response rollup;
 - parser phải tiếp tục đọc schema 5–8 và STEP schema 1–2.
 
 CONFIG thêm:
@@ -297,21 +361,30 @@ POINT thêm tối thiểu:
 - `MidIterations`;
 - `MidCorrectionRaw`;
 - `MidEntryGapRaw`;
+- `CoarseTailDirectedRaw`, `CoarseTailCommandRaw`, `CoarseTailCommandCount`, `CoarseTailOppositeSteps`
+  — accumulate đúng 3 lệnh COARSE cuối trước khi latch MID (hoặc toàn bộ nếu <3 lệnh); dùng để tính
+  ngưỡng H1 (mục 3), không cần sample mới, chỉ đổi phạm vi accumulate từ toàn bộ COARSE xuống 3 lệnh cuối;
 - giữ nguyên toàn bộ V5.5 budget/escalation/fine/recovery/result fields.
 
-END thêm rollup, tách non-recovery theo phase:
+`SWEEP_CREEP_RESPONSE` thêm rollup, tách non-recovery theo phase:
 
 - iterations, commanded correction và signed directed response của COARSE/MID/FINE;
 - zero/opposite/large-response count của từng phase;
 - MID attempted-point count;
-- expected/emitted POINT và STEP telemetry count.
+- END giữ MID attempted count và expected/emitted POINT/STEP telemetry count để record validity không bị
+  dài quá buffer; phase-response nằm trong record riêng ở trên.
 
-RAM per-point mới phải giới hạn ở bốn mảng nhỏ:
+RAM per-point cho MID dùng bốn mảng nhỏ:
 
 - `uint16_t midCorrectionRaw[NL_MAX_SWEEP_POINTS]`;
 - `int16_t midEntryGapRaw[NL_MAX_SWEEP_POINTS]`;
 - `uint8_t midIterations[NL_MAX_SWEEP_POINTS]`;
 - `uint8_t midFlags[NL_MAX_SWEEP_POINTS]`.
+
+Implementation audit phát hiện H1 đồng thời yêu cầu COARSE-tail theo từng point nhưng bốn mảng trên không thể
+lưu field đó. V5.6a vì vậy thêm đúng hai mảng compact: `int16_t coarseTailDirectedRaw[]` và một `uint8_t`
+packed count/opposite array; `CoarseTailCommandRaw=count×16` nên không cần mảng riêng. Tổng BSS feature build
+169336 byte và link thành công; không cấp trace theo point.
 
 Tổng tăng dự kiến khoảng 2232 byte với 372 slot. Directed response theo phase được cộng vào rollup của
 capture, không tạo ba mảng `int64[372]`. Step response chi tiết vẫn chỉ nằm trong một trace 100 entry.
@@ -343,11 +416,33 @@ Output bắt buộc:
 
 1. efficiency COARSE/MID/FINE theo cycle và batch;
 2. MID attempt/iteration/correction/zero/opposite response;
-3. point 8/28/66 final gap và phase trace;
-4. BASE escalation attempted/succeeded/failed;
+3. point 8/28/66 **final gap** — có điều kiện: `SWEEP_CREEP_POINT` V5.5 hiện SKIP một BASE point nếu
+   nó `OK` và không phải fine/trace point
+   (`nonlinear_test.c:6413-6419`, `creepResult==NL_CREEP_NOT_RUN || (!forceDetailedPoint &&
+   creepBudgetClass!=EXTENDED && creepResult==OK)`), nên một điểm được MID-8 sửa thành công trước FINE
+   có thể KHÔNG có `FinalGapRaw`. **V5.6 phải bỏ nhánh lọc BASE-OK này** (chỉ giữ skip khi
+   `NL_CREEP_NOT_RUN`) để mọi creep point đã chạy đều phát `SWEEP_CREEP_POINT` — tăng UART log nhưng
+   không tăng RAM (UART phát sau khi motor đã tắt, không nằm trong `CaptureSweep()`). Đây là điều kiện
+   bắt buộc trước khi coi "final gap luôn có" là đúng — thêm vào mục 6/10 (firmware contract/S1-S2).
+   **phase trace step-by-step chỉ đảm bảo có cho ĐÚNG 1 điểm/sweep**: điểm ĐẦU TIÊN theo thứ tự
+   acquisition **Point 1→370** (Point 0 là điểm capture trước ramp/creep đầu tiên, không qua creep —
+   `pointIndex` khởi tạo 0 và tăng lên trước khi ramp tới point kế tiếp,
+   `nonlinear_test.c:4965,5111-5130`) bị hard-cap/integrity failure, theo
+   `TracePolicy=FIRST_HARD_CAP_BUDGET_OR_INTEGRITY_FAILURE_V1` (mục 8.1, buffer 100-entry duy nhất/sweep
+   — quyết định thiết kế có chủ ý để giữ RAM O(1), không đổi). Không failure nào → `TracePoint=-1` và
+   `STEP expected=0` là hợp lệ, không phải thiếu dữ liệu. Có failure → STEP count phát ra phải khớp
+   đúng số trong END. Nếu 1 failure nghiêm trọng khác xảy ra SAU khi trace đã khóa ở điểm đầu tiên,
+   batch vẫn FAIL theo đúng gate, nhưng có thể cần 1 lần chạy diagnostic riêng để lấy trace của điểm
+   sau — không cần thêm buffer cho production. Không được diễn giải "thiếu trace của point 28/66 trong
+   1 sweep cụ thể" là dữ liệu thiếu/lỗi — đó là hành vi đúng thiết kế. Nếu cần trace đầy đủ cho cả 3
+   điểm cùng lúc, đó là thay đổi RAM/kiến trúc, không thuộc phạm vi V5.6a;
+4. BASE **và EXTENDED** escalation/hard-cap attempted/succeeded/failed — báo tách riêng hai lớp, không
+   gộp chung một tỷ lệ (xem gate mục 12.2/12.4 đã bổ sung);
 5. total correction và motor-active duration;
 6. Robust NL, RMS_AC, A36, closure và full-curve metrics;
-7. top-5/bottom-5 angle, centered curve correlation và RMSE;
+7. top-5/bottom-5 angle, centered curve correlation và RMSE — tính bằng đúng thuật toán circular
+   shift-search đã dùng trong dự án (`tools/analyze_nl_extreme_angles.py`,
+   `analysis/matlab/nl/compare_nl_group_curves.m`), không tự định nghĩa công thức alignment mới;
 8. telemetry completeness verdict độc lập.
 
 Không dùng proxy `MOTION.PositionErrorRaw` thay cho `SWEEP_CREEP_POINT/STEP` khi telemetry thật có sẵn.
@@ -372,7 +467,10 @@ Không dùng proxy `MOTION.PositionErrorRaw` thay cho `SWEEP_CREEP_POINT/STEP` k
 
 ### V5.6-S2 — telemetry/tool
 
-- schema 9/3 và END phase-response rollup;
+- schema 9/3, `SWEEP_CREEP_RESPONSE` schema 1 và END completeness rollup;
+- **bỏ nhánh lọc BASE-OK trong emission `SWEEP_CREEP_POINT`** (`nonlinear_test.c:6413-6419`) — chỉ giữ
+  skip khi `NL_CREEP_NOT_RUN`, để mọi creep point đã chạy (BASE lẫn EXTENDED, OK lẫn fail) đều phát
+  record, đảm bảo `FinalGapRaw` luôn đọc được cho point 8/28/66 dù chúng không phải fine/trace point;
 - bounded trace vẫn một buffer;
 - MATLAB parser/analyzer backward-compatible;
 - explicit completeness check.
@@ -383,7 +481,7 @@ Tạo `scripts/test_sweep_point_creep_v5_6_contract.ps1`, chạy full regression
 Release build và package FAST3:
 
 ```text
-builds/sweep-point-creep-v5-6-three-stage-response-fast3-20260806/
+builds/sweep-point-creep-v5-6-three-stage-response-fast3-20260810/
 ```
 
 Package gồm HEX/ELF/MAP, `build_info.txt`, `SHA256SUMS.txt`; sau đó restore source defaults.
@@ -405,9 +503,13 @@ Dedicated contract phải chứng minh:
 11. `CaptureSweep()` không gọi UART/log formatting;
 12. trace RAM vẫn O(1), capacity 100 phủ 98 iteration tối đa;
 13. schema cũ parse được và schema mới tính đúng signed phase efficiency;
-14. default, V5.3, V5.4, V5.4a, V5.5 và V5.6 đều compile;
-15. full PowerShell regression và Release build pass;
-16. stack static margin không giảm quá 256 byte nếu chưa có giải trình; runtime high-water gate giữ 768 word.
+14. `SWEEP_CREEP_POINT` phát ra cho MỌI creep point có `creepResult != NL_CREEP_NOT_RUN`, kể cả BASE
+    point `OK` không phải fine/trace point (bỏ nhánh lọc cũ ở `nonlinear_test.c:6413-6419`);
+15. `CoarseTailDirectedRaw`/`CoarseTailCommandRaw`/`CoarseTailCommandCount`/`CoarseTailOppositeSteps`
+    accumulate đúng 3 lệnh COARSE cuối trước latch MID (hoặc toàn bộ nếu <3 lệnh);
+16. default, V5.3, V5.4, V5.4a, V5.5 và V5.6 đều compile;
+17. full PowerShell regression và Release build pass;
+18. stack static margin không giảm quá 256 byte nếu chưa có giải trình; runtime high-water gate giữ 768 word.
 
 ## 12. Hardware validation
 
@@ -415,9 +517,11 @@ Dedicated contract phải chứng minh:
 
 Trước khi dùng output analyzer làm pass/fail:
 
-- thêm UID JIG8 `003E00323235511835383831` vào bảng jig hợp lệ của
-  `scripts/analyze_nonlinear_logs.ps1` và thêm contract test tương ứng; firmware đã nhận JIG8 nhưng analyzer
-  chính thức hiện còn reject log này;
+- [x] **Đã xong (06/8)**: thêm UID JIG8 `003E00323235511835383831` vào bảng jig hợp lệ của
+  `scripts/analyze_nonlinear_logs.ps1` + assertion tương ứng trong
+  `scripts/test_phase2b_shadow_contract.ps1` (theo đúng pattern JIG3-7 đã có). Verify: contract test
+  PASS, và functional test trên log thật (`S2-P08-JIG8-remount01-test-1-v5-5.txt`) parse đúng
+  JigID=JIG8/Product=P08, NLAvgMean=0.23 — khớp số tính tay trước đó (0.2275°);
 - xác nhận analyzer parse đúng protocol/schema V5.6 và không fallback sang contract 256-point;
 - tên P03/P09 trong filename hiện là operator label khi `MotorIDValid=0`; không tự động merge batch chỉ dựa
   vào field `MotorID` trong log;
@@ -436,6 +540,13 @@ Gate riêng A1, so với matched V5.5 remount02:
 - point 8, 28 và 66 đạt `abs(FinalGapRaw)<=16` ở 4/4 cycle;
 - BASE escalation success tổng ≥90%, không official run nào dưới 85%;
 - BASE hard-cap failure mean ≤6/official run;
+- **EXTENDED — hai gate độc lập, cả hai đều phải đạt** (chỉ xét success rate không đủ vì số điểm
+  EXTENDED có thể tăng mạnh trong khi tỷ lệ % giữ nguyên): baseline matched V5.5 P03/JIG7 chính xác là
+  success **74.775%** (83/111), failure mean **9.333/official run** (28/3) —
+  (1) success rate không giảm quá 5 điểm phần trăm so với 74.775%;
+  (2) failure mean tuyệt đối không tăng so với 9.333/run;
+  báo riêng, không gộp vào gate BASE ở trên (khắc phục lỗ hổng: gate cũ chỉ xét BASE, có thể để lọt
+  regression ở lớp EXTENDED);
 - không tạo hard-cap family/crossing/jump/recross mới;
 - total correction và motor-active duration tăng không quá 10%.
 
@@ -465,6 +576,10 @@ So với baseline V5.5 P03/JIG8 (`BASE success=88.76%`, hard-cap mean `3.33/offi
 
 - BASE escalation success tổng ≥90%, không official run nào dưới 85%;
 - hard-cap mean ≤1/official run **hoặc** giảm ít nhất 50% so với baseline matched;
+- **EXTENDED — hai gate độc lập**: baseline matched V5.5 P03/JIG8 chính xác là success **99.482%**
+  (192/193), failure mean **0.333/official run** (1/3) — (1) success rate không giảm quá 5 điểm phần
+  trăm so với 99.482%; (2) failure mean tuyệt đối không tăng so với 0.333/run; báo riêng, không gộp
+  vào gate BASE;
 - không có một hard-cap point nào lặp lại quá 1/4 cycle;
 - point 347/187/107 phải được báo riêng để kiểm chứng, nhưng không phải whitelist hay điều kiện duy nhất;
 - không tạo family failure mới, crossing, failed recovery, recross hoặc stick-slip jump;
@@ -511,6 +626,22 @@ Tách khỏi motion verdict và đánh giá riêng cho từng tổ hợp:
 
 Motion có thể PASS trong khi measurement/cross-jig FAIL. Khi đó freeze motion candidate và quay lại
 mounting/sensor/H2/A2; không dùng controller để ép scalar NL giữa jig.
+
+### 12.7.1 Hard-cap failure family — công thức riêng, không dùng chung với full-curve alignment
+
+Hai tool circular shift-search hiện có (`analyze_nl_extreme_angles.py`, `compare_nl_group_curves.m`) xử
+lý full-curve NL/cực trị, **không định nghĩa "family" của hard-cap failure**. Cần công thức riêng:
+
+- **So sánh trong CÙNG 1 mounting** (V5.6 candidate vs matched V5.5 baseline của A1/A2/B — không tháo
+  lắp giữa hai lần chạy, cùng zero reference vật lý thật): dùng **zero-shift, so đúng point-index, là
+  HARD GATE** — không chạy best-shift search ở đây. Một "family" là tập điểm hard-cap-fail nằm trong
+  `±2` point-index của nhau (cho phép lệch biên do settle-boundary), gộp thành 1 vùng. "Family mới" =
+  vùng không giao với bất kỳ family nào đã có ở baseline matched.
+- **So sánh CROSS mounting/jig/motor** (ví dụ P03/JIG7 vs P03/JIG8, hoặc so P08 với P03): bắt buộc dùng
+  best-shift search của 2 tool trên, và kết quả **chỉ mang tính chẩn đoán**, không dùng để kết luận
+  "cùng gia đình vật lý" nếu chưa có circular-align + witness-mark theo đúng điều kiện đã nêu ở mục 2.1.
+
+Không trộn hai loại so sánh trên trong cùng 1 phép tính "family match".
 
 ### 12.8 Promotion matrix
 
@@ -599,13 +730,63 @@ measurement, chưa phải adaptive controller tự retune.
 - [x] thuật toán V5.6a và biến thử nghiệm được khóa trước khi code;
 - [x] motion, measurement và telemetry verdict được tách riêng;
 - [x] audit plan theo code thật hoàn tất;
-- [ ] feature/protocol/state machine được implement default-off;
-- [ ] schema/parser/analyzer hoàn tất và backward-compatible;
-- [ ] dedicated contract + full regression + Release build pass;
-- [ ] FAST3 artifact được package, source defaults được restore;
-- [ ] official analyzer nhận JIG8 và contract test tương ứng pass;
-- [ ] Pilot A1 P03/JIG7 đạt 1 pre + 3/3 official;
-- [ ] Pilot A2 P03/JIG8 đạt 1 pre + 3/3 official;
-- [ ] Pilot B P09/JIG8 non-regression đạt 1 pre + 3/3 official;
-- [ ] P02 nếu chạy được đánh dấu exploratory, không tham gia promote/reject;
-- [ ] quyết định promote/reject/V5.6b được ghi bằng dữ liệu phần cứng.
+- [x] feature/protocol/state machine được implement default-off (10/8);
+- [x] schema/parser/analyzer hoàn tất và backward-compatible; synthetic MATLAB fixture đã thêm, runtime MATLAB
+  không có trên máy build nên cần chạy lại khi mở MATLAB;
+- [x] dedicated contract + 33/33 applicable PowerShell regression + compile matrix + Release build pass;
+- [x] FAST3 artifact được package, source defaults được restore;
+- [x] official analyzer nhận JIG8 và contract test tương ứng pass (06/8, `scripts/analyze_nonlinear_logs.ps1`
+  + `scripts/test_phase2b_shadow_contract.ps1`);
+- [ ] Pilot A1 P03/JIG7 đạt 1 pre + 3/3 official — **không chạy**, xem mục 17 (H1 đã bị reject qua
+  P08/JIG8 trước khi tới lượt A1, theo đúng nhánh quyết định "MID-8 không tốt hơn COARSE-16");
+- [ ] Pilot A2 P03/JIG8 đạt 1 pre + 3/3 official — **không chạy**, cùng lý do;
+- [ ] Pilot B P09/JIG8 non-regression đạt 1 pre + 3/3 official — **không chạy**, cùng lý do;
+- [ ] P02 nếu chạy được đánh dấu exploratory, không tham gia promote/reject — **không áp dụng**, V5.6
+  đã reject trước khi tới bước này;
+- [x] quyết định promote/reject/V5.6b được ghi bằng dữ liệu phần cứng — **REJECT**, xem mục 17.
+
+## 17. Kết quả thực tế và quyết định cuối (2026-08-10)
+
+Hardware pilot chạy trên **P08/JIG8** (remount01 + remount02, 2 lần mount độc lập) — không phải đúng
+combo A1 (P03/JIG7) đã định trong plan, nhưng H1 là giả thuyết về vật lý step-response, không ràng
+buộc theo combo cụ thể; kết quả âm rõ ràng và pre-registered nên đủ căn cứ áp dụng nhánh quyết định
+chung, không cần chờ chạy đúng A1/A2/B mới kết luận.
+
+| Chỉ số | Remount01 | Remount02 |
+|---|---:|---:|
+| Điểm 308 fail | 4/4 | 4/4 |
+| MID efficiency | 751‰ | 767‰ |
+| COARSE-tail efficiency | 964‰ | 962‰ |
+| MID − COARSE-tail | **−213‰** | **−195‰** |
+| Hard-cap official | 2.00/run | 1.33/run |
+
+- **H1 (ngưỡng khóa trước ≥+150‰) — KHÔNG xác nhận, ngược dấu rõ ràng**: MID-8 kém hơn COARSE-tail
+  gần 200‰ ở cả hai remount, không phải chỉ "chưa đạt ngưỡng" mà đảo dấu hoàn toàn. Điểm 308 fail
+  **8/8 cycle** qua cả 2 remount; final gap remount02: `-44, -40, -26, -39 raw`.
+- **Stability**: không crossing/recross/recovery-failure/jump — đúng như dự đoán trong mục 2.1, thuật
+  toán ổn định về hành vi, chỉ là MID-8 không hiệu quả (lệnh nhỏ tiêu ngân sách trong khi rotor phản
+  hồi yếu hoặc bằng 0/ngược hướng) — khớp chính xác nhánh quyết định "MID-8 không tốt hơn COARSE-16".
+- **Mounting ảnh hưởng độ lớn NL nhưng không loại bỏ được điểm lỗi 308**: Robust NL remount01=0.2428°,
+  remount02=0.2312°, curve correlation r=0.9567, RMSE=0.0237° — đổi mounting đổi biên độ NL nhưng
+  điểm hard-cap-fail vẫn y nguyên, càng củng cố đây là hiệu ứng tương tác cơ học có tính hệ thống, không
+  phải nhiễu ngẫu nhiên phụ thuộc mounting.
+- **Bug capture/logger tái diễn lần 2**: remount02 mất khối DATA (1 official run thiếu điểm 349→360,
+  chỉ 2/3 OfficialValid); remount01 cũng có 1 run thiếu 89/360 điểm — đối chiếu với
+  `analysis-out/p08-jig8-v56-remount01-02/nl_report.txt` xác nhận: 4/8 sweep bị loại (2 precondition +
+  2 mất DATA). Đây là lần thứ hai gặp lỗi mất khối DATA giữa sweep (lần đầu: V5.4a remount02, DATA
+  219–294 — xem `docs/session-summary-2026-08-06.md` mục 6) — cần điều tra riêng, độc lập với quyết
+  định motion.
+
+### Quyết định
+
+1. **Dừng V5.6, không thử step 6/2 raw** — đúng nhánh "MID-8 không tốt hơn COARSE-16" (mục 13): reject
+   nhánh giảm step, không dò số thêm.
+2. **Quay lại firmware V5.5** làm baseline
+   (`builds/sweep-point-creep-v5-5-dynamic-base-escalation-fast3-20260806/jigmotor.hex`).
+3. **Sửa lỗi capture mất khối DATA** — bug độc lập, tái diễn lần 2, ưu tiên trước khi tin bất kỳ batch
+   nào có sweep bị loại vì lý do này.
+4. **Thiết kế phase diagnostic riêng cho stored-command deficit/static equilibrium/settle** (khớp H3),
+   giữ nguyên motion V5.5, không gộp vào cùng 1 phase với việc sửa bug capture ở bước 3.
+
+Working tree đã xác nhận về đúng default (mọi `ENABLE_SWEEP_POINT_CREEP*`=0) sau khi package artifact
+V5.6a — không cần thao tác gì thêm để đảm bảo an toàn trước khi build lại V5.5.

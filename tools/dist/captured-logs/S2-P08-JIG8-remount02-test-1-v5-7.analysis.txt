@@ -1,0 +1,57 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P08-JIG8-remount02-test-1-v5-7.txt
+TerminalStatus=COMPLETE
+OfficialValid=0/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=MEASUREMENT FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=5 SweepID=5 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P08-JIG8-remount02-test-1-v5-7.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0807 RawP2P=0.3430 System_INL=0.1715 RobustP2P=0.2404 Closure=-0.08835 TrackRMS=0.0822 TrackMax=0.2252
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=6 SweepID=6 RunOrder=1 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P08-JIG8-remount02-test-1-v5-7.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0814 RawP2P=0.3214 System_INL=0.1607 RobustP2P=0.2397 Closure=-0.09622 TrackRMS=0.0813 TrackMax=0.2087
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=7 SweepID=7 RunOrder=2 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P08-JIG8-remount02-test-1-v5-7.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0816 RawP2P=0.3523 System_INL=0.1762 RobustP2P=0.2477 Closure=-0.09064 TrackRMS=0.0825 TrackMax=0.2472
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=8 SweepID=8 RunOrder=3 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P08-JIG8-remount02-test-1-v5-7.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0805 RawP2P=0.2943 System_INL=0.1472 RobustP2P=0.2295 Closure=-0.08569 TrackRMS=0.0818 TrackMax=0.1703
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=4, statistically eligible=0)
+    Excluded runs:
+      - TestID=5 SweepID=5 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=6 SweepID=6 RunOrder=1: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=7 SweepID=7 RunOrder=2: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=8 SweepID=8 RunOrder=3: META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

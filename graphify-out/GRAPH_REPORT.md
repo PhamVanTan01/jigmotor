@@ -1,16 +1,16 @@
-# Graph Report - jigmotor  (2026-08-06)
+# Graph Report - jigmotor  (2026-08-10)
 
 ## Corpus Check
-- 581 files · ~10,691,197 words
+- 607 files · ~10,865,404 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5814 nodes · 11640 edges · 339 communities (325 shown, 14 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 843 edges (avg confidence: 0.79)
+- 5974 nodes · 11768 edges · 374 communities (361 shown, 13 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 832 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `75a6b9e1`
+- Built from commit: `abdb6dd4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -37,21 +37,21 @@
 - stm32f4xx_hal_adc.c
 - cmsis_iccarm.h
 - stm32f4xx_hal_tim_ex.c
-- CaptureSweep
+- CreepToUnwrappedTargetProfiled
 - DMA_TypeDef
 - stm32f4xx_ll_dma.h
 - __STATIC_INLINE
 - stm32f4xx_hal_flash_ex.c
 - __DSB
 - analyze_nl_stability.py
-- MoveToZeroAndCheckDirection
+- PositionController_Init
 - stm32f4xx_hal_i2c.c
 - core_armv8mml.h
-- xTaskCreate
+- ma600.c
 - core_armv8mbl.h
 - stm32f4xx_ll_bus.h
 - Từ điển thông số đo của JIG motor
-- timers.c
+- uxListRemove
 - stm32f4xx_hal.c
 - HAL_GetTick
 - Thiết kế hệ thống firmware V2 — tái cấu trúc nhưng giữ nguyên thuật toán
@@ -63,7 +63,7 @@
 - stm32f4xx_ll_cortex.h
 - TIM_TypeDef
 - control_a5_math.c
-- task.h
+- vListInsertEnd
 - analyze_creep_difficulty_spatial.py
 - stm32f4xx_ll_gpio.h
 - control_a5_capture.c
@@ -79,7 +79,7 @@
 - StartDefaultTask
 - mpu_armv8.h
 - Tăng K (NL_SAMPLES_PER_POINT) từ 20 lên 64, giữ N=256
-- stm32f4xx_hal_cortex.c
+- cmsis_armcc.h
 - stm32f4xx_hal_pwr.c
 - syscalls.c
 - __weak
@@ -105,7 +105,7 @@
 - analyze_nonlinear_logs.ps1
 - analyze_b0b_transient.py
 - mpu_armv7.h
-- HAL_GPIO_WritePin
+- gremsyMotor.c
 - analyze_control_a2.ps1
 - analyze_control_a4.ps1
 - Tổng kết phiên làm việc 2026-08-04: xác nhận hiệu ứng "board mới", tách bạch gá vs sensor, và đề xuất phương án đánh giá NL bền vững theo jig
@@ -143,7 +143,7 @@
 - GremsyQAApp
 - Codex handoff — Motion Control V2, lưới 1° và SPI1 DMA
 - 3. Kế hoạch hành động — theo thứ tự ưu tiên
-- FirmwareSegment
+- stm32_uart_flasher.py
 - 3. Call graph cho 9 luồng yêu cầu
 - SweepReport
 - Extreme points on each batch-mean curve
@@ -184,7 +184,7 @@
 - Đánh giá cách đọc dữ liệu MA600A trong firmware Gremsy cũ (gremsyEncoder.c / gremsyMotor.c / gremsyTaskManager.c / gremsyAnalog.c)
 - Nonlinear Metric Definition Contract v2
 - Kế hoạch triển khai dual-image trên STM32F405
-- Serial
+- auto_log_analysis.py
 - Extreme points on each batch-mean curve
 - Extreme points on each batch-mean curve
 - Extreme points on each batch-mean curve
@@ -278,11 +278,11 @@
 - nonlinear_test.c
 - V5.3 — point-66 fine landing and stick-slip jump guard
 - Sweep-point-creep v5 — adaptive targeted budget
-- vTaskSuspendAll
+- 12. Hardware validation
 - NL pointwise-curve assessment — UNKNOWN
 - Sweep-point-creep V5.1 — target-crossing guard
 - V5.4a-DIAG — first fine-budget failure trace
-- stm32f4xx_hal_msp.c
+- stm32f4xx_hal_cortex.c
 - NL pointwise-curve assessment — UNKNOWN
 - NL extreme-angle and cross-jig curve analysis
 - NL extreme-angle and cross-jig curve analysis
@@ -299,18 +299,50 @@
 - Extreme points on each batch-mean curve
 - NL extreme-angle and cross-jig curve analysis
 - NL extreme-angle and cross-jig curve analysis
+- V5.7-DIAG — Passive hold after the first V5.5 hard-cap failure
+- Nhật ký công việc 2026-08-10
+- RampCommandToTarget
+- 13. Decision tree
+- Q: Plan kỹ thuật vững, cần bổ sung P03/JIG8, loại P02 khỏi pass/fail và làm rõ hai hằng số 96 raw.
+- Q: Cần phân biệt lặp lại trong cùng tổ hợp và không lặp lại giữa các tổ hợp; thuật toán có vấn đề là bất ổn hay chưa đủ hiệu quả?
+- Q: Review sweep-point-creep-v5-6-three-stage-response-plan.md
+- Q: thời gian để một điểm đo được data chính xác mất bao lâu ?
+- Q: Đọc 64 mẫu MA600 mẫu này là gì ?
+- Q: Có đồng ý giữ nguyên kiến trúc một trace buffer và chỉ sửa tài liệu ở điểm 2 không?
+- stm32f4xx_hal_rcc.c
+- Extreme points on each batch-mean curve
+- Extreme points on each batch-mean curve
+- pvPortMalloc
+- 10. Software implementation phases
+- Q: Implement V5.6 three-stage response-qualified sweep creep
+- Q: S2-P08-JIG8-remount01-test-1-v5-6 remount 1
+- Q: đã test remount 02 kết quả báo fail tiếp tuc
+- NlCreepStepPhaseForState
+- 3. Giả thuyết cần kiểm định
+- 4. Mục tiêu và non-goals
+- 6. Firmware contract
+- 8. Telemetry và data-integrity contract
+- task.h
+- MoveToZeroAndCheckDirection
+- V5.8-TIME-DIAG — đo thời gian đáp ứng command theo từng điểm
+- Re-verify H1/H2/H36 trên dữ liệu "sạch" (JIG8, V5.5) — 2026-08-10
+- Q: S2-P08-JIG8-remount01-test-1-v5-7
+- Q: S2-P08-JIG8-remount02-test-1-v5-7 remount 2
+- Q: Rotor chỉ đáp ứng trung bình khoảng 56.6% command đã phát; tôi muốn biết chính xác thời gian để một điểm đáp ứng command
+- HAL_SPI_RegisterCallback
+- Q: Triển khai bước 3 sửa capture mất DATA và bước 4 chẩn đoán V5.5 hard-cap static-equilibrium/settle
 
 ## God Nodes (most connected - your core abstractions)
-1. `HAL_GetTick()` - 67 edges
-2. `FlasherApp` - 47 edges
+1. `HAL_GetTick()` - 68 edges
+2. `FlasherApp` - 51 edges
 3. `__DSB()` - 45 edges
-4. `CaptureSweep()` - 41 edges
-5. `TIM_CCxChannelCmd()` - 40 edges
-6. `__ISB()` - 34 edges
+4. `TIM_CCxChannelCmd()` - 40 edges
+5. `__ISB()` - 34 edges
+6. `BatchLogRecorder` - 32 edges
 7. `HAL_DMA_Start_IT()` - 31 edges
-8. `BatchLogRecorder` - 29 edges
-9. `PrintSweepLog()` - 28 edges
-10. `uxListRemove()` - 28 edges
+8. `uxListRemove()` - 28 edges
+9. `xTaskResumeAll()` - 27 edges
+10. `HAL_DMA_Abort_IT()` - 25 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `ADC_IRQHandler()` --calls--> `HAL_ADC_IRQHandler()`  [INFERRED]
@@ -327,7 +359,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (339 total, 14 thin omitted)
+## Communities (374 total, 13 thin omitted)
 
 ### Community 0 - "stm32f4xx_ll_usart.h"
 Cohesion: 0.04
@@ -346,12 +378,12 @@ Cohesion: 0.04
 Nodes (109): __get_APSR(), __get_BASEPRI(), __get_CONTROL(), __get_FAULTMASK(), __get_IPSR(), __get_MSP(), __get_MSPLIM(), __get_PRIMASK() (+101 more)
 
 ### Community 4 - "cmsis_os2.c"
-Cohesion: 0.04
-Nodes (79): MemPool_t, AllocBlock(), __STATIC_INLINE, TaskHandle_t, __WEAK, CreateBlock(), FreeBlock(), OS_Tick_GetCount() (+71 more)
+Cohesion: 0.03
+Nodes (95): NonlinearEngine_RequestStart(), MemPool_t, AllocBlock(), StackType_t, __STATIC_INLINE, StaticTask_t, TaskHandle_t, TimerHandle_t (+87 more)
 
 ### Community 5 - "stm32f4xx_hal_uart.c"
-Cohesion: 0.06
-Nodes (93): HAL_DMA_Abort(), HAL_DMA_GetError(), HAL_StatusTypeDef, RCC_OscInitTypeDef, __weak, HAL_RCC_ClockConfig(), HAL_RCC_CSSCallback(), HAL_RCC_GetClockConfig() (+85 more)
+Cohesion: 0.09
+Nodes (72): DMA_HandleTypeDef, FlagStatus, HAL_StatusTypeDef, UART_HandleTypeDef, __weak, HAL_HalfDuplex_EnableReceiver(), HAL_HalfDuplex_EnableTransmitter(), HAL_HalfDuplex_Init() (+64 more)
 
 ### Community 6 - "stm32f4xx_ll_rcc.h"
 Cohesion: 0.02
@@ -375,19 +407,19 @@ Nodes (76): HAL_DMA_Abort_IT(), HAL_StatusTypeDef, HAL_TIM_ChannelStateTypeDef, 
 
 ### Community 11 - "tasks.c"
 Cohesion: 0.07
-Nodes (75): configSTACK_DEPTH_TYPE, eNotifyAction, eTaskState, osThreadTerminate(), List_t, ListItem_t, UBaseType_t, uxListRemove() (+67 more)
+Nodes (72): configSTACK_DEPTH_TYPE, eNotifyAction, eTaskState, HeapStats_t, MemoryRegion_t, osKernelRestoreLock(), osThreadEnumerate(), osThreadFlagsWait() (+64 more)
 
 ### Community 12 - "stm32f4xx_ll_pwr.h"
 Cohesion: 0.06
 Nodes (62): __STATIC_INLINE, LL_PWR_ClearFlag_SB(), LL_PWR_ClearFlag_UD(), LL_PWR_ClearFlag_WU(), LL_PWR_DisableBkUpAccess(), LL_PWR_DisableBkUpRegulator(), LL_PWR_DisableFLASHInterfaceSTOP(), LL_PWR_DisableFLASHMemorySTOP() (+54 more)
 
 ### Community 13 - "stm32f4xx_hal_spi.c"
-Cohesion: 0.05
-Nodes (85): MA600_AcquisitionRunFaultInjectionSelfTest(), MA600_ReadMeta_t, MA600_Result_t, SPI_HandleTypeDef, Crc32IsoHdlc(), HAL_SPI_ErrorCallback(), HAL_SPI_TxRxCpltCallback(), MA600_ClearErrorFlags() (+77 more)
+Cohesion: 0.09
+Nodes (52): DMA_HandleTypeDef, FlagStatus, HAL_StatusTypeDef, SPI_HandleTypeDef, __weak, HAL_SPI_Abort_IT(), HAL_SPI_AbortCpltCallback(), HAL_SPI_DeInit() (+44 more)
 
 ### Community 14 - "queue.c"
-Cohesion: 0.11
-Nodes (63): osMessageQueueGetCount(), xCoRoutineRemoveFromEventList(), BaseType_t, TaskHandle_t, TickType_t, UBaseType_t, pcQueueGetName(), prvCopyDataFromQueue() (+55 more)
+Cohesion: 0.10
+Nodes (66): osMessageQueueGet(), osMessageQueueGetCount(), xCoRoutineRemoveFromEventList(), BaseType_t, TaskHandle_t, TickType_t, UBaseType_t, pcQueueGetName() (+58 more)
 
 ### Community 15 - "analyze_motor_logs.py"
 Cohesion: 0.16
@@ -414,12 +446,12 @@ Cohesion: 0.07
 Nodes (55): __CLZ(), __get_APSR(), __get_MSPLIM(), __get_PSPLIM(), __packed, __STATIC_INLINE, __iar_u32(), __iar_uint16_read() (+47 more)
 
 ### Community 21 - "stm32f4xx_hal_tim_ex.c"
-Cohesion: 0.10
-Nodes (52): DMA_HandleTypeDef, HAL_StatusTypeDef, HAL_TIM_ChannelStateTypeDef, HAL_TIM_StateTypeDef, TIM_HandleTypeDef, TIM_TypeDef, __weak, HAL_TIMEx_BreakCallback() (+44 more)
+Cohesion: 0.11
+Nodes (50): DMA_HandleTypeDef, HAL_StatusTypeDef, HAL_TIM_ChannelStateTypeDef, HAL_TIM_StateTypeDef, TIM_HandleTypeDef, TIM_TypeDef, __weak, HAL_TIMEx_BreakCallback() (+42 more)
 
-### Community 22 - "CaptureSweep"
+### Community 22 - "CreepToUnwrappedTargetProfiled"
 Cohesion: 0.10
-Nodes (42): AbsI64ToU64(), AccumulateCounterDelta(), MA600_AcquisitionContext_t, MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_Result_t, MA600_Sample_t, MA600_UnwrapContext_t (+34 more)
+Nodes (33): AbsI64ToU64(), AccumulateCounterDelta(), MA600_AcquisitionContext_t, MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_Result_t, MA600_Sample_t, MA600_UnwrapContext_t (+25 more)
 
 ### Community 23 - "DMA_TypeDef"
 Cohesion: 0.04
@@ -438,32 +470,32 @@ Cohesion: 0.10
 Nodes (45): HAL_StatusTypeDef, __weak, HAL_StatusTypeDef, FLASH_Erase_Sector(), FLASH_FlushCaches(), FLASH_MassErase(), FLASH_OB_BootConfig(), FLASH_OB_BOR_LevelConfig() (+37 more)
 
 ### Community 27 - "__DSB"
-Cohesion: 0.11
-Nodes (44): __DSB(), __ISB(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset(), IRQn_Type (+36 more)
+Cohesion: 0.09
+Nodes (48): __DSB(), __ISB(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset(), __NVIC_SystemReset() (+40 more)
 
 ### Community 28 - "analyze_nl_stability.py"
 Cohesion: 0.12
 Nodes (43): as_float(), as_int(), build_fit_rows(), build_stability_rows(), csv_write(), DataPoint, describe(), dft_amplitude() (+35 more)
 
-### Community 29 - "MoveToZeroAndCheckDirection"
-Cohesion: 0.17
-Nodes (20): MA600_UnwrappedRawToDegrees(), MA600_Result_t, Motor_GetCommandedPos(), Motor_MoveToAngle(), Motor_MoveToAngleWithPower(), Motor_RunControllerSelfTest(), Motor_ControllerState_t, ControllerStateIsReset() (+12 more)
+### Community 29 - "PositionController_Init"
+Cohesion: 0.50
+Nodes (7): PositionController_GetCommandedPosition(), PositionController_Init(), PositionController_Reset(), PositionController_RunSelfTest(), PositionController_Update(), PositionController_t, PositionControllerConfig_t
 
 ### Community 30 - "stm32f4xx_hal_i2c.c"
 Cohesion: 0.12
 Nodes (45): HAL_DMA_Start_IT(), HAL_StatusTypeDef, I2C_HandleTypeDef, HAL_I2C_AddrCallback(), HAL_I2C_DeInit(), HAL_I2C_DisableListen_IT(), HAL_I2C_EnableListen_IT(), HAL_I2C_GetError() (+37 more)
 
 ### Community 31 - "core_armv8mml.h"
-Cohesion: 0.12
-Nodes (40): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+32 more)
+Cohesion: 0.13
+Nodes (39): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+31 more)
 
-### Community 32 - "xTaskCreate"
-Cohesion: 0.14
-Nodes (23): MemoryRegion_t, StackType_t, StaticTask_t, osThreadNew(), vApplicationGetIdleTaskMemory(), vApplicationGetTimerTaskMemory(), StackType_t, StaticTask_t (+15 more)
+### Community 32 - "ma600.c"
+Cohesion: 0.12
+Nodes (32): MA600_AcquisitionRunFaultInjectionSelfTest(), MA600_ReadMeta_t, MA600_Result_t, MA600_UnwrapContext_t, SPI_HandleTypeDef, Crc32IsoHdlc(), HAL_SPI_ErrorCallback(), HAL_SPI_TxRxCpltCallback() (+24 more)
 
 ### Community 33 - "core_armv8mbl.h"
-Cohesion: 0.07
-Nodes (55): __get_APSR(), __get_BASEPRI(), __get_CONTROL(), __get_FAULTMASK(), __get_FPSCR(), __get_IPSR(), __get_MSP(), __get_PRIMASK() (+47 more)
+Cohesion: 0.16
+Nodes (32): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+24 more)
 
 ### Community 34 - "stm32f4xx_ll_bus.h"
 Cohesion: 0.10
@@ -473,9 +505,9 @@ Nodes (38): __STATIC_INLINE, LL_AHB1_GRP1_DisableClock(), LL_AHB1_GRP1_DisableCl
 Cohesion: 0.05
 Nodes (37): 10. Controller state và home, 11. Motion profile, 12. Approach, pre-roll và điểm bắt đầu, 13. Acquisition và SPI MA600, 14. Noise tĩnh MA600, 15. Mounting precheck, 16. Cấu hình MA600, 17. Batch, precondition và lịch sử nhiệt (+29 more)
 
-### Community 36 - "timers.c"
-Cohesion: 0.10
-Nodes (46): TimerHandle_t, osTimerDelete(), osTimerGetName(), osTimerIsRunning(), osTimerNew(), osTimerStart(), osTimerStop(), TimerCallback() (+38 more)
+### Community 36 - "uxListRemove"
+Cohesion: 0.14
+Nodes (34): osTimerGetName(), UBaseType_t, uxListRemove(), BaseType_t, TaskHandle_t, TickType_t, TimerHandle_t, UBaseType_t (+26 more)
 
 ### Community 37 - "stm32f4xx_hal.c"
 Cohesion: 0.08
@@ -490,12 +522,12 @@ Cohesion: 0.04
 Nodes (48): 10. Timing và deterministic behavior, 11. Configuration và protocol versioning, 12.1 Contract firmware, 12.2 Contract parser, 12. Logging và offline tools, 13. Chiến lược migration không đổi thuật toán, 14. Verification matrix, 15. Acceptance criteria cho kiến trúc mới (+40 more)
 
 ### Community 40 - "ma600_acquisition.c"
-Cohesion: 0.13
-Nodes (33): AbsDeltaI64(), MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_ReadMeta_t, MA600_Result_t, MA600_UnwrapContext_t, ComputeMadFilteredPointMean(), CycleReached() (+25 more)
+Cohesion: 0.14
+Nodes (30): AbsDeltaI64(), MA600_PointSample_t, MA600_PointSamplerConfig_t, MA600_ReadMeta_t, MA600_Result_t, MA600_UnwrapContext_t, ComputeMadFilteredPointMean(), CycleReached() (+22 more)
 
 ### Community 41 - "core_cm33.h"
-Cohesion: 0.12
-Nodes (40): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+32 more)
+Cohesion: 0.13
+Nodes (39): IRQn_Type, __STATIC_INLINE, ITM_CheckChar(), ITM_ReceiveChar(), ITM_SendChar(), __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority() (+31 more)
 
 ### Community 42 - "V5.2 — adaptive targeted budget with bounded single recovery"
 Cohesion: 0.25
@@ -507,7 +539,7 @@ Nodes (32): BaseType_t, TickType_t, UBaseType_t, prvBytesInBuffer(), prvInitiali
 
 ### Community 44 - "event_groups.c"
 Cohesion: 0.14
-Nodes (30): EventBits_t, EventGroupHandle_t, osEventFlagsClear(), osEventFlagsDelete(), osEventFlagsGet(), osEventFlagsNew(), osEventFlagsSet(), osEventFlagsWait() (+22 more)
+Nodes (29): EventBits_t, EventGroupHandle_t, osEventFlagsClear(), osEventFlagsDelete(), osEventFlagsGet(), osEventFlagsNew(), osEventFlagsSet(), osEventFlagsWait() (+21 more)
 
 ### Community 45 - "stm32f4xx_ll_cortex.h"
 Cohesion: 0.14
@@ -521,9 +553,9 @@ Nodes (28): TIM_TypeDef, HAL_TIM_ConfigClockSource(), HAL_TIM_ConfigOCrefClear()
 Cohesion: 0.22
 Nodes (19): ControlA5GoldenVector_t, ControlA5Stats_t, ControlA5Summary_t, AbsI32ToU32(), ControlA5_CycleDelta(), ControlA5_MathSelfTest(), ControlA5_MeanRelRawQ16(), ControlA5_RawWordsCrc32() (+11 more)
 
-### Community 48 - "task.h"
-Cohesion: 0.11
-Nodes (12): crCOROUTINE_CODE, BaseType_t, List_t, TickType_t, UBaseType_t, prvCheckDelayedList(), prvCheckPendingReadyList(), prvInitialiseCoRoutineLists() (+4 more)
+### Community 48 - "vListInsertEnd"
+Cohesion: 0.14
+Nodes (19): crCOROUTINE_CODE, BaseType_t, List_t, TickType_t, UBaseType_t, prvCheckDelayedList(), prvCheckPendingReadyList(), prvInitialiseCoRoutineLists() (+11 more)
 
 ### Community 49 - "analyze_creep_difficulty_spatial.py"
 Cohesion: 0.09
@@ -534,8 +566,8 @@ Cohesion: 0.21
 Nodes (25): GPIO_TypeDef, __STATIC_INLINE, LL_GPIO_GetAFPin_0_7(), LL_GPIO_GetAFPin_8_15(), LL_GPIO_GetPinMode(), LL_GPIO_GetPinOutputType(), LL_GPIO_GetPinPull(), LL_GPIO_GetPinSpeed() (+17 more)
 
 ### Community 51 - "control_a5_capture.c"
-Cohesion: 0.16
-Nodes (23): ControlA5AbortRequestedFn_t, ControlA5Sample_t, ControlA5CaptureReport_t, ControlA5Result_t, Motor_ControllerState_t, ControlA5_AbsI32(), ControlA5_CaptureReportInit(), ControlA5_CaptureResourcesReady() (+15 more)
+Cohesion: 0.17
+Nodes (24): ControlA5AbortRequestedFn_t, ControlA5Sample_t, ControlA5CaptureReport_t, ControlA5Result_t, Motor_ControllerState_t, ControlA5_AbsI32(), ControlA5_CaptureReportInit(), ControlA5_CaptureResourcesInit() (+16 more)
 
 ### Community 52 - "stm32f4xx_it.c"
 Cohesion: 0.11
@@ -562,20 +594,20 @@ Cohesion: 0.14
 Nodes (22): LL_ADC_Disable(), LL_ADC_INJ_SetSequencerLength(), LL_ADC_INJ_SetTriggerSource(), LL_ADC_IsEnabled(), LL_ADC_REG_SetSequencerLength(), LL_ADC_REG_SetTriggerSource(), LL_ADC_SetCommonClock(), ADC_TypeDef (+14 more)
 
 ### Community 59 - "core_cm23.h"
-Cohesion: 0.15
-Nodes (33): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+25 more)
+Cohesion: 0.16
+Nodes (32): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_ClearTargetState(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority() (+24 more)
 
 ### Community 60 - "__weak"
 Cohesion: 0.14
 Nodes (22): DMA_HandleTypeDef, __weak, HAL_TIM_ErrorCallback(), HAL_TIM_IC_CaptureCallback(), HAL_TIM_IC_CaptureHalfCpltCallback(), HAL_TIM_IRQHandler(), HAL_TIM_OC_DelayElapsedCallback(), HAL_TIM_PeriodElapsedCallback() (+14 more)
 
 ### Community 61 - "port.c"
-Cohesion: 0.11
-Nodes (15): eSleepModeStatus, BaseType_t, StackType_t, TaskFunction_t, TickType_t, prvPortStartFirstTask(), prvTaskExitError(), pxPortInitialiseStack() (+7 more)
+Cohesion: 0.09
+Nodes (20): eSleepModeStatus, osThreadSuspend(), SysTick_Handler(), BaseType_t, StackType_t, TaskFunction_t, TickType_t, prvPortStartFirstTask() (+12 more)
 
 ### Community 62 - "StartDefaultTask"
-Cohesion: 0.12
-Nodes (17): AppEngine_Init(), AppEngine_IsBusy(), AppEngine_ModeId(), AppEngine_ProfileFingerprint(), AppEngine_ProfileId(), AppEngine_RequestStart(), AppEngine_SourceId(), ControlA5_CaptureResourcesReleaseForInitFailure() (+9 more)
+Cohesion: 0.16
+Nodes (11): AppEngine_IsBusy(), AppEngine_ModeId(), AppEngine_ProfileFingerprint(), AppEngine_ProfileId(), AppEngine_RequestStart(), AppEngine_SourceId(), ControlEngine_IsBusy(), MA600_AngleTransportName() (+3 more)
 
 ### Community 63 - "mpu_armv8.h"
 Cohesion: 0.24
@@ -585,9 +617,9 @@ Nodes (20): ARM_MPU_ClrRegion(), ARM_MPU_ClrRegion_NS(), ARM_MPU_ClrRegionEx(), 
 Cohesion: 0.04
 Nodes (46): 1. `Core/Src/nonlinear_test.c` — tách ramp loop thành helper tự suy chiều, trả lỗi đúng cách, 1. Thêm chế độ thứ 3 vào bộ macro loại-trừ-lẫn-nhau (dòng ~245-263), 1. Thêm `Motor_Error_P2P_Deg`/`Motor_System_INL_Deg` vào RESULT, 2. Flag + hằng số mới, mặc định TẮT, 2. Thêm H4/H8, 2. Thêm `TimeSincePreviousRunMs`, 3. Comment làm rõ khái niệm (đầu file, cạnh comment lịch sử schema), 3. In vào dòng `META` (+38 more)
 
-### Community 65 - "stm32f4xx_hal_cortex.c"
-Cohesion: 0.17
-Nodes (12): IRQn_Type, __weak, HAL_MPU_ConfigRegion(), HAL_MPU_Disable(), HAL_NVIC_ClearPendingIRQ(), HAL_NVIC_GetActive(), HAL_NVIC_GetPendingIRQ(), HAL_NVIC_GetPriority() (+4 more)
+### Community 65 - "cmsis_armcc.h"
+Cohesion: 0.14
+Nodes (22): __get_APSR(), __get_BASEPRI(), __get_CONTROL(), __get_FAULTMASK(), __get_FPSCR(), __get_IPSR(), __get_MSP(), __get_PRIMASK() (+14 more)
 
 ### Community 66 - "stm32f4xx_hal_pwr.c"
 Cohesion: 0.11
@@ -598,16 +630,16 @@ Cohesion: 0.18
 Nodes (20): DMA_HandleTypeDef, __weak, HAL_I2C_AbortCpltCallback(), HAL_I2C_ER_IRQHandler(), HAL_I2C_ErrorCallback(), HAL_I2C_ListenCpltCallback(), HAL_I2C_MasterRxCpltCallback(), HAL_I2C_MemRxCpltCallback() (+12 more)
 
 ### Community 69 - "stm32f4xx_hal_rcc_ex.c"
-Cohesion: 0.16
-Nodes (14): HAL_StatusTypeDef, RCC_OscInitTypeDef, HAL_RCC_DeInit(), HAL_RCC_GetOscConfig(), HAL_RCC_OscConfig(), HAL_RCCEx_DisablePLLI2S(), HAL_RCCEx_DisablePLLSAI(), HAL_RCCEx_EnablePLLI2S() (+6 more)
+Cohesion: 0.15
+Nodes (15): HAL_StatusTypeDef, RCC_OscInitTypeDef, HAL_RCC_DeInit(), HAL_RCC_GetOscConfig(), HAL_RCC_OscConfig(), HAL_RCCEx_DisablePLLI2S(), HAL_RCCEx_DisablePLLSAI(), HAL_RCCEx_EnablePLLI2S() (+7 more)
 
 ### Community 70 - "analyze_control_a5.ps1"
 Cohesion: 0.15
 Nodes (8): Add-Reason(), Assert-FieldEquals(), Get-I64(), Get-LinearDiagnostics(), Get-PopulationStdDev(), Get-RequiredField(), Get-SingleRecord(), Get-U32()
 
 ### Community 71 - "V5.6 — three-stage 16→8→4 response-qualified landing"
-Cohesion: 0.04
-Nodes (46): 10. Software implementation phases, 11. Software gates, 12.1 Điều kiện tiên quyết của pipeline, 12.2 Pilot A1 — hard-case P03/JIG7, 12.3 Hard safety/data gates chung, 12.4 Pilot A2 — generalization P03/JIG8, 12.5 Pilot B — non-regression P09/JIG8, 12.6 P02 — exploratory only (+38 more)
+Cohesion: 0.13
+Nodes (14): 11. Software gates, 14. File dự kiến thay đổi khi code, 15. Audit theo code hiện tại, 16. Definition of Done, 17. Kết quả thực tế và quyết định cuối (2026-08-10), 1. Quyết định, 2.1 Bằng chứng cross-combination trước khi code, 2. Bằng chứng dẫn tới V5.6 (+6 more)
 
 ### Community 72 - "stm32f4xx_ll_exti.h"
 Cohesion: 0.21
@@ -630,7 +662,7 @@ Cohesion: 0.28
 Nodes (16): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), NVIC_DecodePriority(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), NVIC_EncodePriority(), __NVIC_GetEnableIRQ() (+8 more)
 
 ### Community 77 - "core_sc000.h"
-Cohesion: 0.29
+Cohesion: 0.32
 Nodes (14): IRQn_Type, __STATIC_INLINE, __NVIC_ClearPendingIRQ(), __NVIC_DisableIRQ(), __NVIC_EnableIRQ(), __NVIC_GetEnableIRQ(), __NVIC_GetPendingIRQ(), __NVIC_GetPriority() (+6 more)
 
 ### Community 78 - "P08/JIG7 v4 — phân tích không gian độ khó sweep-point-creep"
@@ -638,12 +670,12 @@ Cohesion: 0.12
 Nodes (16): Data integrity và sanity-check END, Giới hạn diễn giải, Kết luận, Kết luận điều hành, Overlap theo ngưỡng cố định >150 raw, Overlap top 10% (36 điểm/remount), Overlap top 15% (54 điểm/remount), P08/JIG7 v4 — phân tích không gian độ khó sweep-point-creep (+8 more)
 
 ### Community 79 - "main"
-Cohesion: 0.23
-Nodes (16): TaskHandle_t, vApplicationMallocFailedHook(), vApplicationStackOverflowHook(), Error_Handler(), main(), MX_ADC1_Init(), MX_DMA_Init(), MX_GPIO_Init() (+8 more)
+Cohesion: 0.33
+Nodes (13): Error_Handler(), main(), MX_ADC1_Init(), MX_DMA_Init(), MX_GPIO_Init(), MX_I2C1_Init(), MX_I2C2_Init(), MX_SPI1_Init() (+5 more)
 
 ### Community 80 - "stm32f4xx_hal_dma.c"
-Cohesion: 0.29
-Nodes (15): DMA_HandleTypeDef, HAL_StatusTypeDef, DMA_CalcBaseAndBitshift(), DMA_CheckFifoParam(), DMA_SetConfig(), HAL_DMA_DeInit(), HAL_DMA_GetState(), HAL_DMA_Init() (+7 more)
+Cohesion: 0.22
+Nodes (20): DMA_HandleTypeDef, HAL_StatusTypeDef, DMA_CalcBaseAndBitshift(), DMA_CheckFifoParam(), DMA_SetConfig(), HAL_DMA_Abort(), HAL_DMA_DeInit(), HAL_DMA_GetError() (+12 more)
 
 ### Community 81 - "stm32f4xx_hal_exti.c"
 Cohesion: 0.29
@@ -654,8 +686,8 @@ Cohesion: 0.21
 Nodes (5): portFORCE_INLINE, ulPortRaiseBASEPRI(), vPortRaiseBASEPRI(), vPortSetBASEPRI(), xPortIsInsideInterrupt()
 
 ### Community 83 - "TIM_Base_SetConfig"
-Cohesion: 0.12
-Nodes (19): MX_TIM2_Init(), HAL_StatusTypeDef, HAL_InitTick(), HAL_TIM_Base_Init(), HAL_TIM_Base_MspInit(), HAL_TIM_Encoder_Init(), HAL_TIM_Encoder_MspInit(), HAL_TIM_IC_Init() (+11 more)
+Cohesion: 0.15
+Nodes (19): MX_TIM2_Init(), HAL_TIMEx_HallSensor_Init(), HAL_TIM_Base_Init(), HAL_TIM_Base_MspInit(), HAL_TIM_Encoder_Init(), HAL_TIM_Encoder_MspInit(), HAL_TIM_IC_Init(), HAL_TIM_IC_MspInit() (+11 more)
 
 ### Community 84 - "analyze_scope_capture.py"
 Cohesion: 0.26
@@ -685,9 +717,9 @@ Nodes (10): analyze_a4(), analyze_b0b(), blend(), expected_cum(), main(), parse_
 Cohesion: 0.36
 Nodes (9): ARM_MPU_ClrRegion(), ARM_MPU_Disable(), ARM_MPU_Enable(), ARM_MPU_Load(), ARM_MPU_SetRegion(), ARM_MPU_SetRegionEx(), ARM_MPU_Region_t, __STATIC_INLINE (+1 more)
 
-### Community 91 - "HAL_GPIO_WritePin"
-Cohesion: 0.20
-Nodes (9): gremsyMotorDisable(), gremsyMotorEnable(), gremsyMotorInit(), gremsyMotorMoveAngle(), gremsyMotorMovePos(), gremsyMotorMoveSpeed(), gremsyMotorSetPWM(), limit_integer() (+1 more)
+### Community 91 - "gremsyMotor.c"
+Cohesion: 0.21
+Nodes (8): gremsyMotorDisable(), gremsyMotorEnable(), gremsyMotorInit(), gremsyMotorMoveAngle(), gremsyMotorMovePos(), gremsyMotorMoveSpeed(), gremsyMotorSetPWM(), limit_integer()
 
 ### Community 95 - "Tổng kết phiên làm việc 2026-08-04: xác nhận hiệu ứng "board mới", tách bạch gá vs sensor, và đề xuất phương án đánh giá NL bền vững theo jig"
 Cohesion: 0.11
@@ -738,8 +770,8 @@ Cohesion: 0.05
 Nodes (42): __STATIC_INLINE, LL_DBGMCU_APB1_GRP1_FreezePeriph(), LL_DBGMCU_APB1_GRP1_UnFreezePeriph(), LL_DBGMCU_DisableDBGSleepMode(), LL_DBGMCU_EnableDBGStandbyMode(), LL_DBGMCU_GetDeviceID(), LL_FLASH_DisableDataCacheReset(), LL_FLASH_DisableInstCache() (+34 more)
 
 ### Community 156 - "BatchLogRecorder"
-Cohesion: 0.10
-Nodes (26): AnalysisOutcome, analyze_saved_log(), BatchLogRecorder, CompletedCapture, _configuration_health(), parse_kv_record(), Path, Turn arbitrary UART chunks into one capture per firmware batch. Normal… (+18 more)
+Cohesion: 0.16
+Nodes (11): BatchLogRecorder, CompletedCapture, Turn arbitrary UART chunks into one capture per firmware batch. Normal…, Flush a partial UART line and preserve an interrupted active batch., Build the editable default filename shown to the operator., _safe_name(), save_capture(), suggested_capture_filename() (+3 more)
 
 ### Community 157 - "Plan A5 — MA600 static RawAngle stability"
 Cohesion: 0.05
@@ -754,8 +786,8 @@ Cohesion: 0.05
 Nodes (37): Baseline and non-goals, Change-control rule, Gate, Gate, Gate, Gate, Gate, Gate (+29 more)
 
 ### Community 160 - "FlasherApp"
-Cohesion: 0.12
-Nodes (4): FlasherApp, Parse one DATA,... line and push it to the live NL chart. Positional fields per…, Open the application UART directly without sending a bootloader GO command., Reconnect to ROM bootloader, send GO, then reopen as app UART. This button is…
+Cohesion: 0.10
+Nodes (7): Serial, FlasherApp, Capture UART bytes immediately; defer all Tk work to one UI pump., Request a large driver RX buffer when the platform supports it., Open COM exactly like v1 so the DTR transition can reset the board. In v1,…, Open the application UART directly without sending a bootloader GO command., Reconnect to ROM bootloader, send GO, then reopen as app UART. This button is…
 
 ### Community 161 - "analyze_nl_curve.py"
 Cohesion: 0.16
@@ -774,8 +806,8 @@ Cohesion: 0.07
 Nodes (26): 10. Performance contract, 11. Những tối ưu không làm ngay, 1. Nguồn sự thật và giới hạn phần cứng, 2.1 Clock và peripheral, 2.2 DMA map hiện tại, 2.3 Memory footprint Release hiện tại, 2. Audit firmware hiện tại, 3.1 Hai image, không phải hai nhánh runtime trong cùng test (+18 more)
 
 ### Community 165 - "STM32Bootloader"
-Cohesion: 0.23
-Nodes (7): BootloaderError, Collect bytes for a short window without blocking for the full port timeout., Synchronize with the ROM bootloader and tolerate stale UART traffic. Unlike the…, Legacy v1 synchronization after a DTR-generated reset. The original v1 cleared…, Write one block with retry and adaptive frame splitting. A NACK at varying…, Raised when the STM32 ROM bootloader rejects or times out., STM32Bootloader
+Cohesion: 0.21
+Nodes (7): BootloaderError, Raised when the STM32 ROM bootloader rejects or times out., Collect bytes for a short window without blocking for the full port timeout., Synchronize with the ROM bootloader and tolerate stale UART traffic. Unlike the…, Legacy v1 synchronization after a DTR-generated reset. The original v1 cleared…, Write one block with retry and adaptive frame splitting. A NACK at varying…, STM32Bootloader
 
 ### Community 166 - "Phase 3B0 - Closure and Measurement-Validity Design Review"
 Cohesion: 0.08
@@ -817,9 +849,9 @@ Nodes (16): 1. Trạng thái bàn giao, 2. Measurement contract đang có hiệu
 Cohesion: 0.12
 Nodes (15): 1.1. Vì sao không có "bias JIG4" ổn định, 1. Tình trạng hiện tại — đã biết / đã loại trừ / còn mở, 2. Vấn đề hệ quy chiếu pha harmonic — phải sửa trước khi diễn giải bất kỳ số H1/H2 nào, 3. Kế hoạch hành động — theo thứ tự ưu tiên, 4. Hành động khắc phục, theo kết quả từng nhánh, 5. Bảng công cụ MATLAB dùng cho từng bước, 6. Tiêu chí coi là "đã tìm ra root cause", Bước 0 — Khoá định danh & điều kiện đo (bắt buộc TRƯỚC mọi thực nghiệm nhân quả) (+7 more)
 
-### Community 176 - "FirmwareSegment"
-Cohesion: 0.23
-Nodes (7): RuntimeError, default_log_directory(), FirmwareLoader, FirmwareSegment, Path, Snapshot Tk options, then save/analyze without blocking the GUI., Return a writable, predictable log folder in source and packaged modes.
+### Community 176 - "stm32_uart_flasher.py"
+Cohesion: 0.13
+Nodes (13): RuntimeError, AnalysisOutcome, BootloaderInfo, CancelledError, default_log_directory(), FirmwareImage, FirmwareLoader, FirmwareSegment (+5 more)
 
 ### Community 177 - "3. Call graph cho 9 luồng yêu cầu"
 Cohesion: 0.13
@@ -838,8 +870,8 @@ Cohesion: 0.15
 Nodes (12): Datasheet context (not firmware acceptance limits), End-of-Shaft Mounting Verification Test Plan (MA600A), Goal, Magnetic field strength, Mechanical (from the MA600A datasheet, "Sensor (Magnet Mounting)" /, Parse Raw Logs, Part A -- Mechanical checklist (do this before powering on), Part B -- Firmware angle sweep (+4 more)
 
 ### Community 181 - "STM32 UART Flasher"
-Cohesion: 0.15
-Nodes (12): BIN, Chức năng, Cài đặt và chạy, ELF/AXF, File firmware, HEX, Kết nối STM32F405, Lưu ý an toàn (+4 more)
+Cohesion: 0.14
+Nodes (13): BIN, Chức năng, Cài đặt và chạy, ELF/AXF, File firmware, HEX, Kết nối STM32F405, Lưu ý an toàn (+5 more)
 
 ### Community 182 - "Plan A3 — Alignment bằng phase trajectory (rotating capture + drag)"
 Cohesion: 0.17
@@ -980,6 +1012,10 @@ Nodes (9): Analysis and closure index sets, Canonical relative error, Compatibil
 ### Community 216 - "Kế hoạch triển khai dual-image trên STM32F405"
 Cohesion: 0.22
 Nodes (8): 12. Phase M1 — measurement timing optimization độc lập, 13. Phase O1 — tối ưu CPU sau profiling, 16. Thứ tự commit đề xuất, 17. Definition of done, 1. Nguyên tắc thực hiện, 2. Deliverable cuối, Kế hoạch triển khai dual-image trên STM32F405, Trạng thái triển khai (2026-07-16)
+
+### Community 217 - "auto_log_analysis.py"
+Cohesion: 0.19
+Nodes (16): analyze_motor_response_timing(), analyze_saved_log(), _configuration_health(), _cycles_to_ms(), _format_timing_stats(), MotorResponseTimingAnalysis, parse_kv_record(), _percentile() (+8 more)
 
 ### Community 218 - "Extreme points on each batch-mean curve"
 Cohesion: 0.25
@@ -1154,8 +1190,8 @@ Cohesion: 0.67
 Nodes (3): 6. Phase P3 — shared platform và ownership, Công việc, Gate
 
 ### Community 270 - "LiveNlPlot"
-Cohesion: 0.21
-Nodes (5): Event, LiveNlPlot, Dependency-free line chart of ErrorDeg vs point Index for one NL sweep. Redrawn…, Start a new sweep trace (called on DATA,...,Index=0)., Widget
+Cohesion: 0.13
+Nodes (8): Event, LiveNlPlot, Coalesce UART text, plot points, and completed batches on Tk's thread., Parse one DATA,... line and push it to the live NL chart. Positional fields per…, Dependency-free line chart of ErrorDeg vs point Index for one NL sweep. Redrawn…, Start a new sweep trace (called on DATA,...,Index=0)., Append a UART burst and redraw once, not once per DATA record., Widget
 
 ### Community 271 - "Extreme points on each batch-mean curve"
 Cohesion: 0.18
@@ -1310,12 +1346,12 @@ Cohesion: 0.14
 Nodes (13): 1. Fix v3 cho `ENABLE_SWEEP_POINT_CREEP` — giải quyết vấn đề nhiệt/giật cục (mục 6.5, tài liệu 08-04), 2. v3 THẤT BẠI trên phần cứng thật — công suất 0.6f không đủ lực, revert về v4, 3. v4 bất ổn định (cv 18-39% qua 3 remount) — phân tích không gian "điểm khó", 4. v5-adaptive-budget (phiên song song) — test trên P03, PHÁT HIỆN LỖI MỚI: target-crossing overshoot, 5. v5.1-crossing-guard — test trên P03, KẾT QUẢ: guard hoạt động đúng thiết kế nhưng KHÔNG đủ để dùng được, 6. v5.2 — bounded single recovery: thu hồi dữ liệu sau crossing nhưng chưa xử lý được breakaway lớn, 7.1 Lỗi chỉ chạy một precondition rồi đứng, 7.2 Hardware pilot remount01 — PASS đúng scope (+5 more)
 
 ### Community 310 - "control_engine.c"
-Cohesion: 0.08
-Nodes (47): ControlA4Report_t, ControlA4Result_t, AbsI32ToU32(), ControlA5CaptureReport_t, ControlA5Result_t, MA600_Sample_t, ControlA4PhaseProgressRaw(), ControlA4PowerPpm() (+39 more)
+Cohesion: 0.07
+Nodes (53): ControlA4Report_t, ControlA4Result_t, AbsI32ToU32(), ControlA5CaptureReport_t, ControlA5Result_t, MA600_Sample_t, ControlA4PhaseProgressRaw(), ControlA4PowerPpm() (+45 more)
 
 ### Community 311 - "nonlinear_test.c"
-Cohesion: 0.09
-Nodes (53): ClosureProbeStageName(), ComputeFittedMinMaxDenseByOrders(), ComputeHarmonicFull(), ComputeModelMetricsByOrders(), ComputeResidualRms(), FindHarmonic(), FindKnownJigByUid(), FinishEngineCommand() (+45 more)
+Cohesion: 0.07
+Nodes (57): AppEngine_Init(), ClosureProbeStageName(), ComputeFittedMinMaxDenseByOrders(), ComputeHarmonicFull(), ComputeModelMetricsByOrders(), ComputeResidualRms(), ComputeShadowMetrics(), ComputeSweepStats() (+49 more)
 
 ### Community 312 - "V5.3 — point-66 fine landing and stick-slip jump guard"
 Cohesion: 0.25
@@ -1325,9 +1361,9 @@ Nodes (7): 1. Evidence and objective, 2. Locked V5.3 motion contract, 3. Telemet
 Cohesion: 0.14
 Nodes (13): 1. Objective, 2. Locked v5 control change, 3. Explicit non-goals, 4.1 Configuration record, 4.2 Per-point diagnostic record, 4.3 END aggregates, 4. Telemetry contract, 5. RAM and timing constraints (+5 more)
 
-### Community 315 - "vTaskSuspendAll"
-Cohesion: 0.13
-Nodes (24): BlockLink_t, ControlA5_CaptureResourcesInit(), HeapStats_t, osKernelGetState(), osKernelLock(), osKernelRestoreLock(), osKernelUnlock(), osThreadEnumerate() (+16 more)
+### Community 315 - "12. Hardware validation"
+Cohesion: 0.20
+Nodes (10): 12.1 Điều kiện tiên quyết của pipeline, 12.2 Pilot A1 — hard-case P03/JIG7, 12.3 Hard safety/data gates chung, 12.4 Pilot A2 — generalization P03/JIG8, 12.5 Pilot B — non-regression P09/JIG8, 12.6 P02 — exploratory only, 12.7.1 Hard-cap failure family — công thức riêng, không dùng chung với full-curve alignment, 12.7 Measurement gates chung (+2 more)
 
 ### Community 316 - "NL pointwise-curve assessment — UNKNOWN"
 Cohesion: 0.20
@@ -1341,9 +1377,9 @@ Nodes (8): 1. Evidence and decision, 2. Locked V5.1 motion change, 3. Validity a
 Cohesion: 0.20
 Nodes (9): 1. Decision, 2. Diagnostic question, 3. Locked invariants, 4. Firmware contract, 5. Software verification, 6. Hardware validation, 7. Decision after the log, 8. Definition of Done (+1 more)
 
-### Community 319 - "stm32f4xx_hal_msp.c"
-Cohesion: 0.18
-Nodes (25): ADC_HandleTypeDef, I2C_HandleTypeDef, SPI_HandleTypeDef, TIM_HandleTypeDef, UART_HandleTypeDef, HAL_ADC_MspDeInit(), HAL_ADC_MspInit(), HAL_I2C_MspDeInit() (+17 more)
+### Community 319 - "stm32f4xx_hal_cortex.c"
+Cohesion: 0.08
+Nodes (39): ADC_HandleTypeDef, I2C_HandleTypeDef, SPI_HandleTypeDef, TIM_HandleTypeDef, UART_HandleTypeDef, HAL_ADC_MspDeInit(), HAL_ADC_MspInit(), HAL_I2C_MspDeInit() (+31 more)
 
 ### Community 320 - "NL pointwise-curve assessment — UNKNOWN"
 Cohesion: 0.20
@@ -1362,8 +1398,8 @@ Cohesion: 0.33
 Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P03 / 01, P03 / 02, Same-motor cross-jig comparison
 
 ### Community 324 - "Việc chưa hoàn thành / đề xuất cho phiên sau"
-Cohesion: 0.14
-Nodes (13): 10. P09/JIG8 — NL sweep sạch nhất dự án, nhưng lỗi thật ở khâu hiệu chỉnh offset MA600 (khác tool), 1. Rà soát lại nhật ký 05/8, xác nhận điểm nổi bật: V5.3 fine-landing point 66, 2. Xây tool MATLAB phân tích chuyên sâu telemetry `SWEEP_CREEP_*` (thay cho proxy đã dùng trước đây), 3. Chạy trên toàn bộ dữ liệu V5.x thật ngày 05/8 — phát hiện mới phục vụ trực tiếp thiết kế V5.4, 4. Khóa plan V5.4 — universal live-gap fine landing, 5. Hardware V5.4 và triển khai V5.4a-DIAG, 6. Kết quả V5.4a và triển khai V5.5, 7. V5.5 — pilot phần cứng đầu tiên, kết quả NL tốt nhất từ trước tới nay nhưng chưa đạt mechanism gate (+5 more)
+Cohesion: 0.12
+Nodes (16): 10. P09/JIG8 — NL sweep sạch nhất dự án, nhưng lỗi thật ở khâu hiệu chỉnh offset MA600 (khác tool), 11. P08/JIG8 (v5.5) — JIG8 tiếp tục cho kết quả sạch, và bằng chứng "điểm hard-cap-fail đặc thù, 12. Đánh giá độ tin cậy dữ liệu H1/H2 sau creep — đủ dùng trên JIG8, chưa đủ trên JIG7, 1. Rà soát lại nhật ký 05/8, xác nhận điểm nổi bật: V5.3 fine-landing point 66, 2. Xây tool MATLAB phân tích chuyên sâu telemetry `SWEEP_CREEP_*` (thay cho proxy đã dùng trước đây), 3. Chạy trên toàn bộ dữ liệu V5.x thật ngày 05/8 — phát hiện mới phục vụ trực tiếp thiết kế V5.4, 4. Khóa plan V5.4 — universal live-gap fine landing, 5. Hardware V5.4 và triển khai V5.4a-DIAG (+8 more)
 
 ### Community 325 - "Extreme points on each batch-mean curve"
 Cohesion: 0.33
@@ -1409,22 +1445,161 @@ Nodes (4): Extreme points on each batch-mean curve, NL extreme-angle and cross-j
 Cohesion: 0.40
 Nodes (4): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P09 / JIG8, Same-motor cross-jig comparison
 
+### Community 339 - "V5.7-DIAG — Passive hold after the first V5.5 hard-cap failure"
+Cohesion: 0.20
+Nodes (9): 1. Why this diagnostic exists, 2. Locked invariants, 3. Measurement protocol, 4. Telemetry contract, 5. Statistical status, 6. Hardware test procedure, 7. Decision after the log, 8. Verification completed (+1 more)
+
+### Community 340 - "Nhật ký công việc 2026-08-10"
+Cohesion: 0.20
+Nodes (9): 1. Review plan V5.6 (Graphify tự động + người vận hành) và sửa trước khi code, 2. Code V5.6a (song song, không phải tôi) và hardware pilot trên P08/JIG8 — KẾT QUẢ: REJECT, 3. Triển khai bước 3 — chống mất DATA trong app UART, 4. Triển khai bước 4 — V5.7-DIAG hard-cap passive hold, 5. Kết quả V5.7-DIAG (2 remount P08/JIG8) — xác nhận H3, đề xuất V5.8, 6. Re-verify H1/H2/H36 trên dữ liệu sạch (JIG8, V5.5) — việc treo từ 04/8, Hoạt động trong ngày, Nhật ký công việc 2026-08-10 (+1 more)
+
+### Community 341 - "RampCommandToTarget"
+Cohesion: 0.31
+Nodes (11): Motor_SetElectricalPos(), ExtendCommandBlind(), LockStartPosition(), NlSmoothstepCommandRaw(), RampCommandToTarget(), WaitForClosureProbeTime(), WaitForHardcapHoldTime(), osDelay() (+3 more)
+
+### Community 342 - "13. Decision tree"
+Cohesion: 0.29
+Nodes (7): 13. Decision tree, Crossing/recovery/jump xuất hiện, MID-8 hiệu quả hơn và an toàn, nhưng endpoint vẫn marginal, MID-8 không tốt hơn COARSE-16, Motion PASS nhưng NL/full curve không repeatable giữa remount, Telemetry không đầy đủ, V5.6a PASS đầy đủ
+
+### Community 343 - "Q: Plan kỹ thuật vững, cần bổ sung P03/JIG8, loại P02 khỏi pass/fail và làm rõ hai hằng số 96 raw."
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Plan kỹ thuật vững, cần bổ sung P03/JIG8, loại P02 khỏi pass/fail và làm rõ hai hằng số 96 raw., Source Nodes
+
+### Community 344 - "Q: Cần phân biệt lặp lại trong cùng tổ hợp và không lặp lại giữa các tổ hợp; thuật toán có vấn đề là bất ổn hay chưa đủ hiệu quả?"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Cần phân biệt lặp lại trong cùng tổ hợp và không lặp lại giữa các tổ hợp; thuật toán có vấn đề là bất ổn hay chưa đủ hiệu quả?, Source Nodes
+
+### Community 345 - "Q: Review sweep-point-creep-v5-6-three-stage-response-plan.md"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Review sweep-point-creep-v5-6-three-stage-response-plan.md, Source Nodes
+
+### Community 346 - "Q: thời gian để một điểm đo được data chính xác mất bao lâu ?"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: thời gian để một điểm đo được data chính xác mất bao lâu ?, Source Nodes
+
+### Community 347 - "Q: Đọc 64 mẫu MA600 mẫu này là gì ?"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Đọc 64 mẫu MA600 mẫu này là gì ?, Source Nodes
+
+### Community 348 - "Q: Có đồng ý giữ nguyên kiến trúc một trace buffer và chỉ sửa tài liệu ở điểm 2 không?"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Có đồng ý giữ nguyên kiến trúc một trace buffer và chỉ sửa tài liệu ở điểm 2 không?, Source Nodes
+
+### Community 349 - "stm32f4xx_hal_rcc.c"
+Cohesion: 0.17
+Nodes (15): HAL_StatusTypeDef, RCC_OscInitTypeDef, __weak, HAL_RCC_ClockConfig(), HAL_RCC_CSSCallback(), HAL_RCC_GetClockConfig(), HAL_RCC_GetHCLKFreq(), HAL_RCC_GetOscConfig() (+7 more)
+
+### Community 350 - "Extreme points on each batch-mean curve"
+Cohesion: 0.33
+Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P08 / v5-5, P08 / v5-6, Same-motor cross-jig comparison
+
+### Community 352 - "Extreme points on each batch-mean curve"
+Cohesion: 0.33
+Nodes (5): Extreme points on each batch-mean curve, NL extreme-angle and cross-jig curve analysis, P08 / 01, P08 / 02, Same-motor cross-jig comparison
+
+### Community 353 - "pvPortMalloc"
+Cohesion: 0.10
+Nodes (31): BlockLink_t, osThreadNew(), osTimerNew(), prvHeapInit(), prvInsertBlockIntoFreeList(), pvPortMalloc(), vPortFree(), StackType_t (+23 more)
+
+### Community 354 - "10. Software implementation phases"
+Cohesion: 0.40
+Nodes (5): 10. Software implementation phases, V5.6-S0 — contract, V5.6-S1 — motion, V5.6-S2 — telemetry/tool, V5.6-S3 — verification/package
+
+### Community 355 - "Q: Implement V5.6 three-stage response-qualified sweep creep"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Implement V5.6 three-stage response-qualified sweep creep, Source Nodes
+
+### Community 356 - "Q: S2-P08-JIG8-remount01-test-1-v5-6 remount 1"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: S2-P08-JIG8-remount01-test-1-v5-6 remount 1, Source Nodes
+
+### Community 357 - "Q: đã test remount 02 kết quả báo fail tiếp tuc"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: đã test remount 02 kết quả báo fail tiếp tuc, Source Nodes
+
+### Community 358 - "NlCreepStepPhaseForState"
+Cohesion: 0.50
+Nodes (4): NlCreepStepPhaseForState(), NlCreepStepPhaseName(), NlCreepLandingPhase_t, NlCreepStepPhase_t
+
+### Community 359 - "3. Giả thuyết cần kiểm định"
+Cohesion: 0.50
+Nodes (4): 3. Giả thuyết cần kiểm định, H1 — MID-8 cải thiện landing, H2 — MID-8 giảm crossing/breakaway, H3 — response không phụ thuộc step size
+
+### Community 360 - "4. Mục tiêu và non-goals"
+Cohesion: 0.67
+Nodes (3): 4.1 Mục tiêu, 4.2 Không làm trong V5.6a, 4. Mục tiêu và non-goals
+
+### Community 361 - "6. Firmware contract"
+Cohesion: 0.67
+Nodes (3): 6.1 Feature flag, 6.2 Protocol identity, 6. Firmware contract
+
+### Community 362 - "8. Telemetry và data-integrity contract"
+Cohesion: 0.67
+Nodes (3): 8.1 Schema, 8.2 Gate completeness, 8. Telemetry và data-integrity contract
+
+### Community 364 - "task.h"
+Cohesion: 0.20
+Nodes (3): TaskHandle_t, vApplicationMallocFailedHook(), vApplicationStackOverflowHook()
+
+### Community 365 - "MoveToZeroAndCheckDirection"
+Cohesion: 0.29
+Nodes (10): Motor_GetCommandedPos(), Motor_ControllerState_t, ControllerStateIsReset(), FinishMoveToZeroObservation(), FormatDeg2(), MoveToZeroAndCheckDirection(), NlZeroResultName(), RecordControllerObservation() (+2 more)
+
+### Community 366 - "V5.8-TIME-DIAG — đo thời gian đáp ứng command theo từng điểm"
+Cohesion: 0.20
+Nodes (9): 1. Mục tiêu, 2. Profile được giữ nguyên, 3. Clock và phép đo, 4. Ranh giới phase, 5. Telemetry contract, 6. Tool và đại lượng tổng hợp, 7. Gate hardware đầu tiên, 8. RAM và safety (+1 more)
+
+### Community 367 - "Re-verify H1/H2/H36 trên dữ liệu "sạch" (JIG8, V5.5) — 2026-08-10"
+Cohesion: 0.29
+Nodes (6): Chưa làm trong lần này, Dữ liệu nguồn, Giới hạn — chưa đóng được hoàn toàn vòng lặp gốc, Kết luận, Kết quả — so sánh CROSS-MOTOR (3 motor khác nhau, cùng board JIG8), Re-verify H1/H2/H36 trên dữ liệu "sạch" (JIG8, V5.5) — 2026-08-10
+
+### Community 368 - "Q: S2-P08-JIG8-remount01-test-1-v5-7"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: S2-P08-JIG8-remount01-test-1-v5-7, Source Nodes
+
+### Community 369 - "Q: S2-P08-JIG8-remount02-test-1-v5-7 remount 2"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: S2-P08-JIG8-remount02-test-1-v5-7 remount 2, Source Nodes
+
+### Community 370 - "Q: Rotor chỉ đáp ứng trung bình khoảng 56.6% command đã phát; tôi muốn biết chính xác thời gian để một điểm đáp ứng command"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Rotor chỉ đáp ứng trung bình khoảng 56.6% command đã phát; tôi muốn biết chính xác thời gian để một điểm đáp ứng command, Source Nodes
+
+### Community 371 - "HAL_SPI_RegisterCallback"
+Cohesion: 0.50
+Nodes (4): HAL_SPI_RegisterCallback(), HAL_SPI_UnRegisterCallback(), HAL_SPI_CallbackIDTypeDef, pSPI_CallbackTypeDef
+
+### Community 372 - "Q: Triển khai bước 3 sửa capture mất DATA và bước 4 chẩn đoán V5.5 hard-cap static-equilibrium/settle"
+Cohesion: 0.50
+Nodes (3): Answer, Outcome, Q: Triển khai bước 3 sửa capture mất DATA và bước 4 chẩn đoán V5.5 hard-cap static-equilibrium/settle
+
 ## Knowledge Gaps
-- **1262 isolated node(s):** `v`, `Usage`, `What graphify is for`, `Step 0 - GitHub repos and multi-path merge (only if a URL or several paths)`, `Step 1 - Ensure graphify is installed` (+1257 more)
+- **1340 isolated node(s):** `v`, `Usage`, `What graphify is for`, `Step 0 - GitHub repos and multi-path merge (only if a URL or several paths)`, `Step 1 - Ensure graphify is installed` (+1335 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+
+## Work-memory lessons
+
+**Preferred sources** — corroborated by past sessions; start here.
+- `CreepToUnwrappedTargetProfiled()` (7× useful, score=6.989789781) _(code changed — re-verify)_
+- `V5.6 — three-stage 16→8→4 response-qualified landing` (7× useful, score=6.817568249)
+- `HardcapHoldClassification()` (2× useful, score=1.999210486) _(code changed — re-verify)_
+- `V5.7-DIAG — Passive hold after the first V5.5 hard-cap failure` (2× useful, score=1.999210486)
+- `RampCommandToTarget()` (2× useful, score=1.996658489) _(code changed — re-verify)_
+- `WaitForPointSettle()` (2× useful, score=1.996658489) _(code changed — re-verify)_
+- `12.4 Pilot A2 — generalization P03/JIG8` (2× useful, score=1.831517708)
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `HAL_GetTick()` connect `HAL_GetTick` to `stm32f4xx_hal.c`, `stm32f4xx_hal_uart.c`, `stm32f4xx_hal_rcc_ex.c`, `stm32f4xx_hal_spi.c`, `stm32f4xx_hal_dma.c`, `control_a5_capture.c`, `stm32f4xx_hal_adc.c`, `control_engine.c`, `nonlinear_test.c`, `CaptureSweep`, `stm32f4xx_hal_flash_ex.c`, `MoveToZeroAndCheckDirection`, `stm32f4xx_hal_i2c.c`?**
-  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **Why does `HAL_GetTick()` connect `HAL_GetTick` to `stm32f4xx_hal.c`, `stm32f4xx_hal_rcc_ex.c`, `stm32f4xx_hal_uart.c`, `MoveToZeroAndCheckDirection`, `stm32f4xx_hal_spi.c`, `stm32f4xx_hal_dma.c`, `control_a5_capture.c`, `stm32f4xx_hal_adc.c`, `RampCommandToTarget`, `control_engine.c`, `nonlinear_test.c`, `CreepToUnwrappedTargetProfiled`, `stm32f4xx_hal_flash_ex.c`, `stm32f4xx_hal_rcc.c`, `stm32f4xx_hal_i2c.c`?**
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **Why does `LL_MPU_Enable()` connect `stm32f4xx_ll_cortex.h` to `__DSB`?**
-  _High betweenness centrality (0.035) - this node is a cross-community bridge._
-- **Why does `Error_Handler()` connect `main` to `cmsis_gcc.h`, `stm32f4xx_hal_gpio.c`, `TIM_Base_SetConfig`, `HAL_GPIO_WritePin`, `stm32f4xx_hal_msp.c`?**
-  _High betweenness centrality (0.029) - this node is a cross-community bridge._
+  _High betweenness centrality (0.033) - this node is a cross-community bridge._
+- **Why does `osDelay()` connect `RampCommandToTarget` to `cmsis_os2.c`, `tasks.c`, `MoveToZeroAndCheckDirection`, `CreepToUnwrappedTargetProfiled`, `StartDefaultTask`?**
+  _High betweenness centrality (0.031) - this node is a cross-community bridge._
 - **What connects `v`, `Usage`, `What graphify is for` to the rest of the system?**
-  _1262 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1340 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `stm32f4xx_ll_usart.h` be split into smaller, more focused modules?**
   _Cohesion score 0.043151567196221555 - nodes in this community are weakly interconnected._
 - **Should `cmsis_gcc.h` be split into smaller, more focused modules?**
