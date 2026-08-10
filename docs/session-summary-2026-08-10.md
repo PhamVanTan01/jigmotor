@@ -240,6 +240,91 @@ analysis.txt/metrics.csv/response.csv) cho khớp firmware. Hệ quả: so sánh
 **Bài học quy trình**: không tin tên file khi nhóm dữ liệu theo jig — luôn đọc field `JigID` trong chính
 log (đã áp dụng trong `scan_h2_geometric_signature.m`).
 
+## 8. Hai tool chẩn đoán bổ sung (viết trước đó trong ngày, commit cùng đợt này)
+
+- `analysis/matlab/nl/simulate_lut_calibration_residual.m` — mô phỏng phần dư khi hiệu chỉnh 1 đường
+  cong bất kỳ bằng bảng LUT N điểm nội suy tuyến tính (giống bảng CORR0-31 32 điểm thật của MA600, luôn
+  `CorrNonZeroCount=0` trong thực tế — chưa từng dùng). Chứng minh được bằng số: với N=32 điểm, phần dư
+  **VƯỢT QUÁ** sai số gốc khi bậc harmonic ≥ ~18 (giới hạn Nyquist của bảng) — LUT 32 điểm không thể sửa
+  được các harmonic bậc cao (H36 trở lên), kể cả về mặt toán học chứ không riêng gì do chưa bật.
+- `analysis/matlab/nl/analyze_offaxis_calibration_risk.m` — 3 chỉ số chẩn đoán (MaxAbsJumpDeg,
+  OtherHighOrderRmsDeg loại trừ bội số 6 của họ motor, MaxAbsResidualDeg qua mô phỏng LUT-32) để sàng
+  lọc kiểu méo cục bộ giống lỗi gá lệch trục MA600 trên PAN/TILT (P09). Chạy trên dữ liệu JIG8 thật
+  (P03/P08/P09): **P09 không phải outlier** trên sweep NL động — kết quả âm tính trung thực, xác nhận
+  lại kết luận: sweep NL (đo tracking động, closed-loop) và phép hiệu chỉnh tĩnh (open-loop, mở-vòng)
+  của Gremsy nhạy với 2 đặc tính cảm biến khác nhau, không thay thế được cho nhau. Docstring có cảnh báo
+  rõ: góc báo cáo theo hệ quy chiếu riêng của jig, không được đối chiếu trực tiếp với chỉ số góc của tool
+  Gremsy.
+
+## 9. Phân tích sâu response-timing + kiểm tra giả thuyết "motor giật cục"
+
+Tool mới `analysis/matlab/nl/analyze_point_difficulty_map.m` join `SWEEP_CREEP_POINT` (gap ban đầu, số
+vòng lặp, escalation) với `SWEEP_POINT_TIMING` (thời gian tới deadband) theo từng điểm/góc, cộng thêm
+parser nhẹ cho `MOTION_PROFILE` (backtracking cơ khí mỗi sweep). Chạy trên 4 file V5.8 (P02-JIG7 +
+P09-JIG8 x3 remount).
+
+**Thống kê tổng theo motor** (P02 thực ra chạy trên JIG7, xem mục 7 — số dưới đây kế thừa nhiễu jig đó):
+
+| | Gap TB (raw) | Vòng lặp TB | Time-to-deadband TB | Budget escalation | Backtrack rate |
+|---|---:|---:|---:|---:|---:|
+| P02 (JIG7) | 130.5 | 16.67 | 191.0ms | 4.91% | 16.8-17.0% |
+| P09 (JIG8, 3 remount) | 112-115 | 17.9-18.1 | 191.7-194.2ms | 9.9-11.8% | 10.9-12.4% |
+
+Bất ngờ: P02 cần **ít** vòng lặp và **ít** escalation hơn P09 — nếu chỉ nhìn số vòng lặp, P02 không hề
+trông "khó" hơn.
+
+**Bằng chứng độc lập mạnh nhất**: harmonic bậc-2 của chính đường cong "gap ban đầu" (dữ liệu effort điều
+khiển thô, độc lập hoàn toàn với NL error đã tính) — P02 = 8.92, còn P09 chỉ 2.35-3.17 (3 remount) — xác
+nhận chéo lệch tâm hình học bằng 1 kênh dữ liệu khác.
+
+**Phát hiện phụ**: top-15 điểm khó nhất của **3 lần remount P09 độc lập** trùng nhau đáng kể (170°, 90°,
+179°, 50°, 209°, 58°, 338°...) dù tháo lắp lại motor 3 lần — đây là dấu hiệu "khóa theo jig" (ma sát/dây
+cáp cố định trong không gian), khác hẳn H2 "khóa theo motor" (xoay theo rotor). Từ nay tách 2 loại khó
+theo nguồn gốc thay vì gộp chung.
+
+**Kiểm tra giả thuyết người vận hành quan sát "motor giật cục" có phải là nguyên nhân gây 2 chỗ lồi
+không**: dùng `StickSlipJumpDetected` và `MaxObservedStepDeltaRaw` (dấu âm/dương = giật đúng/ngược
+chiều) trong `SWEEP_CREEP_POINT`.
+
+- Bộ dò giật của chính firmware **không kích hoạt lần nào** (0.000%) ở cả 2 motor trong batch này.
+- Biên độ bước nhảy trong vùng 2 lồi (θ≈274°/94°, ±20°) so với phần còn lại của P02: **21.31 vs 21.07 —
+  gần như bằng nhau (1.01x)** → giật KHÔNG tập trung tại 2 điểm lồi, bác bỏ giả thuyết "2 lồi do giật cục
+  cục bộ".
+- Nhưng **P02 giật/rung mạnh hơn P09 khoảng 34% biên độ trung bình** (21.1 vs 15.7-15.8 raw), trải đều cả
+  360°, rõ nhất ở tần số 10°/chu kỳ (H36, cogging torque theo cặp cực): 9.58 vs 4.9-5.6 — gần gấp đôi.
+- **Kết luận**: quan sát "giật cục" của người vận hành đúng nhưng phản ánh 1 vấn đề cơ khí KHÁC, tách
+  biệt với lệch tâm bậc-2 — có thể là 2 vấn đề cộng lại (lệch tâm + độ rít/rung nền cao hơn xuyên suốt cả
+  vòng quay). Vẫn chưa tách được phần do JIG7 (khác JIG8) khỏi phần do chính motor P02.
+
+## 10. Biểu đồ polar "vân tay chất lượng motor" — MATLAB + tích hợp production Python
+
+Xây `analysis/matlab/nl/plot_v58_motor_quality_polar.m` (MATLAB, dùng cho phân tích sâu nhiều file) và
+`tools/motor_quality_polar.py` (Python thuần + matplotlib, tự chạy production) — cùng 1 thiết kế 3 panel
+polar theo góc 0-360°:
+
+1. **Error curve E(θ)** — làm mượt tuần hoàn (circular smoothing) + dịch baseline để không cắt qua tâm.
+2. **Gap hiệu chỉnh ban đầu mỗi điểm** — chỉ vẽ nếu log có bật `ENABLE_SWEEP_POINT_CREEP`.
+3. **Thời gian tới deadband mỗi điểm** — chỉ vẽ nếu log có telemetry `SWEEP_POINT_TIMING` (build V5.7/8);
+   đánh dấu chấm đỏ **tại đúng giá trị thật** (không ghim ra rìa) ở mọi điểm có `ReachedDeadband=0` (ít
+   nhất 1 sweep chính thức không kịp vào deadband trong ngân sách thời gian) — test trên P02 ra đúng 7
+   điểm (Point 0, 261-263, 301-303), khớp danh sách "điểm chậm" đã tìm thấy ở mục 9.
+
+Bản MATLAB (dùng để so nhiều file cùng lúc) có thêm: vạch đỏ đứt nét đánh dấu 2 góc suy ra từ pha bậc-2
+của motor được chọn làm trung tâm so sánh, và dấu "x" đen = điểm khó chung khóa-theo-jig (cố ý ghim ra
+rìa ngoài để dễ nhìn — vị trí góc là thật, bán kính không mang ý nghĩa, đã giải thích rõ trong docstring
+và chú thích ảnh để tránh hiểu nhầm).
+
+**Tích hợp vào `tools/stm32_uart_flasher.py` (v1.10 → thêm tính năng)**: checkbox mới "Tự vẽ biểu đồ
+polar" (mặc định bật, tự khóa nếu máy thiếu matplotlib). Ngay sau khi lưu log xong (`save_capture`), gọi
+`generate_polar_quality_chart(log_path)` → lưu `<tên_log>.polar.png` cạnh log, ghi log kết quả vào khung
+nhật ký; lỗi vẽ chart được bọc try/except riêng, không làm hỏng việc lưu/phân tích log. Thêm
+`matplotlib>=3.5,<4` vào `tools/requirements.txt` (dependency mới — cần `pip install -r requirements.txt`
+lại trên máy vận hành).
+
+Đã kiểm tra: `py_compile` sạch cho cả 2 file Python, import `stm32_uart_flasher` không tự mở GUI, 8/8
+test có sẵn trong `test_auto_log_analysis.py` vẫn PASS, chạy thử trên log P02/P09 thật ra đúng hình dạng
+khớp bản MATLAB.
+
 ## Việc còn lại / đề xuất cho phiên sau
 
 1. Build + pilot V5.8 (bounded targeted terminal correction, cap 400 raw) trên P08/JIG8 — xác định

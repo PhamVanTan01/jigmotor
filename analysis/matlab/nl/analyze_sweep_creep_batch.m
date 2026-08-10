@@ -372,6 +372,12 @@ if isempty(summary) || all(isnan(summary.SweepPointCreepExpectedPointTelemetry))
     completeness = table();
     return
 end
+% Only sweeps that actually logged the V5.6+ Expected/EmittedPointTelemetry
+% fields belong in this report -- earlier-schema sweeps (V5.1-V5.5) leave
+% these NaN (parse_sweep_creep_log.m's documented fill for absent fields)
+% and must be excluded here, not just at the all-NaN short-circuit above,
+% or every pre-V5.6 sweep gets a spurious MechanismTelemetryComplete=false row.
+summary = summary(~isnan(summary.SweepPointCreepExpectedPointTelemetry), :);
 rows = cell(height(summary), 11);
 for r = 1:height(summary)
     samePointSweep = points.Label == summary.Label(r) ...

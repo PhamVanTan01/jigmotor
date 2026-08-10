@@ -77,6 +77,7 @@ test_compare_features_across_jigs();
 test_mount_precheck();
 test_peak_signature_tools();
 test_sweep_creep_analysis();
+test_offaxis_calibration_risk();
 
 fprintf("[ OK ] NL stability MATLAB analysis regression test passed.\n");
 end
@@ -1021,23 +1022,39 @@ result = analyze_sweep_creep_batch([fileA, fileB, fileC, fileD, fileE, fileF, fi
 assert(height(result.Points) == 10);
 assert(height(result.Steps) == 4);
 assert(height(result.SweepSummary) == 6);
-assert(height(result.HoldByLabel) == 6);
+% build_hold_by_label emits one row per unique label passed in (7: V5.1,
+% V5.3-V5.8), not just the one (V5.7/fileF) that actually has hold data --
+% labels without hold rows still get a row of zeros/NaN via the empty subset.
+assert(height(result.HoldByLabel) == 7);
 v57Hold = result.HoldByLabel(result.HoldByLabel.Label == "V5.7", :);
 assert(v57Hold.NCandidates == 1 && v57Hold.NRelaxesTowardTarget == 1);
 assert(v57Hold.MeanTotalGapReductionRaw == 12);
 
 byPoint = result.ByPoint;
-assert(byPoint.Point(1) == 66);
-assert(abs(byPoint.TroubleScore(1) - 1.0) < 1e-9); % non-OK in both appearances
+% TroubleScore==1.0 is now a 3-way tie (points 28/66/308 each all-non-OK
+% across their own appearances -- fileE/fileF added a single-appearance
+% non-OK point each), so the sorted top row is whichever tied point sorts
+% first under sortrows' stable tie-break (ascending Point, since byPoint
+% is built from unique(points.Point) before the descend sort) -- not
+% necessarily 66. Assert what's actually guaranteed instead: row 1 is
+% AT the top score, and point 66 -- identified by N==3, the only point
+% with three separate non-OK appearances (fileA/B/C) rather than one --
+% shares that same top score.
+assert(abs(byPoint.TroubleScore(1) - 1.0) < 1e-9);
+point66Row = byPoint(byPoint.Point == 66, :);
+assert(point66Row.N == 3);
+assert(abs(point66Row.TroubleScore - 1.0) < 1e-9);
 point10 = byPoint(byPoint.Point == 10, :);
 assert(abs(point10.TroubleScore - 0.0) < 1e-9);
-% Point 66's V5.3 appearance has RecoveryAttempted=1/StickSlipJumpDetected=1,
-% its V5.1 appearance has both NaN (schema didn't have the field) -- the
-% fraction must be computed over only the non-NaN appearance, i.e. exactly 1.
+% Point 66 appears in fileA (NaN -- V5.1 schema lacks the field), fileB
+% (RecoveryAttempted=1, StickSlipJumpDetected=1) and fileC (RecoveryAttempted=0,
+% StickSlipJumpDetected=1) -- the fraction is computed over only the two
+% non-NaN appearances: RecoveryAttempted mean([1,0])=0.5,
+% StickSlipJumpDetected mean([1,1])=1.0.
 point66Row = byPoint(byPoint.Point == 66, :);
-assert(abs(point66Row.FracRecoveryAttempted - 1.0) < 1e-9);
+assert(abs(point66Row.FracRecoveryAttempted - 0.5) < 1e-9);
 assert(abs(point66Row.FracStickSlipJump - 1.0) < 1e-9);
-assert(abs(point66Row.MaxAbsFinalGapRaw - 311) < 1e-9); % max(|-311|, |-100|)
+assert(abs(point66Row.MaxAbsFinalGapRaw - 311) < 1e-9); % max(|-311|, |-100|, |-70|)
 
 byLabel = result.ByLabel;
 v51Row = byLabel(byLabel.Label == "V5.1", :);
@@ -1066,6 +1083,67 @@ assert(abs(v58Timing.ReachedDeadbandRatePct - 50.0) < 1e-9);
 assert(abs(v58Timing.MeanTimeToDeadbandMs - 128.0) < 1e-9);
 assert(abs(v58Timing.MeanFailedStopLatencyMs - 209.0) < 1e-9);
 assert(v58Timing.TelemetryComplete == 1);
+end
+
+function test_offaxis_calibration_risk()
+% simulate_lut_calibration_residual.m, hand-checkable cases first:
+% (a) a constant curve must calibrate to ~0 residual everywhere (a flat
+% line is exactly representable between any two knots); (b) a single
+% isolated spike placed at a NON-knot index (knots for n=8,lutPoints=4
+% sit at round((0:3)*2)=[0,2,4,6]; index 5 is between knots 4 and 6, i.e.
+% not itself a knot) must leave a large residual AT that index, close to
+% the spike's own value, since its knot-interpolated neighbors are ~0.
+constCurve = 5 * ones(8, 1);
+residualConst = simulate_lut_calibration_residual(constCurve, 4);
+assert(all(abs(residualConst) < 1e-9));
+
+spikeCurve = zeros(8, 1);
+spikeCurve(6) = 100; % 0-based index 5
+residualSpike = simulate_lut_calibration_residual(spikeCurve, 4);
+assert(abs(residualSpike(6) - 100) < 1e-9); % neighbors are 0, so interpolation there is ~0
+assert(all(abs(residualSpike([1 2 3 4 5 7 8])) < 1e-9)); % exact at/away from the spike
+
+% analyze_offaxis_calibration_risk.m end-to-end: two synthetic motors,
+% n=360. SMOOTH is a pure order-1 + order-6 sine (both low-order,
+% MotorHarmonicMultiple=6 default covers the order-6 term as "motor
+% family", so OtherHighOrderRmsDeg should be ~0 and the curve is smooth
+% enough that a 32-point table tracks it closely). OFFAXIS is the SAME
+% base curve plus one single-point spike (an isolated, non-periodic
+% local distortion, exactly the "field gradient hot spot" signature this
+% tool is built to flag) -- must dominate on all three diagnostics and
+% the reported jump location must match the spike's own angle exactly.
+n = 360;
+theta = 2 * pi * (0:n - 1)' / n;
+smoothCurve = 0.05 * sin(theta) + 0.3 * sin(6 * theta);
+spikeAtIndex = 251; % arbitrary, unrelated to any knot of a 32-point table
+offaxisCurve = smoothCurve;
+offaxisCurve(spikeAtIndex + 1) = offaxisCurve(spikeAtIndex + 1) + 8.0;
+
+fileSmooth = write_extreme_angle_log(smoothCurve, "MS", "JX");
+fileOffaxis = write_extreme_angle_log(offaxisCurve, "MO", "JX");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileSmooth, fileOffaxis})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileSmooth, fileOffaxis}, "MotorId", {"MS", "MO"}, "JigId", {"JX", "JX"});
+result = analyze_offaxis_calibration_risk(fileGroups);
+
+s = result.Summary;
+smoothRow = s(s.MotorId == "MS", :);
+offaxisRow = s(s.MotorId == "MO", :);
+
+% OFFAXIS must rank first (sorted by MaxAbsJumpDeg descending).
+assert(s.MotorId(1) == "MO");
+assert(offaxisRow.MaxAbsJumpDeg > smoothRow.MaxAbsJumpDeg);
+assert(offaxisRow.OtherHighOrderRmsDeg > smoothRow.OtherHighOrderRmsDeg);
+assert(offaxisRow.MaxAbsResidualDeg > smoothRow.MaxAbsResidualDeg);
+% MaxAbsJumpDeg uses a forward difference, so an isolated one-point spike
+% produces an equal-magnitude jump on both the entering edge (index
+% spikeAtIndex-1) and the leaving edge (index spikeAtIndex) -- max() ties
+% resolve to the first, i.e. one point before the spike itself.
+assert(abs(offaxisRow.JumpAtAngleDeg - (spikeAtIndex - 1)) < 1.0);
+assert(abs(offaxisRow.ResidualAtAngleDeg - spikeAtIndex) < 1.0);
+% The smooth curve has no content outside the order-1/order-6 family, so
+% its "other high order" energy must be near the floor.
+assert(smoothRow.OtherHighOrderRmsDeg < 0.01);
 end
 
 function file = write_temp_log(lines)

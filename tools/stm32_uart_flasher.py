@@ -53,6 +53,11 @@ from auto_log_analysis import (
 )
 
 try:
+    from motor_quality_polar import generate_polar_quality_chart
+except ImportError:  # matplotlib missing on this machine -- chart tab stays off
+    generate_polar_quality_chart = None  # type: ignore[assignment]
+
+try:
     from intelhex import IntelHex
 except ImportError:  # handled when a HEX file is selected
     IntelHex = None  # type: ignore[assignment]
@@ -854,6 +859,7 @@ class FlasherApp(tk.Tk):
         self.dtr_reset_var = tk.BooleanVar(value=True)
         self.auto_save_log_var = tk.BooleanVar(value=True)
         self.auto_analyze_log_var = tk.BooleanVar(value=True)
+        self.auto_plot_polar_var = tk.BooleanVar(value=generate_polar_quality_chart is not None)
         self.ask_log_filename_var = tk.BooleanVar(value=True)
         self.log_directory_var = tk.StringVar(value=str(default_log_directory()))
         self.status_var = tk.StringVar(value="Chưa kết nối")
@@ -983,6 +989,14 @@ class FlasherApp(tk.Tk):
             text="Tự phân tích",
             variable=self.auto_analyze_log_var,
         ).grid(row=1, column=2, columnspan=2, sticky="w", pady=(8, 0))
+        polar_checkbox = ttk.Checkbutton(
+            options,
+            text="Tự vẽ biểu đồ polar",
+            variable=self.auto_plot_polar_var,
+        )
+        polar_checkbox.grid(row=2, column=4, columnspan=4, sticky="w", pady=(6, 0))
+        if generate_polar_quality_chart is None:
+            polar_checkbox.state(["disabled"])
         ttk.Label(options, text="Thư mục log:").grid(
             row=1, column=4, sticky="e", pady=(8, 0)
         )
@@ -1194,10 +1208,23 @@ class FlasherApp(tk.Tk):
             if not requested_filename or not requested_filename.strip():
                 requested_filename = suggested_name
 
+        run_polar_plot = bool(self.auto_plot_polar_var.get()) and generate_polar_quality_chart is not None
+
         def task() -> None:
             try:
                 log_path = save_capture(capture, output_dir, requested_filename)
                 self.log(f"AUTO SAVE: {log_path}")
+
+                if run_polar_plot:
+                    try:
+                        chart_path = generate_polar_quality_chart(log_path)
+                        if chart_path is not None:
+                            self.log(f"AUTO PLOT: {chart_path}")
+                        else:
+                            self.log("AUTO PLOT: bỏ qua (log chưa đủ điểm DATA để vẽ).")
+                    except Exception as chart_exc:  # noqa: BLE001 -- chart failure must not block save/analysis
+                        self.log(f"AUTO PLOT THẤT BẠI: {chart_exc}")
+
                 if not run_analysis:
                     self.set_status(f"ĐÃ LƯU LOG — {log_path.name}")
                     return
