@@ -170,6 +170,76 @@ Chi tiết đầy đủ: `analysis-out/h1-h2-h36-reverify-clean-jig8-20260810.md
 - **Chưa làm**: gate `MountValid` theo vector H1/H2 (biên độ quá nhỏ/nhiễu pha còn cao để dựng ngưỡng
   tin cậy ngay); so sánh JIG1/JIG4 (mục tiêu gốc dự án, cần ít nhất 1 cặp board đều sạch).
 
+## 7. Phân tích log V5.8 (`tools/dist/captured-logs`) — vì sao NL thu hẹp từ 3° còn 0.24°, và bằng
+   chứng P02 là lỗi motor thật
+
+Chạy `analyze_nl_stability_batch`/`analyze_sweep_creep_batch` trên 4 file V5.8 (P02 + P09 x3 remount,
+JIG8). **Lưu ý**: cả 4 file tự khai `EligibleForStatistics=0` cho mọi sweep — đúng thiết kế theo
+`docs/sweep-point-response-timing-v5-8-plan.md:39` (build DWT-timing diagnostic, chưa A/B xác nhận
+không làm lệch cadence). Số liệu dưới đây là **thăm dò** (bật `includePrecondition=true` để vượt gate),
+không phải thống kê chính thức.
+
+**Số liệu thăm dò**: P02/JIG-thật (xem phần đính chính bên dưới) mean=0.464° (cv=0.75%); P09/JIG8 3
+remount mean=0.223°/0.249°/0.229° (cv 1.7-4.1%) — khớp vùng đã biết trước đó cho JIG8.
+
+**Mechanism telemetry sạch nhất từ trước tới nay**: 100% IntegrityValid, 100% BaseEscalationSuccessRate,
+0 TargetCrossed/RecoveryRecrossed/StickSlipJump trên cả 16 sweep gộp. Telemetry DWT mới (lần đầu có):
+hiệu suất creep 82.7-97% (so với 33-54% đo thủ công ở V5.4a), tỉ lệ về deadband kịp thời 98.4-99.5%.
+
+**Giải thích "3° → 0.24°" — 4 lớp cộng dồn**: (1) sửa settle-creep gốc 3.05→1.78° (~42%, 04-05/8);
+(2) dẹp crossing/stick-slip/overshoot V5.1→V5.5 để phép bù có tác dụng ở MỌI điểm; (3) JIG8 tự nó lệch
+tâm cơ khí nhỏ hơn JIG7 ~2 lần (đã biết từ 04/8); (4) V5.6→V5.8 tiệm cận hiệu suất 83-97%, loại nốt
+nhiễu do chưa hội tụ.
+
+### Bằng chứng P02 là lỗi motor thật (không phải mounting/firmware)
+
+So sánh harmonic H1(360°)/H2(180°) — "họ hình học" — với H36(10°) — "họ motor/cogging" — trên dữ liệu
+JIG1 cũ (`analysis-out/b0b-p02-p07-within-product/`):
+
+- P02 lệch cao hơn P03/P06 ~8%, cao hơn P07 ~32%, lặp lại ổn định qua 2 lần remount độc lập (CV<0.6%).
+- H36 của P02 bình thường (0.90°, giữa dải 0.82-0.91° các sản phẩm khác) — không phải "cogging mạnh
+  hơn". H2 của P02 (~0.25°) cao gần gấp 2.7 lần P07 (0.095°, sản phẩm tốt nhất).
+- **Bằng chứng mấu chốt**: H2 amplitude VÀ phase gần như không đổi giữa 2 lần remount vật lý độc lập
+  (amp lệch 0.7%, phase lệch 0.7°: -88.65° vs -87.94°) — nếu là lỗi ngàm/mounting thì phase phải xoay
+  ngẫu nhiên theo mỗi lần gá lại; ở đây nó khóa theo rotor → lệch nằm trong chính motor.
+- Xác nhận chéo trên dữ liệu V5.8 hôm nay: P02 vẫn cho H2 cao gấp 4-10 lần P09 (đối chứng) trên cùng
+  điều kiện đo, trong khi phase H2 của P09 (đối chứng "tốt") trôi dạt qua từng lần remount — khác hẳn
+  kiểu khóa pha ổn định của P02.
+
+### Tool mới: quét quần thể H2/H36 toàn repo
+
+`analysis/matlab/nl/scan_h2_geometric_signature.m` — quét 1 danh sách file log, tách ProductId (từ tên
+file, pattern P0[2-9]) và JigId (ưu tiên `Meta.JigID`, fallback tên file), tính tỉ lệ RatioH2H36 =
+H2/H36 mỗi sweep (chuẩn hóa cross-era vì cả H2 lẫn H36 tuyệt đối đều co lại nhiều lần qua các thế hệ
+firmware — không chỉ riêng "họ hình học" bị nhiễm artifact như tưởng ban đầu). Chạy trên 237/379 file có
+tag sản phẩm trong tên (1279 sweep hợp lệ), kết quả: `analysis-out/h2_geometric_scan_summary.csv` +
+`_detail.csv`.
+
+**Phát hiện quan trọng — phải đính chính kết luận trước đó**: gộp tỉ lệ H2/H36 xuyên-jig cho CV rất cao
+(P03 CV=141%) — mỗi jig có nền hình học riêng, không thể so sánh trực tiếp giữa các jig khác nhau. Tách
+lại theo từng jig cụ thể:
+
+| Jig | Product cao nhất | Ratio | CV |
+|---|---|---:|---:|
+| JIG1 (N lớn nhất) | **P04** | 0.332 | 12% (rất chụm) |
+| JIG1 | P02 (giữa bảng) | 0.205 | 41% |
+| JIG7 | P02 | 0.261-0.375 | 7-37% |
+
+→ Trên JIG1, P02 **không** phải outlier — P04 mới là ứng viên lệch hình học motor-intrinsic rõ và ổn
+định nhất (CV thấp nhất hẳn). Kết luận "P02 luôn tệ hơn mọi sản phẩm" bị bác bỏ; kết luận đúng là "H2/H36
+phải so sánh trong cùng 1 jig, không được gộp xuyên-jig".
+
+**Phát hiện lỗi nhãn file**: `S2-P02-JIG8-remount01-test-1-v5-8.txt` — tên file ghi JIG8 nhưng field
+`JigID` do chính firmware ghi trong META là `JIG7` (trùng MCU_UID=0046... với file
+`S2-P02-JIG7-remount01-test-1-v5-7.txt` đã gắn đúng nhãn). Người vận hành gõ nhầm tên khi đặt tên file
+phiên V5.8. Đã đổi tên lại thành `S2-P02-JIG7-remount01-test-1-v5-8.*` (5 file: txt/analysis.json/
+analysis.txt/metrics.csv/response.csv) cho khớp firmware. Hệ quả: so sánh "P02 vs P09 cùng JIG8" ở phần
+đầu mục này thực ra là P02-trên-JIG7 vs P09-trên-JIG8 — khác jig, một phần khoảng cách 2x có thể do jig
+(JIG7 vốn NL nền cao hơn JIG8, "hiệu ứng board mới" đã biết từ 04/8), không thuần túy do motor.
+
+**Bài học quy trình**: không tin tên file khi nhóm dữ liệu theo jig — luôn đọc field `JigID` trong chính
+log (đã áp dụng trong `scan_h2_geometric_signature.m`).
+
 ## Việc còn lại / đề xuất cho phiên sau
 
 1. Build + pilot V5.8 (bounded targeted terminal correction, cap 400 raw) trên P08/JIG8 — xác định
