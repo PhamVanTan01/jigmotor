@@ -1,0 +1,53 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG7-remount03-test-6.txt
+TerminalStatus=COMPLETE
+OfficialValid=2/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  WARN: D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG7-remount03-test-6.txt:3035: malformed DATA line, skipped: DATA,5,6,6,JIG7,UNKNOWN,CW,280,10MOTION,SchemaVersion=5,TestID=6,SweepID=6,JigID
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=5 SweepID=5 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG7-remount03-test-6.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      - 80 of 360 analysis points missing (indices [280, 281, 282, 283, 284, 285, 286, 287, 288, 289]...)
+      RMS_AC=0.2145 RawP2P=2.8376 System_INL=1.4188 RobustP2P=1.5421 Closure=-0.04163 TrackRMS=0.2144 TrackMax=2.2906
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=6 SweepID=6 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG7-remount03-test-6.txt
+      - 14 of 360 analysis points missing (indices [280, 281, 282, 283, 284, 285, 286, 287, 288, 289]...)
+      RMS_AC=0.1958 RawP2P=2.3584 System_INL=1.1792 RobustP2P=1.6368 Closure=-0.08206 TrackRMS=0.1972 TrackMax=1.6095
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG7 TestID=7 SweepID=7 RunOrder=2 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG7-remount03-test-6.txt
+      RMS_AC=0.1468 RawP2P=1.3402 System_INL=0.6701 RobustP2P=1.0706 Closure=-0.06921 TrackRMS=0.1554 TrackMax=0.8185
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG7 TestID=8 SweepID=8 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG7-remount03-test-6.txt
+      RMS_AC=0.2147 RawP2P=2.4327 System_INL=1.2164 RobustP2P=1.8928 Closure=-0.02509 TrackRMS=0.2141 TrackMax=1.7249
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG7  (runs total=4, statistically eligible=2)
+    Excluded runs:
+      - TestID=5 SweepID=5 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics); 80 of 360 analysis points missing (indices [280, 281, 282, 283, 284, 285, 286, 287, 288, 289]...)
+      - TestID=6 SweepID=6 RunOrder=1: 14 of 360 analysis points missing (indices [280, 281, 282, 283, 284, 285, 286, 287, 288, 289]...)
+    rms_ac: mean=0.1807 sd=0.0480 cv=26.53%
+    raw_p2p: mean=1.8865 sd=0.7725 cv=40.95%
+    system_inl_deg: mean=0.9432 sd=0.3863 cv=40.95%
+    robust_p2p: mean=1.4817 sd=0.5814 cv=39.24%
+    closure_error_deg: mean=-0.0471 sd=0.0312 cv=66.17%
+    tracking_rms_deg: mean=0.1847 sd=0.0415 cv=22.46%
+    tracking_max_abs_deg: mean=1.2717 sd=0.6409 cv=50.40%
+    mean_dc: mean=-0.0183 sd=0.0046 cv=24.99%
+    p99_abs_deviation: mean=0.9546 sd=0.5277 cv=55.28%
+    A1: mean=0.0494 sd=0.0088 cv=17.72%
+    A2: mean=0.0130 sd=0.0025 cv=18.95%
+    A9: mean=0.0609 sd=0.0107 cv=17.54%
+    A36: mean=0.1297 sd=0.0024 cv=1.83%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

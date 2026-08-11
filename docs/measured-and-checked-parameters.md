@@ -22,7 +22,13 @@ Cấu hình quét: 370° (`NL_SWEEP_ANGLE_DEG`), bước 1°, 360 điểm/vòng 
 - Tracking error (đo – target): RMS và max trên toàn bộ điểm
 - Sức khỏe thu thập SPI: số giao dịch, số lỗi liên tiếp, thời gian, số lần bị loại do nhảy giá trị (jump reject)
 
-> **Lưu ý về nguồn "256 điểm":** giao thức cũ (legacy schema v5, `STEP_RAW=256`) dùng lưới 256 điểm/vòng và vẫn còn là giá trị mặc định cứng trong `tools/analyze_motor_logs.py:49-51` (`ANALYSIS_POINT_COUNT=256`, `CLOSURE_INDEX=256`) — tool này **chưa cập nhật** theo giao thức hiện tại của firmware. Firmware hiện hành (`UNIFORM_1_DEG_ROUNDED_RAW_V1`) dùng lưới 360 điểm/vòng tròn độ, như mô tả ở `Core/Src/nonlinear_test.c:3565-3568`.
+> **Lưu ý về nguồn "256 điểm":** giao thức cũ (legacy schema v5,
+> `STEP_RAW=256`) dùng lưới 256 điểm/vòng. Từ 2026-07-30,
+> `tools/analyze_motor_logs.py` lấy động `META.AnalysisPoints`, dùng chính
+> `AnalysisPoints` làm closure index, và hiểu `StepRaw=0` là lưới một độ
+> 182/183 raw. Firmware hiện hành (`UNIFORM_1_DEG_ROUNDED_RAW_V1`) dùng
+> `CANONICAL_Q16_1DEG360_V2`; log 360 điểm lịch sử bị đóng nhầm
+> `CANONICAL_Q16_V1` được đánh dấu là legacy alias thay vì âm thầm coi là V1.
 
 ### Thông số tính toán (derived)
 - MeanDC, RMS_AC (độ) trên điểm 0–359 (một chu kỳ cơ khí đầy đủ, đúng giả định của DFT bậc chọn lọc)
@@ -345,7 +351,8 @@ Tính theo từng run và gộp qua các leg (A1→B→A2):
 - `Core/Src/nonlinear_test.c` — toàn bộ hằng số firmware A2/B0-B và logic hợp lệ (dòng 55–215, 428–750, 2415–2520, 3540–3710)
 - `Core/Src/control_engine.c` — hằng số A3/A4/A4B và mã lỗi (dòng 24–102, 126–127, 310–311, 601–607)
 - `Core/Inc/control_a5_math.h` / `Core/Src/control_a5_capture.c` — hằng số và mã lỗi A5
-- [nonlinear-metric-contract-v1.md](nonlinear-metric-contract-v1.md) — hợp đồng công thức/hợp lệ chuẩn (làm tròn Q16, closure, settle, DFT, công thức hợp lệ chính thức)
+- [nonlinear-metric-contract-v1.md](nonlinear-metric-contract-v1.md) — hợp đồng lịch sử cho lưới 256 điểm.
+- [nonlinear-metric-contract-v2.md](nonlinear-metric-contract-v2.md) — hợp đồng hiện tại cho lưới một độ/360 điểm và closure tại 360.
 - [control-a5-checklist.md](control-a5-checklist.md) — dải pass A5 đã chốt và lịch sử cổng kiểm tra
 - `tools/analyze_motor_logs.py`, `tools/analyze_nl_stability.py`, `tools/analyze_one_turn_pattern.py` — phân tích lại bằng Python, độ lặp lại, tái tạo họ sóng hài
 - `scripts/analyze_control_a4.ps1`, `scripts/analyze_control_a5.ps1`, `scripts/analyze_nonlinear_logs.ps1` — triển khai tham chiếu PowerShell (ngưỡng chuẩn: `$FinalOffsetRangeLimitRaw=182.0`; closure `-le 0.20`)

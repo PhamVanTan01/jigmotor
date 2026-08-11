@@ -1,0 +1,15 @@
+Getting result!
+META,SchemaVersion=5,MCU_UID=004C003A3034510B31363339,JigID=JIG3,JigKnown=1,MotorID=p05,MotorIDSource=BUILD_DEFINE,MotorIDValid=1,OfficialResultSource=LEGACY,ShadowCanonicalEnabled=1,ShadowContractVersion=CANONICAL_Q16_V1,ShadowOfficial=0,StepRaw=0,ExpectedAnalysisPoints=360,CapturedPoints=371,AnalysisPoints=360,MeasurementValid=1,TrackingValid=1,AcquisitionResult=OK,RunOrder=1,TestID=9,SweepID=11
+SHADOW_META,SchemaVersion=5,TestID=9,SweepID=11,JigID=JIG3,MotorID=p05,Official=0,ContractVersion=CANONICAL_Q16_V1,SignedConvention=MEASURED_MINUS_TARGET,ReferenceDefinition=POINT0_CANONICAL_MEAN,CanonicalMeanSource=ALL_TIER1,MadFilteringEnabled=0,TimingMode=BACK_TO_BACK,RequiredAcceptedSamples=64,MaxTransactions=96,MaxConsecutiveFailures=2,MaxElapsedUs=20000,MaxJumpRaw=1821
+DATA,5,9,11,JIG3,p05,CW,0,1000,1001,5.49866,0.01000
+ACQ,5,9,11,CW,0,100000,10,1,0x00
+SHADOW_DATA,5,9,11,JIG3,p05,CW,0,65568768,0,0.00000
+SHADOW_ACQ,5,9,11,CW,0,100100,6000,64,64,0,0,0,OK
+DATA,5,9,11,JIG3,p05,CW,360,1000,995,5.46570,-0.08000
+ACQ,5,9,11,CW,360,200000,20,1,0x00
+SHADOW_DATA,5,9,11,JIG3,p05,CW,360,4360470528,-65536,-0.00549
+SHADOW_ACQ,5,9,11,CW,360,200100,6000,64,64,0,0,0,OK
+RESULT,SchemaVersion=5,TestID=9,SweepID=11,JigID=JIG3,MotorID=p05,Direction=CW,CapturedPoints=371,AnalysisPoints=360,RMS_AC=0.75000,A36=0.91000,Motor_Error_P2P_Deg=3.00000,Motor_System_INL_Deg=1.50000,TrackingValid=1
+SHADOW_RESULT,SchemaVersion=5,TestID=9,SweepID=11,JigID=JIG3,MotorID=p05,Official=0,ContractVersion=CANONICAL_Q16_V1,Valid=1,AnalysisPoints=360,MeanDC=0.00000,RMS_AC=0.74900,A36=0.90900,P2P=2.99000,Point0MeanRawQ16=65568768,Error0RawQ16=0,ClosureErrorRawQ16=-65536,ClosureErrorDeg=-0.00549,ClosureLimitDeg=0.20000,ClosureValid=1,LegacyMinusCanonicalRMS=0.00100,LegacyMinusCanonicalA36=0.00100,AttemptedPoints=371,CapturedPoints=371,Transactions=23744,AcceptedSamples=23744,SpiFailures=0,JumpRejects=0,MetadataInvalid=0,FailedPoints=0,SkippedSlots=0,TimingOverruns=0,MaxAbsTimingErrorCycles=0,MaxConsecutiveFailuresObserved=0,FeatureComputeTimeMs=1
+SHADOW_END,SchemaVersion=5,TestID=9,SweepID=11,JigID=JIG3,MotorID=p05,Official=0,Started=1,AttemptedPoints=371,CapturedPoints=371,AcquisitionResult=OK,Status=VALID
+END,SchemaVersion=5,TestID=9,SweepID=11,Direction=CW,CapturedPoints=371,AnalysisPoints=360,TrackingValid=1,AcquisitionResult=OK,Status=VALID

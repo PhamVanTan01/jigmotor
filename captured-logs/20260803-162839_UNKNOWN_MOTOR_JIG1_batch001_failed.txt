@@ -1,0 +1,5 @@
+BATCH,BatchID=1,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,PreconditionCount=1,RunCount=3,TotalCycleCount=4,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug  3 2026 11:14:03,MCU_UID=003C00273234470438353535,JigID=JIG1,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+Motor ERROR: E502!
+BATCH,BatchID=1,Status=FAILED,CycleOrder=1,RunOrder=0,RunRole=PRECONDITION

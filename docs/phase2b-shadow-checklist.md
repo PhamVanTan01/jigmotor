@@ -20,7 +20,9 @@ quả chính thức. Canonical chỉ là shadow và không được phép quyế
   counter của legacy.
 - [x] Canonical được lấy tại cùng commanded/settled point, sau khi giá trị
   legacy của point đó đã được đóng băng.
-- [x] Sampler dùng `CANONICAL_Q16_V1`, `ALL_TIER1`, 64 accepted samples,
+- [x] Sampler dùng canonical Q16, `ALL_TIER1`, 64 accepted samples.
+  Log 256 điểm lịch sử dùng `CANONICAL_Q16_V1`; firmware một độ/360 điểm
+  hiện tại dùng `CANONICAL_Q16_1DEG360_V2`,
   `BACK_TO_BACK`, MAD tắt.
 - [x] Point 0 là reference canonical và `Error0RawQ16=0` theo đúng contract.
 - [x] Có budget độc lập: tối đa 96 transactions, tối đa 3 lỗi liên tiếp

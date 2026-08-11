@@ -43,6 +43,23 @@ function Get-BuildArtifactName {
 
 $Global:ProjectName = Get-CubeProjectName -ProjectRoot $Global:ProjectRoot
 
+function Get-WorkspaceDirSuffix {
+    # The Eclipse project name alone (e.g. "jigmotor") is identical across
+    # every git worktree/checkout of this repo, so keying the shared
+    # STM32CubeIDE headless-build workspace on ProjectName alone makes two
+    # different checkouts (e.g. a second worktree on another branch)
+    # collide on the same workspace dir -- Eclipse then refuses the second
+    # "-import" because a project with that name is already registered
+    # there. Folding a short stable hash of the actual checkout path into
+    # the workspace dir name keeps each checkout's headless workspace
+    # isolated.
+    param([string]$ProjectRoot)
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($ProjectRoot.ToLowerInvariant())
+    $hashBytes = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+    $hex = [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+    return $hex.Substring(0, 8).ToLowerInvariant()
+}
+
 function Get-CubeIdeExe {
     if ($env:CUBEIDE_EXE -and (Test-Path $env:CUBEIDE_EXE)) {
         return $env:CUBEIDE_EXE
@@ -124,9 +141,4 @@ $Global:CubeMxJar = Get-CubeMxJar -CubeIdeInstallDir $Global:CubeIdeInstallDir
 $Global:BundledJavaExe = Get-BundledJavaExe -CubeIdeInstallDir $Global:CubeIdeInstallDir
 $Global:ArmGccBinDir = Get-ArmGccBinDir -CubeIdeInstallDir $Global:CubeIdeInstallDir
 $Global:MakeExe = Get-MakeExe -CubeIdeInstallDir $Global:CubeIdeInstallDir
-# Multiple motor repositories in this tree share the Cube project name
-# "jigmotor". Include the parent folder in the temporary workspace identity so
-# headless imports cannot collide with a sibling checkout already registered
-# under the same Eclipse project name.
-$workspaceParentId = Split-Path (Split-Path $Global:ProjectRoot -Parent) -Leaf
-$Global:WorkspaceDir = Join-Path $env:TEMP "$($Global:ProjectName)-$workspaceParentId-cubeide-workspace"
+$Global:WorkspaceDir = Join-Path $env:TEMP "$($Global:ProjectName)-$(Get-WorkspaceDirSuffix -ProjectRoot $Global:ProjectRoot)-cubeide-workspace"

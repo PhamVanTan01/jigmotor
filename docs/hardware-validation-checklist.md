@@ -26,6 +26,8 @@ log filename:
 | JIG4 (1807 7PP jig) | `0027002E3234470438353535` |
 | JIG4 | `0049003A3034510B31363339` |
 | JIG5 | `001D00283234470438353535` |
+| JIG6 | `005100323235511835383831` |
+| JIG7 | `004600323235511835383831` |
 
 The firmware table in `Core/Src/nonlinear_test.c` must use this exact mapping.
 An unknown UID must remain `UNKNOWN_JIG`; never infer a jig number from a file
@@ -44,6 +46,8 @@ failure that occurs before `META` remains self-identifying.
 | JIG4 (1807 7PP jig) / `0027002E3234470438353535` | Provisional observation 2026-07-24; locked smoke pending | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG4 / `0049003A3034510B31363339` | Corrected 2026-07-27 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 | JIG5 / `001D00283234470438353535` | Observed 2026-07-27 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
+| JIG6 / `005100323235511835383831` | Confirmed 2026-07-28 | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
+| JIG7 / `004600323235511835383831` | **Single read, 2026-07-28** | `0x0000` | `0x00` | `0x05` | `0x00` | `0x00` | `0x00` | 0 non-zero | `0x190A55AD` |
 
 JIG1/JIG2/JIG3 were supplied with explicit operator jig labels from the audit
 build that preceded self-identifying CONFIG records. Their profiles match.
@@ -81,6 +85,31 @@ the earlier instability traces to sensor power-on settling time, not a
 board-specific connection fault -- do not lock a profile from a
 `BOOT_SMOKE` read alone; always confirm against the later gated read
 across a real power cycle first.
+JIG6 is a new control board registered 2026-07-28 from a bare `MCU_UID` read
+(the STM32 UID is factory-lasered, independent of any sensor wiring) taken
+*before* the mechanical assembly/MA600 sensor was attached -- the first
+CONFIG line read all-`0xFF` across ZERO/DIR/FILT/STATUS/PRT/RMAPID
+(`CorrNonZeroCount=32/32`), the standard signature of an unconnected SPI bus,
+not a locked profile. The placeholder profile (predicted from JIG1-5, all
+identical) was confirmed the same day once the sensor was physically
+attached: `p03-jig6-test-32.txt` shows `ZERO=0x0000` with zero exceptions
+across 7 gated reads (`PRECONDITION_PRE_MOTOR` + 6x `BATCH_PRE_MOTOR`,
+`ConfigValid=1`/`RejectReason=NONE` throughout) -- the placeholder needed no
+correction.
+
+JIG7 is a new control board registered 2026-07-28 from the same die
+batch/wafer lot as JIG6 (`MCU_UID_WORD1`/`WORD2` identical: `0x32355118`,
+`0x35383831` -- only `WORD0` differs, `0x00460032` vs JIG6's `0x00510032`,
+expected for STM32 UIDs from the same lot, not a misread). Unlike JIG6's
+first read, this board's sensor was already attached: the first CONFIG
+line read a clean, plausible profile (`ZERO=0x0000`, matching every other
+known jig), rejected only with `EXPECTED_CONFIG_PROFILE_MISSING`
+(unregistered UID) rather than a garbage/SPI-fault reason. Still only one
+read -- registered directly from it (not a blind placeholder like JIG6's
+pre-assembly entry), but per the same discipline that caught JIG4's three
+premature locks, this needs re-verification against several more gated
+reads across a real power cycle before being fully trusted.
+
 `POLICY_A_LOCKED_V1` therefore locks these values by physical MCU UID and emits
 `AuditFieldsLocked=1`. An unknown UID, missing expected profile, or mismatch in
 ZERO/DIR/FILT/STATUS/PRT/RMAPID/correction CRC rejects motor enable with E510

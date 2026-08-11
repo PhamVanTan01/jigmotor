@@ -1,0 +1,35 @@
+SavedAtLocal=2026-07-28T00:00:00+07:00
+Configuration=Release
+GitCommit=d413b289513497101a110bfb63372ef7dc1295bb (+ uncommitted JIG6
+    registration on top)
+GitDirty=yes
+GitDirtyFiles=Core/Src/nonlinear_test.c (JIG6 entry added to
+    NL_KNOWN_JIGS[]), scripts/analyze_nonlinear_logs.ps1 (host-side
+    UID->JIG6 mapping), scripts/test_phase2b_shadow_contract.ps1 (JIG6
+    assertions), docs/hardware-validation-checklist.md (JIG6 rows +
+    explanation), not yet committed at build time
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged)
+NewJig=JIG6, MCU_UID=005100323235511835383831 (new control board,
+    registered 2026-07-28 from a bare MCU_UID read taken BEFORE the
+    mechanical assembly/MA600 sensor was attached)
+PlaceholderProfile=Zero=0x0000 Dir=0x00 Filt=0x05 Status=0x00 Prt=0x00
+    RmapId=0x00 CorrCRC32=0x190A55AD -- matches JIG1-5 exactly, but this is
+    an UNCONFIRMED PREDICTION, not a locked-from-real-data profile. The
+    only CONFIG line seen from this board so far read all-0xFF across
+    ZERO/DIR/FILT/STATUS/PRT/RMAPID with CorrNonZeroCount=32/32 (SPI not
+    connected -- sensor not attached yet), which is why the profile below
+    could not be derived from a real read.
+RequiredFollowUp=Once the MA600 sensor is physically attached, capture a
+    real PRECONDITION_PRE_MOTOR/BATCH_PRE_MOTOR CONFIG line and confirm it
+    matches this placeholder (or correct NL_KNOWN_JIGS[] if it does not)
+    before trusting any JIG6 measurement data -- same discipline that
+    caught JIG4's three premature profile locks earlier in this project.
+Diagnosis=Not applicable -- this build exists solely to make JIG6's UID
+    self-identifying (JigKnown=1) as soon as it is flashed onto the new
+    board, ahead of the sensor/mechanical assembly step.
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-a0-jig6-registered-v1
+HexSHA256=77495DE99C224E7A490BA46FCB29FF8BF34A4CD95A2BC4991ECAD505CF0400B9
+ElfSHA256=774588255D7AF80D12832A2CBEBA35815745EF610CF673953ECF8E7D742DDA8F

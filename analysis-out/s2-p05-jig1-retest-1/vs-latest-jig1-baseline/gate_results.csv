@@ -1,0 +1,12 @@
+gate,value,limit,result
+within_batch_nl_sd,0.020097451612911942,<= 0.03000 deg,PASS
+a_return_nl_shift,0.2636219999999998,0.05,FAIL
+a_return_curve_correlation,0.9683558086562304,>= 0.98000,FAIL
+a_return_centered_rmse,0.18581608542143382,<= 0.10000 deg,FAIL
+cross_jig_nl_delta,0.03815833333333307,0.05,PASS
+top_tail_delta,-0.19179766666666676,abs <= 0.10000 deg,FAIL
+bottom_tail_delta,-0.22995600000000005,abs <= 0.10000 deg,FAIL
+zero_shift_curve_correlation,0.724462137563566,>= 0.98000,FAIL
+zero_shift_centered_rmse,0.5376299462567639,<= 0.10000 deg,FAIL
+closure,0.12091,abs <= 0.20000 deg,PASS
+data_health,invalid=0; config=PASS,0 invalid OFFICIAL; CONFIG=PASS,PASS

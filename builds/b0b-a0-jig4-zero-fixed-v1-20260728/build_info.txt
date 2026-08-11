@@ -1,0 +1,35 @@
+SavedAtLocal=2026-07-28T00:00:00+07:00
+Configuration=Release
+GitCommit=d413b289513497101a110bfb63372ef7dc1295bb
+GitDirty=no
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged)
+ENABLE_NL_SECTOR_CALIBRATION_SWEEP=0 (default OFF -- new flag, no effect on
+    this build)
+ENABLE_NL_A0_FIXED_SECTOR=0 (default OFF -- new flag, no effect on this
+    build)
+NL_DEBUG_BYPASS_POLICY_A_FOR_JIG4=0 (flipped OFF this session -- JIG4's
+    Zero re-locked to 0x0000, matching JIG1/2/3/5, after 33 consecutive
+    gated reads with zero exceptions across 3 independent sessions;
+    previously this flag was 1 and every JIG4 run since 2026-07-24 had
+    been silently gate-rejected with PolicyABypassOverride=1)
+FixedThisBuild=NL_KNOWN_JIGS[] JIG4 entry corrected from Zero=0x00E7 (stale
+    2026-07-24 lock, taken during a real multi-value read instability
+    0x00E2-0x00E7 later traced by the JIG5 board-swap test to sensor
+    power-on settling, not a board fault) to Zero=0x0000, confirmed stable
+    across P03/P02/P06/P05/P07 test-31 sessions (55 gated reads, zero
+    exceptions). JIG4 now passes POLICY_A_LOCKED_V1 cleanly
+    (ConfigValid=1) instead of relying on the debug bypass.
+Purpose=Board-swap confirmation test: flash this onto JIG4's control board
+    before moving it into JIG1's mechanical fixture position, to test
+    whether the H2/NL signature difference follows the board (driver
+    dead-time hypothesis) or the mechanical position. See
+    docs/nl-factors-jig-comparison-and-algorithm-review-2026-07-27.md and
+    docs/sector-response-calibration-test-plan.md for the parallel
+    sector-response investigation this build also carries (both new flags
+    OFF, no behavior change unless explicitly enabled).
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-a0-jig4-zero-fixed-v1
+HexSHA256=8E20102C8751C368792EAC321E1DE8245BE61756201F9D89EE2657FBABC8EBB5
+ElfSHA256=E9051B386A261237EFD6FC8925CF48C932CE2801D9822473F4E7816C761DFB49

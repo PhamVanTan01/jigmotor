@@ -58,7 +58,7 @@ MA600_Result_t MA600_AcquireSample(MA600_AcquisitionContext_t *ctx,
 
 float MA600_UnwrappedRawToDegrees(int64_t unwrappedRaw);
 
-/* ---- Phase-2 canonical point sampler (CANONICAL_Q16_V1) ---- */
+/* ---- Canonical Q16 point sampler (contract/grid identity is owned by the caller) ---- */
 
 /* Upper bound on samples the optional MAD (median absolute deviation)
  * outlier filter can process for one point. The driver layer has no

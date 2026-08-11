@@ -1,0 +1,23 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260803-115249_UNKNOWN_MOTOR_JIG1_batch005_failed.txt
+TerminalStatus=FAILED
+OfficialValid=0/3
+GatedConfigInvalid=0/1,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

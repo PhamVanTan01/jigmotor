@@ -11,6 +11,21 @@ analysis/output/
 # Claude Code working directory
 .claude/
 
+# Third-party reference code (Gremsy old-jig firmware) -- confidential,
+# provided locally for comparison only, must never enter this repo's history.
+datacty/
+
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+# Node.js
+node_modules/
+
+# Graphify: keep the shareable graph/report, ignore local runtime and caches.
+graphify-out/cache/
+graphify-out/cost.json
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_detect.json
+graphify-out/.graphify_python
+graphify-out/.graphify_root

@@ -1,0 +1,46 @@
+SavedAtLocal=2026-08-05T16:24:37+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=5d459f0cc30e217052220dbeb9f978c4fd41db7b
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-3-point66-fine-landing-fast3-stackfix-20260805
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepV53Point66FineLandingEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_POINT66_FINE_LANDING_V1
+FineLandingProtocol=POINT66_FINE_STEP4_JUMP_GUARD_V1
+
+StackFix=TestTask stack increased from 8192 to 12288 bytes. Compiler .su
+    analysis gives the deepest relevant static call-chain as 7656 bytes:
+    NonlinearEngine_Task 64 + RunBatchSweep 72 + NonlinearTest_Run 1456 +
+    PrintSweepLog 4152 + LogLineLarge 1912. The old build left only 536
+    bytes before interrupt/context overhead and could enter the FreeRTOS
+    stack-overflow hook after COOLDOWN_START. The new static margin is 4632
+    bytes. Motion, acquisition, point-66 profile, budgets, and validity gates
+    are unchanged.
+
+CooldownLiveness=RUNTIME_CHECKPOINT is emitted immediately after
+    COOLDOWN_START with TestStackHighWaterWords and FreeHeap. A
+    COOLDOWN_PROGRESS record is emitted every 30000 ms until the next cycle.
+    Expected records are approximately 30/60/90/120 seconds, then official
+    run 1 begins.
+
+Supersedes=sweep-point-creep-v5-3-point66-fine-landing-fast3-20260805
+DoNotFlash=The superseded artifact has an 8192-byte TestTask stack and is the
+    build observed to stop after the precondition COOLDOWN_START record.
+
+Memory=Release size text 89660 bytes, data 96 bytes, bss 165280 bytes.
+Verification=Feature-on FAST3 Release build passed. V5.3 FeatureBuild
+    contract passed. The only compiler warning is the pre-existing unused
+    kNlB0BPreRollCheckpoints warning.
+
+HardwarePilot=Flash this stack-fix artifact and repeat P03/JIG7 without
+    remount. Run the full 1 PRECONDITION + 3 OFFICIAL batch. Confirm cooldown
+    heartbeat records and three official cycles before evaluating point 66.
+
+HexSHA256=7a57369d99ccd28150061a9dd1becc86a016e96799f47cfba0106c7ddadf2ce6
+ElfSHA256=bc9314a0fab227423a96d36e3493ae5f5e3b3b72628d1a5c70b1ba34aac7ad87
+MapSHA256=e5b5803045e3cf1475fde50392761a5933a7a79e69ad16cf0efc304562b4d4f7

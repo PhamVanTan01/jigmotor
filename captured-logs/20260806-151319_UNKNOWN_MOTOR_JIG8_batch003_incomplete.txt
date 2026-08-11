@@ -1,0 +1,68 @@
+RUNTIME,FreeHeap=85544,MinEverFreeHeap=85544,TestStackHighWaterWords=2034
+MA600 noise (last 5s): P2P=210.68deg StdDev=98.32deg Drift=210.62deg MaxStep=142.49deg N=25 valid=0
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=0.00deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=0.04deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=12.99deg StdDev=2.77deg Drift=4.72deg MaxStep=8.71deg N=25 valid=0
+MA600 noise (last 5s): P2P=0.21deg StdDev=0.07deg Drift=0.02deg MaxStep=0.21deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.16deg StdDev=0.04deg Drift=0.16deg MaxStep=0.13deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.23deg StdDev=0.05deg Drift=-0.09deg MaxStep=0.15deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.31deg StdDev=0.08deg Drift=0.15deg MaxStep=0.16deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.25deg StdDev=0.07deg Drift=-0.15deg MaxStep=0.14deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.16deg StdDev=0.04deg Drift=0.07deg MaxStep=0.16deg N=25 valid=1
+MA600 noise (last 5s): P2P=89.54deg StdDev=17.00deg Drift=-8.05deg MaxStep=86.64deg N=25 valid=0
+MA600 noise (last 5s): P2P=16.14deg StdDev=3.99deg Drift=-9.73deg MaxStep=8.46deg N=25 valid=0
+MA600 noise (last 5s): P2P=11.00deg StdDev=2.76deg Drift=10.99deg MaxStep=10.85deg N=25 valid=0
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=-0.01deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.07deg StdDev=0.02deg Drift=-0.02deg MaxStep=0.05deg N=25 valid=1
+MA600 noise (last 5s): P2P=12.40deg StdDev=2.81deg Drift=9.27deg MaxStep=12.40deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.86deg StdDev=1.54deg Drift=4.72deg MaxStep=2.86deg N=25 valid=1
+MA600 noise (last 5s): P2P=5.23deg StdDev=1.18deg Drift=1.13deg MaxStep=4.16deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.55deg StdDev=1.88deg Drift=-0.21deg MaxStep=5.94deg N=25 valid=0
+MA600 noise (last 5s): P2P=4.49deg StdDev=1.49deg Drift=-3.02deg MaxStep=4.43deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.60deg StdDev=1.93deg Drift=-1.54deg MaxStep=5.24deg N=25 valid=0
+MA600 noise (last 5s): P2P=3.82deg StdDev=1.11deg Drift=-0.80deg MaxStep=3.82deg N=25 valid=1
+MA600 noise (last 5s): P2P=6.48deg StdDev=1.50deg Drift=0.54deg MaxStep=4.39deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.80deg StdDev=1.45deg Drift=-1.60deg MaxStep=4.98deg N=25 valid=0
+MA600 noise (last 5s): P2P=4.96deg StdDev=1.27deg Drift=1.14deg MaxStep=3.71deg N=25 valid=1
+MA600 noise (last 5s): P2P=5.71deg StdDev=1.43deg Drift=2.59deg MaxStep=5.05deg N=25 valid=0
+MA600 noise (last 5s): P2P=4.64deg StdDev=1.35deg Drift=3.83deg MaxStep=4.49deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.06deg StdDev=1.24deg Drift=-0.07deg MaxStep=3.07deg N=25 valid=1
+MA600 noise (last 5s): P2P=4.63deg StdDev=1.15deg Drift=0.77deg MaxStep=3.31deg N=25 valid=1
+MA600 noise (last 5s): P2P=6.16deg StdDev=1.90deg Drift=-0.09deg MaxStep=5.77deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.90deg StdDev=1.63deg Drift=6.67deg MaxStep=4.20deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.33deg StdDev=2.00deg Drift=-1.99deg MaxStep=6.10deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.12deg StdDev=1.76deg Drift=4.87deg MaxStep=7.12deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.44deg StdDev=1.77deg Drift=2.08deg MaxStep=5.87deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.76deg StdDev=1.54deg Drift=-0.42deg MaxStep=6.15deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.28deg StdDev=1.94deg Drift=3.03deg MaxStep=5.42deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.32deg StdDev=1.45deg Drift=-0.04deg MaxStep=4.48deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.60deg StdDev=1.60deg Drift=-6.59deg MaxStep=4.19deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.82deg StdDev=1.74deg Drift=0.46deg MaxStep=5.23deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.80deg StdDev=1.54deg Drift=-0.73deg MaxStep=5.29deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.70deg StdDev=1.50deg Drift=3.77deg MaxStep=3.18deg N=25 valid=1
+MA600 noise (last 5s): P2P=6.67deg StdDev=1.57deg Drift=2.45deg MaxStep=4.88deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.25deg StdDev=1.42deg Drift=-0.27deg MaxStep=6.25deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.73deg StdDev=1.55deg Drift=1.66deg MaxStep=5.14deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.20deg StdDev=1.46deg Drift=2.51deg MaxStep=5.15deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.87deg StdDev=1.58deg Drift=-1.24deg MaxStep=6.87deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.30deg StdDev=1.58deg Drift=3.55deg MaxStep=4.77deg N=25 valid=0
+MA600 noise (last 5s): P2P=10.33deg StdDev=2.35deg Drift=-1.14deg MaxStep=9.92deg N=25 valid=0
+MA600 noise (last 5s): P2P=5.69deg StdDev=1.51deg Drift=1.25deg MaxStep=5.19deg N=25 valid=0
+MA600 noise (last 5s): P2P=7.09deg StdDev=1.88deg Drift=-1.88deg MaxStep=5.07deg N=25 valid=0
+MA600 noise (last 5s): P2P=8.05deg StdDev=1.69deg Drift=3.18deg MaxStep=4.60deg N=25 valid=0
+MA600 noise (last 5s): P2P=6.77deg StdDev=1.46deg Drift=-2.37deg MaxStep=5.16deg N=25 valid=0
+MA600 noise (last 5s): P2P=93.05deg StdDev=18.96deg Drift=-22.69deg MaxStep=85.57deg N=25 valid=0
+MA600 noise (last 5s): P2P=34.28deg StdDev=9.39deg Drift=-1.48deg MaxStep=13.56deg N=25 valid=0
+MA600 noise (last 5s): P2P=1.78deg StdDev=0.51deg Drift=-1.76deg MaxStep=0.71deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.48deg StdDev=0.20deg Drift=0.43deg MaxStep=0.25deg N=25 valid=1
+BATCH,BatchID=3,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,PreconditionCount=1,RunCount=3,TotalCycleCount=4,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug  6 2026 13:40:02,MCU_UID=003E00323235511835383831,JigID=JIG8,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=-10.96 deg settled=0/500 cmdPos=27873
+MA600 move-to-zero: error=1.88 deg settled=0/500 cmdPos=30066
+MA600 move-to-zero: error=1.77 deg settled=0/500 cmdPos=30025
+MA600 move-to-zero: error=1.27 deg settled=0/500 cmdPos=29915
+MA600 move-to-zero: error=0.81 deg settled=0/500 cmdPos=29816
+MA600 move-to-zero: error=0.48 deg settled=0/500 cmdPos=29766
+MA600 move-to-zero: error=0.30 deg settled=0/500 cmdPos=29742
+MA600 move-to-zero: error=0.20 deg settled=0/500 cmdPos=29725

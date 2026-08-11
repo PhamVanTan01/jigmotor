@@ -13,15 +13,18 @@ try {
         (Join-Path $fixtures 'schema-v6-invalid-p03-jig2.txt'),
         (Join-Path $fixtures 'schema-v5-interrupted-preamble-p03-jig2.txt'),
         (Join-Path $fixtures 'schema-v5-shadow-p05-jig3.txt'),
+        (Join-Path $fixtures 'schema-v5-shadow-360-v2-p05-jig3.txt'),
+        (Join-Path $fixtures 'schema-v5-shadow-360-v1-legacy-alias-p05-jig3.txt'),
         (Join-Path $fixtures 'schema-v5-phase3b0-closure-probe-p05-jig3.txt'),
         (Join-Path $fixtures 'schema-v5-preconditioned-10run-p03-jig1.txt'),
+        (Join-Path $fixtures 'schema-v5-preconditioned-diagnostic-invalid-p03-jig7.txt'),
         (Join-Path $fixtures 'schema-v5-360grid-closure-p03-jig1.txt'),
         (Join-Path $fixtures 'schema-v5-postturn-residual-p03-jig1.txt')
     ) -OutCsv $csv | Out-Null
 
     $rows = @(Import-Csv $csv)
-    if ($rows.Count -ne 12) {
-        throw "Expected 12 parsed records, got $($rows.Count)."
+    if ($rows.Count -ne 16) {
+        throw "Expected 16 parsed records, got $($rows.Count)."
     }
 
     $schema5Misleading = $rows | Where-Object {
@@ -86,11 +89,33 @@ try {
             ($shadow.MotorIdentityConsistent -ne '1') -or
             ($shadow.OfficialResultSource -ne 'LEGACY') -or
             ($shadow.ShadowContractVersion -ne 'CANONICAL_Q16_V1') -or
+            ($shadow.ShadowContractEffectiveVersion -ne 'CANONICAL_Q16_V1') -or
+            ($shadow.ShadowContractLegacyAlias -ne '0') -or
             ($shadow.ShadowValid -ne '1') -or
             ($shadow.ShadowEndStatus -ne 'VALID') -or
             ($shadow.ShadowTransactions -ne '16960') -or
             ($shadow.ShadowFailedPoints -ne '0')) {
         throw 'Phase-2B shadow/JIG3 parsing failed.'
+    }
+
+    $shadowV2 = $rows | Where-Object {
+        $_.Source -eq 'schema-v5-shadow-360-v2-p05-jig3.txt'
+    }
+    if (($null -eq $shadowV2) -or
+            ($shadowV2.ShadowContractVersion -ne 'CANONICAL_Q16_1DEG360_V2') -or
+            ($shadowV2.ShadowContractEffectiveVersion -ne 'CANONICAL_Q16_1DEG360_V2') -or
+            ($shadowV2.ShadowContractLegacyAlias -ne '0')) {
+        throw 'Current 360-point V2 shadow contract parsing failed.'
+    }
+
+    $shadowLegacyAlias = $rows | Where-Object {
+        $_.Source -eq 'schema-v5-shadow-360-v1-legacy-alias-p05-jig3.txt'
+    }
+    if (($null -eq $shadowLegacyAlias) -or
+            ($shadowLegacyAlias.ShadowContractVersion -ne 'CANONICAL_Q16_V1') -or
+            ($shadowLegacyAlias.ShadowContractEffectiveVersion -ne 'CANONICAL_Q16_1DEG360_V2') -or
+            ($shadowLegacyAlias.ShadowContractLegacyAlias -ne '1')) {
+        throw 'Historical 360-point/V1 alias parsing failed.'
     }
 
     $closureProbe = $rows | Where-Object { $_.ClosureProbeEnabled -eq '1' }
@@ -117,6 +142,18 @@ try {
             ($preconditionedOfficial.Run -ne '1') -or
             ($preconditionedOfficial.EligibleForStatistics -ne '1')) {
         throw 'Precondition/official statistical eligibility parsing failed.'
+    }
+
+    $diagnosticBatch = @($rows | Where-Object {
+        $_.Source -eq 'schema-v5-preconditioned-diagnostic-invalid-p03-jig7.txt'
+    })
+    if ($diagnosticBatch.Count -ne 2 -or
+            @($diagnosticBatch | Where-Object { $_.EligibleForStatistics -ne '0' }).Count -ne 0 -or
+            @($diagnosticBatch | Where-Object { $_.EndStatus -ne 'INVALID' }).Count -ne 0 -or
+            @($diagnosticBatch | Where-Object {
+                $_.RunRole -eq 'OFFICIAL' -and $_.PreconditionValid -ne '0'
+            }).Count -ne 0) {
+        throw 'Diagnostic-invalid precondition batch was rejected or promoted into statistics.'
     }
 
     # Guards the index-256 -> index-360 closure fix: this fixture declares

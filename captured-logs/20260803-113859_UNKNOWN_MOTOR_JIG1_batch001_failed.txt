@@ -1,0 +1,45 @@
+BATCH,BatchID=1,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,PreconditionCount=1,RunCount=3,TotalCycleCount=4,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug  3 2026 11:14:03,MCU_UID=003C00273234470438353535,JigID=JIG1,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=145.83 deg settled=0/500 cmdPos=15397
+MA600 move-to-zero: error=-149.79 deg settled=0/500 cmdPos=3706
+MA600 move-to-zero: error=174.62 deg settled=0/500 cmdPos=9696
+MA600 move-to-zero: error=150.51 deg settled=0/500 cmdPos=14437
+MA600 move-to-zero: error=169.64 deg settled=0/500 cmdPos=11739
+MA600 move-to-zero: error=170.02 deg settled=0/500 cmdPos=11520
+MA600 move-to-zero: error=160.66 deg settled=0/500 cmdPos=12918
+MA600 move-to-zero: error=161.45 deg settled=0/500 cmdPos=12651
+MA600 move-to-zero: error=160.57 deg settled=0/500 cmdPos=12689
+MA600 move-to-zero: error=163.81 deg settled=0/500 cmdPos=11782
+MA600 move-to-zero: error=-179.73 deg settled=0/500 cmdPos=9356
+MA600 move-to-zero: error=-165.70 deg settled=0/500 cmdPos=6369
+MA600 move-to-zero: error=-159.77 deg settled=0/500 cmdPos=5847
+MA600 move-to-zero: error=-162.54 deg settled=0/500 cmdPos=6236
+MA600 move-to-zero: error=-161.48 deg settled=0/500 cmdPos=6162
+MA600 move-to-zero: error=-161.85 deg settled=0/500 cmdPos=6263
+MA600 move-to-zero: error=-167.77 deg settled=0/500 cmdPos=7149
+MA600 move-to-zero: error=-174.31 deg settled=0/500 cmdPos=8546
+MA600 move-to-zero: error=-174.66 deg settled=0/500 cmdPos=8567
+MA600 move-to-zero: error=-168.14 deg settled=0/500 cmdPos=7021
+MA600 move-to-zero: error=-152.06 deg settled=0/500 cmdPos=4338
+MA600 move-to-zero: error=-168.54 deg settled=0/500 cmdPos=7448
+MA600 move-to-zero: error=159.82 deg settled=0/500 cmdPos=12749
+MA600 move-to-zero: error=150.62 deg settled=0/500 cmdPos=14499
+MA600 move-to-zero: error=-169.84 deg settled=0/500 cmdPos=7608
+MA600 move-to-zero: error=-157.32 deg settled=0/500 cmdPos=5022
+MA600 move-to-zero: error=-177.91 deg settled=0/500 cmdPos=8403
+MA600 move-to-zero: error=151.40 deg settled=0/500 cmdPos=14153
+MA600 move-to-zero: error=158.52 deg settled=0/500 cmdPos=13150
+MA600 move-to-zero: error=160.42 deg settled=0/500 cmdPos=12852
+MA600 move-to-zero: error=158.05 deg settled=0/500 cmdPos=13321
+MA600 move-to-zero: error=159.11 deg settled=0/500 cmdPos=12991
+MA600 move-to-zero: error=167.64 deg settled=0/500 cmdPos=11364
+MA600 move-to-zero: error=-169.88 deg settled=0/500 cmdPos=7513
+MA600 move-to-zero: error=-166.55 deg settled=0/500 cmdPos=6607
+MA600 move-to-zero: error=-162.33 deg settled=0/500 cmdPos=6196
+MA600 move-to-zero: error=-168.99 deg settled=0/500 cmdPos=7386
+MA600 move-to-zero: error=-176.23 deg settled=0/500 cmdPos=8751
+MA600 move-to-zero: error=-177.64 deg settled=0/500 cmdPos=8853
+MA600 move-to-zero: error=171.73 deg settled=0/500 cmdPos=10730
+Motor ERROR: E503 (move-to-zero did not converge within 20000 ms)!
+BATCH,BatchID=1,Status=FAILED,CycleOrder=1,RunOrder=0,RunRole=PRECONDITION

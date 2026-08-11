@@ -1,0 +1,2 @@
+0fee8422c3b138bd46228f2cf09aa936f54c0fb1ecd2555d2563ab0eb9dff0e9 *jigmotor.hex
+e6a9ca5ab060c77e7659ab6bca1b8940c6d0f8b2491fdeb00756687ed305d3b0 *jigmotor.elf

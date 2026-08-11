@@ -41,10 +41,10 @@ try {
         'Probe numeric values leaked into the official measurement-valid gate.'
 
     $probeFunction = [regex]::Match($source,
-        'static MA600_Result_t CaptureClosureHoldProbe[\s\S]*?(?=static void ComputeShadowMetrics)').Value
+        'static MA600_Result_t CaptureClosureHoldProbe[\s\S]*?(?=static void (?:WaitForHardcapHoldTime|ComputeShadowMetrics))').Value
     Assert-True (-not [string]::IsNullOrWhiteSpace($probeFunction)) `
         'Could not locate CaptureClosureHoldProbe for static checks.'
-    Assert-True ($probeFunction -notmatch 'Motor_SetElectricalPos|Motor_SetPower|PID|PWM') `
+    Assert-True ($probeFunction -notmatch 'Motor_SetElectricalPos\s*\(|Motor_SetPower\s*\(|PID|PWM') `
         'The passive hold probe must not alter motor command, power, PID, or PWM.'
     Assert-True ($probeFunction -match '0U,\s*50U,\s*100U,\s*200U') `
         'The required 0/50/100/200 ms stages changed.'

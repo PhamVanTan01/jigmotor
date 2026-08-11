@@ -1,0 +1,4 @@
+pyserial>=3.5,<4
+intelhex>=2.3.0,<3
+pyelftools>=0.30,<1
+matplotlib>=3.5,<4

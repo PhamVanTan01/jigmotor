@@ -1,0 +1,60 @@
+Build: sweep-point-creep-v5-7-hardcap-hold-diag-fast3-20260810
+Date: 2026-08-10
+Source branch: codex/motion-control-v2-dma
+Base commit: abdb6dd (worktree contains the V5.7 diagnostic changes)
+MCU: STM32F405RGTx
+
+Purpose
+-------
+Diagnostic-only build for separating two mechanisms after a V5.5
+NL_CREEP_BUDGET_EXCEEDED point:
+1. passive relaxation toward the nominal target after the command stops; or
+2. a static command/torque equilibrium that does not improve with more dwell.
+
+Motion configuration
+--------------------
+- V5.5 dynamic BASE escalation: ON and unchanged.
+- V5.4 universal live-gap fine landing: ON and unchanged.
+- V5.6 three-stage response experiment: OFF.
+- V5.7 first-hard-cap passive hold diagnostic: ON.
+- Test schedule: 1 PRECONDITION + 3 OFFICIAL cycles (FAST3).
+
+Diagnostic protocol
+-------------------
+- Candidate: first analysis point 0..359 whose V5.5 creep result is
+  NL_CREEP_BUDGET_EXCEEDED.
+- Motor command is held exactly at the actual stored command reached by V5.5.
+- No Motor_SetElectricalPos, ramp, creep, or UART logging is executed during
+  the hold window.
+- MA600 samples are acquired at nominal 0, 10, 25, 50, 100, and 200 ms.
+- The official DATA and shadow data for the candidate point are frozen before
+  the hold begins.
+- Diagnostic acquisition counters are isolated from the frozen schema-v5
+  official acquisition fields.
+- Result classification uses the total gap change from the V5.5 creep-final
+  sample through hold 200 ms. It also reports pre-hold DATA-window change and
+  post-DATA hold-window change separately, so a fast early relaxation is not
+  mislabeled static.
+- Result classifications include RELAXES_TOWARD_TARGET,
+  DRIFTS_AWAY_FROM_TARGET, and STATIC_WITHIN_SETTLE_BAND.
+
+Statistical status
+------------------
+Every run from this build has EligibleForStatistics=0. The 200 ms hold changes
+the cadence of later points, so this build must not be used to approve NL,
+compare production scalar NL, or replace the V5.5 baseline.
+
+Recommended first test
+----------------------
+- Use P08 on JIG8 without remounting between cycles.
+- Run the full FAST3 batch (1 PRECONDITION + 3 OFFICIAL).
+- Save the complete raw UART log. Evaluate SWEEP_CREEP_HOLD_CONFIG,
+  SWEEP_CREEP_HOLD_SAMPLE, and SWEEP_CREEP_HOLD_RESULT records.
+
+Build verification
+------------------
+- Feature firmware compile: PASS.
+- V5.4 inherited contract: PASS.
+- V5.5 inherited contract: PASS.
+- V5.7 passive hard-cap hold contract: PASS.
+- ARM size: text=93444, data=96, bss=165624 bytes.

@@ -1,0 +1,62 @@
+SavedAtLocal=2026-08-05T15:27:38+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=5d459f0cc30e217052220dbeb9f978c4fd41db7b
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-3-point66-fine-landing-fast3-20260805
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepV53Point66FineLandingEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_POINT66_FINE_LANDING_V1
+FineLandingProtocol=POINT66_FINE_STEP4_JUMP_GUARD_V1
+TargetCrossingGuard=STOP_BEFORE_NEXT_COMMAND_V1
+RecoveryProtocol=POINT66_FINE_SINGLE_REVERSAL_V1
+
+GlobalUnchanged=All points retain V5.2 step 16 raw, deadband 16 raw, power
+    1.0, base budget 220 raw, and extended budget 320 raw. The adaptive
+    EXTENDED selection remains abs(live post-settle initial gap) > 200 raw.
+
+Point66Profile=Point 66 uses coarse step 16 raw until abs(live gap) <= 64
+    raw, then latches fine step 4 raw. The selected raw budget is unchanged.
+    Max iterations is 81 only so the existing 320-raw budget can be expressed
+    with 4-raw commands. Normal fine recovery is one reversal, 64 raw / 17
+    iterations maximum.
+
+JumpGuard=After every fine command, firmware compares the fresh settled
+    encoder position with the prior anchor. abs(observed delta) > 96 raw is
+    STICK_SLIP_JUMP. It stops point-66 creep before target-crossing recovery;
+    no reversal/chase command is issued for that event.
+
+ValidityPolicy=Recovery failure or STICK_SLIP_JUMP sets
+    SweepPointCreepIntegrityValid=0, END.Status=INVALID, and
+    EligibleForStatistics=0. Acquisition remains independently auditable.
+
+Telemetry=SWEEP_CREEP_CONFIG schema 6 identifies all V5.3 constants.
+    SWEEP_CREEP_POINT schema 6 reports fine attempt/success/work/jump fields.
+    SWEEP_CREEP_STEP schema 1 reports every point-66 microstep from a fixed
+    RAM trace. All UART formatting remains after Motor_Disable().
+
+B0BIsolation=Both B0-B approach-creep legs still use the compatibility
+    CreepToUnwrappedTarget wrapper with fine profile NULL and recovery zero.
+
+Memory=Release map .ccmram_bss=0x92B0 (37,552 bytes of 65,536; 57.3%).
+BuildSize=text 89,388 bytes; data 96 bytes; total bss 165,272 bytes.
+Verification=Default Release build passed; 30/30 default PowerShell contract
+    suites passed. Feature-on FAST3 Release build passed. The V5.3
+    FeatureBuild contract passed. Only the pre-existing unused
+    kNlB0BPreRollCheckpoints warning remains in the feature build.
+
+HardwarePilot=Use P03 on JIG7. Run the complete 1 PRECONDITION + 3 OFFICIAL
+    batch without remount first. PASS requires no jump/recovery failure, point
+    66 inside +/-16 raw in all 4 cycles, and 3/3 official runs eligible.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0,
+    V53FineLandingEnabled=0, and the normal 10-official-run batch. This
+    artifact retains both sweep-creep/V5.3 flags ON and FAST3.
+
+HexSHA256=4ef8e5e5023fbd39bb78d5cddf3004594efcf90cc16bf71a5fbcd6f9f0353e1b
+ElfSHA256=42d885c017ee793692a7a737bf538be10110e9f71bf583c38028cb3725b8da39
+MapSHA256=2c02cb4a2bd89b85fa38cf9265587291e313e1078dd9c0fd5b899de597e0920b

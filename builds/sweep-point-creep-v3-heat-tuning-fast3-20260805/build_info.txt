@@ -1,0 +1,93 @@
+SavedAtLocal=2026-08-05T00:00:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+
+Purpose=v3 of ENABLE_SWEEP_POINT_CREEP -- fixes the motor-heat/jerkiness
+    issue found on real hardware with v2 (see docs/session-summary-2026-08-
+    04-board-effect-and-sensor-fixture-separation.md, mục 6.5), and is the
+    first attempt at addressing the independently-found H1/H2 contamination
+    (docs/session-summary-2026-08-04-h1h2-creep-contamination-and-live-nl-
+    plot.md, mục 2 -- a parallel session's MATLAB re-analysis of the SAME
+    v2 hardware data found H1 -57%/H2 -34% between old firmware and v2
+    fixed-creep firmware, same jig/sensor/mount, meaning the settle-time
+    under-travel artifact leaks into the "geometric" harmonic family too,
+    not just H36 -- this build's larger budget is aimed at closing that gap
+    more completely, which should reduce residual H1/H2 contamination too,
+    though this has NOT been verified yet -- that is today's test).
+
+CodeChange=Core/Src/nonlinear_test.c:
+    1) CreepToUnwrappedTarget is now PARAMETERIZED: step/deadband/budget/
+       iterations/power are caller-supplied arguments instead of hardcoded
+       to the NL_B0B_CREEP_* macros + literal 1.0f. B0-B's own two call
+       sites (backoff leg, point-0/forward leg) now pass those exact same
+       macros + 1.0f explicitly -- B0-B's behavior is BYTE-FOR-BYTE
+       unchanged, verified by scripts/test_b0b_creep_contract.ps1 (updated,
+       not weakened, to check the new explicit-argument call pattern).
+    2) New tuning constants for the main-sweep-loop call site only
+       (NL_SWEEP_CREEP_*, independent of NL_B0B_CREEP_*):
+         - Step: 8 -> 16 raw (half the micro-commands for the same total
+           correction distance).
+         - Budget: 150 -> 220 raw (v2's 150 was sized for B0-B's own
+           ~90-120 raw approach-leg gaps; this call site's own gaps run up
+           to ~181 raw, so v2 hit SweepPointCreepBudgetExceeded on ~44% of
+           corrected points -- 220 comfortably covers the observed max with
+           margin, aimed at ~0 BudgetExceeded).
+         - Max iterations: 30 -> 15 (resized to match the new step/budget
+           ratio -- 220/16=13.75 -- not an independent loosening).
+         - Power: 1.0f -> 0.6f (first, deliberately modest cut -- these are
+           short final-approach nudges against a much smaller residual gap
+           than the original commanded step, not the initial big move).
+           NOT yet verified this is enough torque against real friction/
+           cogging; WaitForPointSettle still gates every micro-step
+           regardless, so an under-powered build would show up as more
+           iterations/timeouts, not a silent failure.
+       Combined estimate (unverified): roughly half the commands (step)
+       times roughly a third of the power-squared heat cost per command,
+       so heat per sweep could drop substantially -- needs real hardware
+       confirmation, not just arithmetic.
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - 28/29 PowerShell regression scripts pass (FAST3 exception, as usual).
+    - scripts/test_b0b_creep_contract.ps1 updated: new assertions confirm
+      (a) CreepToUnwrappedTarget takes the 5 new parameters and uses them
+      (not the old hardcoded macros/literal), (b) both B0-B call sites
+      still pass NL_B0B_CREEP_STEP_RAW/DEADBAND_RAW/MAX_TOTAL_RAW/
+      MAX_ITERATIONS + 1.0f explicitly (B0-B unchanged), (c) the new
+      NL_SWEEP_CREEP_* constants exist with the documented v3 values, (d)
+      the main-loop call site uses NL_SWEEP_CREEP_* (not B0-B's constants).
+    - NOT yet tested on real hardware. This build exists specifically for
+      that test (heat/jerkiness qualitative check + H1/H2/H36 quantitative
+      re-measurement on the same P08/JIG7/new-sensor configuration already
+      used for v1/v2, so results are directly comparable).
+
+WhatToCheckOnHardware=
+    1. Subjective: does the motor run noticeably cooler / move less
+       jerkily than v2 (builds/sweep-point-creep-fix-v2-fast3-20260804/)?
+    2. SweepPointCreepBudgetExceeded in END should drop toward 0 (was
+       ~44% of corrected points under v2's 150-raw budget).
+    3. SweepPointCreepTotalIterations should drop roughly in half per
+       sweep relative to v2 (step doubled).
+    4. RobustP2P/A36 should stay close to v2's result (~1.74-1.83 deg /
+       ~0.31 deg on P08) -- the core fix from v2 should not regress.
+    5. NEW this build: check H1/H2 (A1/A2 in analyze_motor_logs.py output)
+       specifically -- compare against OLD firmware's H1/H2 AND v2's H1/H2
+       (need v2 H1/H2 numbers pulled from existing P08 logs for this
+       comparison, not yet done). If v3's larger/more-complete correction
+       narrows the H1/H2 gap further than v2 did, that's direct evidence
+       the contamination scales with how INCOMPLETE the settle-creep
+       correction is, not a fixed artifact.
+
+WorkingTreeState=ENABLE_SWEEP_POINT_CREEP and NL_TEST_REPEAT_3_RUNS/
+    _10_RUNS are the ONLY flags deviating from default in this build; will
+    be reverted to defaults after packaging, same as every prior
+    experimental build this project.
+
+Plan=Settle-time under-travel hypothesis, v3 (heat/jerk fix + H1/H2 contamination follow-up)
+BuildLabel=sweep-point-creep-v3-heat-tuning-fast3
+HexSHA256=11029E7666DBA30A7638B8EB7797930EA8431E5F949F2B6017D588833D5C25F0
+ElfSHA256=56ED20E5A7C75718EC18540483C6F41E5ADE401E03B2505B83EFB16CA344A27A

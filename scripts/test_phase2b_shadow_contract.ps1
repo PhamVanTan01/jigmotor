@@ -9,6 +9,8 @@ $root = Split-Path -Parent $PSScriptRoot
 $source = Get-Content -Raw (Join-Path $root 'Core\Src\nonlinear_test.c')
 $analyzerSource = Get-Content -Raw (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1')
 $fixture = Join-Path $PSScriptRoot 'fixtures\schema-v5-shadow-p05-jig3.txt'
+$fixtureV2 = Join-Path $PSScriptRoot 'fixtures\schema-v5-shadow-360-v2-p05-jig3.txt'
+$fixtureLegacyAlias = Join-Path $PSScriptRoot 'fixtures\schema-v5-shadow-360-v1-legacy-alias-p05-jig3.txt'
 $csv = Join-Path ([System.IO.Path]::GetTempPath()) 'jigmotor-phase2b-shadow-contract.csv'
 
 try {
@@ -25,6 +27,8 @@ try {
             $source -match 'SHADOW_ACQ' -and $source -match 'SHADOW_RESULT' -and
             $source -match 'SHADOW_END') `
         'One or more Phase-2B shadow records are missing.'
+    Assert-True ($source -match '#define\s+NL_SHADOW_CONTRACT_ID\s+"CANONICAL_Q16_1DEG360_V2"') `
+        'Current 360-point shadow firmware still reuses the legacy 256-point contract ID.'
     Assert-True ($source -match 'shadowTransactionCount' -and
             $source -match 'shadowAcceptedSampleCount' -and
             $source -match 'shadowMetadataInvalidCount' -and
@@ -46,18 +50,52 @@ try {
         'Firmware UID registry is missing the locked JIG5 profile (new control board, 2026-07-27; Zero=0x0000 confirmed across two power cycles via PRECONDITION_PRE_MOTOR, not the unreliable BOOT_SMOKE read).'
     Assert-True ($analyzerSource -match "001D00283234470438353535'\s*=\s*'JIG5'") `
         'Host UID registry is missing JIG5.'
+    Assert-True ($source -match '(?s)0x00510032,\s*0x32355118,\s*0x35383831,\s*"JIG6".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the JIG6 placeholder profile (new control board, 2026-07-28; registered from a bare MCU_UID read before the MA600 sensor was attached -- profile is an unconfirmed placeholder matching JIG1-5, pending a real post-assembly read).'
+    Assert-True ($analyzerSource -match "005100323235511835383831'\s*=\s*'JIG6'") `
+        'Host UID registry is missing JIG6.'
+    Assert-True ($source -match '(?s)0x00460032,\s*0x32355118,\s*0x35383831,\s*"JIG7".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the JIG7 profile (new control board, 2026-07-28; registered from a single real CONFIG read, matching JIG1-6 -- needs re-verification across more reads before full trust).'
+    Assert-True ($analyzerSource -match "004600323235511835383831'\s*=\s*'JIG7'") `
+        'Host UID registry is missing JIG7.'
+    Assert-True ($source -match '(?s)0x003E0032,\s*0x32355118,\s*0x35383831,\s*"JIG8".*?\{\s*0x0000,\s*0x00,\s*0x05,\s*0x00,\s*0x00,\s*0x00,\s*0x190A55AD\s*\}') `
+        'Firmware UID registry is missing the JIG8 placeholder profile (new control board, 2026-08-04; PLACEHOLDER from BOOT_SMOKE-only reads so far, matching JIG1-7 -- needs re-verification against a real post-assembly read).'
+    Assert-True ($analyzerSource -match "003E00323235511835383831'\s*=\s*'JIG8'") `
+        'Host UID registry is missing JIG8.'
 
-    & (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1') -Path $fixture -OutCsv $csv | Out-Null
+    & (Join-Path $PSScriptRoot 'analyze_nonlinear_logs.ps1') -Path @(
+        $fixture, $fixtureV2, $fixtureLegacyAlias) -OutCsv $csv | Out-Null
     $rows = @(Import-Csv $csv)
-    Assert-True ($rows.Count -eq 1) 'Shadow fixture did not produce exactly one record.'
-    $row = $rows[0]
+    Assert-True ($rows.Count -eq 3) 'V1/V2/legacy-alias shadow fixtures did not produce exactly three records.'
+    $row = $rows | Where-Object { $_.Source -eq 'schema-v5-shadow-p05-jig3.txt' }
+    # Historical 256-point fixtures keep their original V1 identity. The
+    # current source assertion above independently guards the V2 promotion.
     Assert-True ($row.OfficialResultSource -eq 'LEGACY' -and
             $row.ShadowCanonicalEnabled -eq '1' -and
             $row.ShadowContractVersion -eq 'CANONICAL_Q16_V1' -and
+            $row.ShadowContractEffectiveVersion -eq 'CANONICAL_Q16_V1' -and
+            $row.ShadowContractLegacyAlias -eq '0' -and
             $row.ShadowValid -eq '1' -and
             $row.ShadowTransactions -eq '16960' -and
             $row.ShadowFailedPoints -eq '0') `
         'Parsed Phase-2B shadow contract is incomplete.'
+
+    $rowV2 = $rows | Where-Object { $_.Source -eq 'schema-v5-shadow-360-v2-p05-jig3.txt' }
+    Assert-True (($null -ne $rowV2) -and
+            $rowV2.ShadowContractVersion -eq 'CANONICAL_Q16_1DEG360_V2' -and
+            $rowV2.ShadowContractEffectiveVersion -eq 'CANONICAL_Q16_1DEG360_V2' -and
+            $rowV2.ShadowContractLegacyAlias -eq '0' -and
+            $rowV2.ShadowTransactions -eq '23744') `
+        'Parsed current 360-point V2 shadow contract is incomplete.'
+
+    $legacyAlias = $rows | Where-Object {
+        $_.Source -eq 'schema-v5-shadow-360-v1-legacy-alias-p05-jig3.txt'
+    }
+    Assert-True (($null -ne $legacyAlias) -and
+            $legacyAlias.ShadowContractVersion -eq 'CANONICAL_Q16_V1' -and
+            $legacyAlias.ShadowContractEffectiveVersion -eq 'CANONICAL_Q16_1DEG360_V2' -and
+            $legacyAlias.ShadowContractLegacyAlias -eq '1') `
+        'Historical 360-point/V1 contract defect is not exposed as a legacy alias.'
 
     Write-Host '[ OK ] Phase-2B shadow source/log contract tests passed.'
 }

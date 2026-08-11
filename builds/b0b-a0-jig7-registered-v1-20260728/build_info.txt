@@ -1,0 +1,29 @@
+SavedAtLocal=2026-07-28T00:00:00+07:00
+Configuration=Release
+GitCommit=d413b289513497101a110bfb63372ef7dc1295bb (+ uncommitted JIG6/JIG7
+    registration on top, gain-sensitivity test flag confirmed OFF/default
+    for this build)
+GitDirty=yes
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production
+    default, unchanged)
+MOTOR_PID_GAIN_SENSITIVITY_TEST=0 (default -- production PID gains
+    kp=2.0/ki=0.003/kd=0.3 unchanged)
+NewJig=JIG7, MCU_UID=004600323235511835383831 (new control board,
+    registered 2026-07-28; same die batch/wafer lot as JIG6 -- UID_WORD1/
+    WORD2 identical to JIG6's, only WORD0 differs)
+Profile=Zero=0x0000 Dir=0x00 Filt=0x05 Status=0x00 Prt=0x00 RmapId=0x00
+    CorrCRC32=0x190A55AD -- matches JIG1-6 exactly. Registered from a
+    SINGLE real CONFIG read (unlike JIG6, sensor was already attached at
+    registration time, so this is not a blind pre-assembly placeholder),
+    but per the discipline that caught JIG4's three premature locks, this
+    still needs re-verification across several more gated reads over a
+    real power cycle before being fully trusted.
+RequiredFollowUp=Capture a few more PRECONDITION_PRE_MOTOR/BATCH_PRE_MOTOR
+    CONFIG reads from JIG7 (ideally across a fresh power cycle) and
+    confirm they still show Zero=0x0000 before treating this profile as
+    locked-with-confidence.
+Plan=docs/b0b-v3-no-reversal-plan.md
+BuildLabel=b0b-a0-jig7-registered-v1
+HexSHA256=0FEE8422C3B138BD46228F2CF09AA936F54C0FB1ECD2555D2563AB0EB9DFF0E9
+ElfSHA256=E6A9CA5AB060C77E7659AB6BCA1B8940C6D0F8B2491FDEB00756687ED305D3B0

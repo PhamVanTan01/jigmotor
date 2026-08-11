@@ -13,6 +13,8 @@ Assert-True ($source -match '#define\s+NL_POINTS_PER_REV\s+360U' -and
         $source -match '#define\s+NL_GRID_STEP_DEG\s+1\.0f' -and
         $source -match 'UNIFORM_1_DEG_ROUNDED_RAW_V1') `
     'The uniform one-degree grid identity/constants are incomplete.'
+Assert-True ($source -match '#define\s+NL_SHADOW_CONTRACT_ID\s+"CANONICAL_Q16_1DEG360_V2"') `
+    'The one-degree/360-point capture is not stamped with its own canonical contract ID.'
 Assert-True ($source -notmatch '\bNL_POS_INCREASE\b') `
     'A fixed raw point increment remains; one degree requires rounded absolute targets.'
 Assert-True ($source -match '(?s)NlTargetRawMagnitudeForPoint.*?pointIndex.*?MOTOR_MECHANICAL_COUNTS_PER_REV.*?NL_POINTS_PER_REV\s*/\s*2U.*?NL_POINTS_PER_REV') `

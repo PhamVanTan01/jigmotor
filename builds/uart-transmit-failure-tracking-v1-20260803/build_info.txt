@@ -1,0 +1,70 @@
+SavedAtLocal=2026-08-03T09:15:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 10 official (production default, unchanged -- no
+    FAST3 flags set in this build)
+
+Purpose=Fix for the "Việc cần làm ngay #1" item in the Q0-Q5 qualification
+    plan: the UART log-splice corruption found at point 152 in
+    P05 JIG4-B.txt (S2 A-B-A test), where a DATA line's tail was
+    overwritten by the start of the following MOTION line's fields --
+    e.g. "DATA,5,4,4,JIG4,p05,CW,152,37947,37839,ection=CW,Point=152,..."
+
+RootCauseCorrection=The original hypothesis (shared-buffer race between
+    LogLine() and LogLineLarge()) was WRONG and was disproven by reading
+    the actual implementation before touching any code: both functions use
+    separate per-call stack buffers and BLOCKING HAL_UART_Transmit() (not
+    DMA), so there is no code-level race that could splice one call's
+    buffer into another's. The real defect found: both functions called
+    HAL_UART_Transmit() and silently discarded its return value, so a
+    failed/partial/timed-out transmission (HAL_TIMEOUT/HAL_BUSY/HAL_ERROR --
+    most plausibly caused by USB-serial/PC-side receive buffering, not
+    firmware logic) left no trace anywhere in the log. This build does not
+    claim to have fixed the underlying transport reliability (the
+    receiving-side USB-serial path is outside this firmware's control) --
+    it makes failures OBSERVABLE instead of silent.
+
+CodeChange=Core/Src/nonlinear_test.c:
+    1) New file-scope counter nlUartTransmitFailureCount, incremented in
+       LogLine()/LogLineLarge() whenever HAL_UART_Transmit() != HAL_OK.
+    2) Reset to 0 at the start of every CaptureSweep() (one sweep's count
+       never leaks into the next).
+    3) New END record field UartTransmitFailures=<count>.
+    4) END's Status field now reads INVALID whenever
+       nlUartTransmitFailureCount > 0, even if measurementValid was
+       otherwise true -- a sweep with any dropped/garbled log line cannot
+       be trusted point-for-point (DATA/ACQ/MOTION rows for that sweep may
+       be truncated or spliced), so it must not read as a valid capture,
+       independent of whether the physical acquisition itself was fine.
+
+WhyThisServesNLSync=Per the standing rule (every code change must serve
+    JIG1<->JIG4 NL synchronization): the P05 A-B-A cross-jig test (Q3) was
+    reported FAIL/CONFOUNDED partly because this corruption silently
+    dropped one of the 3 JIG4 official runs, reducing that leg to n=2 and
+    lowering confidence in the whole comparison. Analysis tooling could
+    only catch this after the fact via manual regex corruption-scanning
+    (not automatic). With this fix, any future occurrence sets
+    EndStatus=INVALID directly, so the existing RunRole/EligibleForStatistics
+    gating in analyze_nonlinear_logs.ps1 and analyze_motor_logs.py already
+    excludes it automatically -- no analyzer changes needed.
+
+Verification=
+    - Clean build, no new warnings beyond the pre-existing
+      NlCreepResultName/kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - Full 29-script PowerShell regression suite: 0 failures.
+    - Diff reviewed field-by-field against the END printf's argument list
+      to confirm no off-by-one/misaligned format specifier.
+    - NOT yet verified against a live UART-failure event on real hardware
+      (the original corruption was a rare, timing-dependent event across
+      371 points x many files -- this build has not yet reproduced or
+      caught a live occurrence). Treat UartTransmitFailures>0 as the
+      detector working as intended if/when it happens again, not as
+      proof it can't still happen.
+
+Plan=Q0-Q5 qualification plan (see prior session discussion,
+    docs/CODEX_HANDOFF_NL_JIG_SYNC_2026-07-30.md context)
+BuildLabel=uart-transmit-failure-tracking-v1
+HexSHA256=046A88B6CB72F4C389E988AC4467F29E88512F0E3C5F47F1FA923A772122DD1A
+ElfSHA256=BBAE64FD4AD5B856F7566B611212F534AEC4E6305AB3DAB832A03C787186D45E

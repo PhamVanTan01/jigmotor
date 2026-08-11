@@ -1,0 +1,57 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P03-JIG7-remount01-test-1-v5-2.txt
+TerminalStatus=COMPLETE
+OfficialValid=0/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P03-JIG7-remount01-test-1-v5-2.txt
+      - END.Status=INVALID
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.1067 RawP2P=0.6782 System_INL=0.3391 RobustP2P=0.5430 Closure=-0.06012 TrackRMS=0.1138 TrackMax=0.5603
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=2 SweepID=2 RunOrder=1 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P03-JIG7-remount01-test-1-v5-2.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.1115 RawP2P=0.6506 System_INL=0.3253 RobustP2P=0.5752 Closure=-0.06772 TrackRMS=0.1170 TrackMax=0.5273
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=3 SweepID=3 RunOrder=2 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P03-JIG7-remount01-test-1-v5-2.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.1103 RawP2P=0.6409 System_INL=0.3205 RobustP2P=0.5549 Closure=-0.0993 TrackRMS=0.1166 TrackMax=0.5219
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=4 SweepID=4 RunOrder=3 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P03-JIG7-remount01-test-1-v5-2.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.1038 RawP2P=0.5529 System_INL=0.2764 RobustP2P=0.5199 Closure=-0.08508 TrackRMS=0.1112 TrackMax=0.4504
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG7  (runs total=4, statistically eligible=0)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: END.Status=INVALID; META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=2 SweepID=2 RunOrder=1: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=3 SweepID=3 RunOrder=2: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=4 SweepID=4 RunOrder=3: META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

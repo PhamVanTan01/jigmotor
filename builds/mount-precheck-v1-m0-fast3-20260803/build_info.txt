@@ -1,0 +1,47 @@
+SavedAtLocal=2026-08-03T11:20:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3) -- switched
+    from this session's earlier mount-precheck-v1-m0-diagnostic-20260803
+    build, which used the default 1 precondition + 10 official. Same
+    firmware otherwise: includes both the UART-transmit-failure tracking
+    fix and MOUNT_PRECHECK_V1 milestone M0 (MOUNT_PRECHECK_RESULT record,
+    ENABLE_MOUNT_PRECHECK_GATE=0/diagnostic-only) already verified on real
+    hardware this session (P03/JIG4, 2 remounts -- see
+    captured-logs/20260803-100554_..._batch001_complete.txt and
+    ..._batch002_complete.txt; batch001 correctly flagged
+    ClosureValid=0/MountValid=0/RejectReason=CLOSURE_INVALID against the
+    existing 0.20 deg shadow-closure limit, batch002 passed cleanly).
+
+CodeChange=Core/Src/nonlinear_test.c: NL_TEST_REPEAT_3_RUNS=1,
+    NL_TEST_REPEAT_10_RUNS=0 (was 0/1). No other change from
+    mount-precheck-v1-m0-diagnostic-20260803.
+
+Purpose=Faster remount-repeatability iteration (~10 min/leg instead of
+    ~25-30 min/leg) for the Q1/Q2/Q3 remount work in progress, while still
+    carrying MOUNT_PRECHECK_RESULT so every leg's H1/H2/RobustP2P/closure
+    data keeps accumulating toward the not-yet-calibrated mounting
+    profile.
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - 28/29 PowerShell regression scripts pass; the 1 expected exception is
+      test_preconditioned_10run_contract.ps1, which asserts the default
+      10-run configuration and is not applicable to this intentional
+      3-run build (confirmed passing again after every prior FAST3 build
+      this session once reverted to default -- same pattern here).
+
+WorkingTreeState=NL_TEST_REPEAT_3_RUNS/_10_RUNS are the ONLY flags
+    deviating from default in this build. UART-failure-tracking and
+    MOUNT_PRECHECK_V1 M0 are permanent changes (already the working-tree
+    default, not reverted between builds). The repeat-count flags will be
+    reverted to the 10-run default after this build is packaged, per this
+    session's established build/verify/package/revert pattern.
+
+Plan=Q0-Q5 qualification plan / MOUNT_PRECHECK_V1
+BuildLabel=mount-precheck-v1-m0-fast3
+HexSHA256=4F4BCAC5B2C3164D7B44A0FD6FEB9CA743E6F07B9B9D8D30B6685E0160A228EF
+ElfSHA256=28B4421EDC42882E5D1DB75462C1C266ADA2BAA42860A8CC9E0C8DB5FF89E08A

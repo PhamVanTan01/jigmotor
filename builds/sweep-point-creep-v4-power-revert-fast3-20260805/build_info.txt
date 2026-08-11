@@ -1,0 +1,80 @@
+SavedAtLocal=2026-08-05T00:00:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+
+Purpose=v4 of ENABLE_SWEEP_POINT_CREEP -- reverts v3's power reduction
+    after real-hardware testing (same day, P08/JIG7/new-sensor,
+    captured-logs/S2-P08-JIG7-remount01-test-5.txt) showed it made things
+    WORSE, not better. See CodeChange below and
+    docs/session-summary-2026-08-05.md for the full v3 failure analysis.
+
+CodeChange=Core/Src/nonlinear_test.c: NL_SWEEP_CREEP_POWER reverted
+    0.6f -> 1.0f. NL_SWEEP_CREEP_STEP_RAW (16), _MAX_TOTAL_RAW (220),
+    _MAX_ITERATIONS (15) are UNCHANGED from v3 -- only the power reduction
+    is reverted. No other code change from
+    builds/sweep-point-creep-v3-heat-tuning-fast3-20260805/.
+
+WhyV3Failed=v3's 0.6f power was not enough torque against real friction/
+    cogging. Real-hardware evidence (v3 test, same P08/JIG7 configuration
+    as v1/v2, directly comparable):
+      - TotalCorrectionRaw rose to 60368 (vs v2's ~39000) -- each 16-raw
+        commanded step achieved LESS real movement at reduced power, so
+        more steps were needed to close the same physical gap.
+      - SweepPointCreepBudgetExceeded got WORSE: 172/339 = 50.7% (vs v2's
+        ~44%), despite the larger 220-raw budget -- the budget increase
+        alone could not compensate for the power shortfall.
+      - RobustP2P/A36 both regressed most of the way back to old-firmware
+        levels: 3.126/0.4229 deg (vs v2's 1.74-1.83/0.31 deg; old firmware
+        was 3.05-3.07/0.89-0.90 deg) -- v3 gave back most of v2's gain.
+      - Within-batch variance spiked (A2 cv=70.58%, robust_p2p cv=3.92%,
+        both far above v2's own run-to-run consistency) -- consistent with
+        stick-slip motion (insufficient torque means the rotor sits still
+        until commanded position error accumulates enough to overcome
+        static friction/cogging, then snaps forward), which also matches
+        the user's own independent real-hardware report of MORE
+        jerkiness with v3, not less.
+
+Purpose=Isolate the ONE risky variable (power) from the two changes that
+    don't carry the same torque risk (step size, budget) -- both of those
+    only change how a command is BROKEN UP or how much total correction is
+    ALLOWED, not how much torque any single command produces, so they do
+    not carry v3's failure mode. This build tests whether step=16/
+    budget=220 alone (at full, proven-reliable power) still meaningfully
+    reduces heat/jerkiness vs v2 (fewer total commands: v2 needed ~14
+    iterations/point average at step=8, this should roughly halve at
+    step=16), without v3's reliability regression.
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - 28/29 PowerShell regression scripts pass (FAST3 exception, as usual).
+    - scripts/test_b0b_creep_contract.ps1 updated (NL_SWEEP_CREEP_POWER
+      assertion now expects 1.0f) and passes.
+    - NOT yet tested on real hardware. This build exists specifically for
+      that test.
+
+WhatToCheckOnHardware=
+    1. Subjective: heat/jerkiness vs v2 (not v3, which is known worse) --
+       should be at or below v2's level now that power is back to 1.0f.
+    2. SweepPointCreepBudgetExceeded should be well below v3's 50.7%, and
+       ideally below v2's 44% too (the 220 budget should now actually help,
+       since it is no longer fighting insufficient torque).
+    3. SweepPointCreepTotalIterations should be roughly half of v2's
+       (~2400-2450 vs v2's ~4800-4900), confirming the step-size lever
+       alone still delivers a real reduction.
+    4. RobustP2P/A36/H1/H2 should return to at least v2's level (~1.74-1.83
+       deg / ~0.31 deg / whatever v2's H1/H2 were -- pull those numbers for
+       comparison, not yet done in this doc) -- v3's regression must not
+       persist.
+
+WorkingTreeState=ENABLE_SWEEP_POINT_CREEP and NL_TEST_REPEAT_3_RUNS/
+    _10_RUNS are the ONLY flags deviating from default in this build; will
+    be reverted to defaults after packaging.
+
+Plan=Settle-time under-travel hypothesis, v4 (power-reduction revert after v3 real-hardware regression)
+BuildLabel=sweep-point-creep-v4-power-revert-fast3
+HexSHA256=5D5F38FEE1597B8C47CE0872A094378AC233E114AE12E797DF04689D32F128B6
+ElfSHA256=49F7BD9BE73E4C7E484B3C19A9DD09D263E5AD18F5839E991DD0C8B73258A5EC

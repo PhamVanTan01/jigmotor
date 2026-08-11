@@ -1,0 +1,47 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-095706_UNKNOWN_JIG7_batch001_incomplete.txt
+TerminalStatus=INCOMPLETE
+OfficialValid=0/3
+GatedConfigInvalid=0/1,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  WARN: D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-095706_UNKNOWN_JIG7_batch001_incomplete.txt: sweep TestID=1 SweepID=1 has no END record (truncated log?) -- treated as not officially valid
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\20260805-095706_UNKNOWN_JIG7_batch001_incomplete.txt
+      - no END record (truncated capture?)
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      - 23 of 360 analysis points missing (indices [337, 338, 339, 340, 341, 342, 343, 344, 345, 346]...)
+      - point 360 (closure) not captured
+      RMS_AC=0.2070 RawP2P=2.5519 System_INL=1.2759 RobustP2P=1.5672 Closure=N/A TrackRMS=0.2132 TrackMax=1.9281
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG7  (runs total=1, statistically eligible=0)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: no END record (truncated capture?); META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics); 23 of 360 analysis points missing (indices [337, 338, 339, 340, 341, 342, 343, 344, 345, 346]...); point 360 (closure) not captured
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

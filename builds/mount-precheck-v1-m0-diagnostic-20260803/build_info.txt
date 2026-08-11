@@ -1,0 +1,95 @@
+SavedAtLocal=2026-08-03T09:45:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 10 official (production default, unchanged -- no
+    FAST3 flags set in this build)
+IncludesPreviousFix=Yes -- this build also contains the
+    uart-transmit-failure-tracking-v1-20260803 fix (UartTransmitFailures
+    field in END, EndStatus now INVALID if any log line failed to
+    transmit). Do not treat these as two separate hexes to choose between;
+    this is the current cumulative default.
+
+Purpose=MOUNT_PRECHECK_V1 milestone M0 -- the first concrete firmware step
+    toward a mounting-validity gate, requested after this session's three
+    deliberate bad-mount experiments (P05 decenter, P03 sensor-rotation,
+    P05 sensor-rotation) all showed the same pattern: low-order harmonics
+    (H1/H2/H3/H6) and the legacy robust-NL are sensitive to mounting
+    state, while high-order harmonics (H9 and up, all related to the
+    motor's own ~36th-order electrical ripple) stay stable regardless of
+    mounting. M0 reuses the PRECONDITION sweep's already-computed
+    full-360-point metrics (nlCaptures[0]) -- no new motion, no new
+    capture time beyond what the batch already spends on precondition.
+
+CodeChange=Core/Src/nonlinear_test.c, inside NonlinearTest_Run(), right
+    before the existing PRECONDITION_RESULT log:
+    1) New record MOUNT_PRECHECK_RESULT, logged once per batch (after
+       precondition, before the first OFFICIAL run), carrying:
+       RobustP2PDeg, H1AmplitudeDeg/H1PhaseDeg, H2AmplitudeDeg/H2PhaseDeg,
+       ClosureErrorDeg, TrackingValid, ClosureValid, AcquisitionResult,
+       MountValid, RejectReason, GateEnabled.
+    2) New flag ENABLE_MOUNT_PRECHECK_GATE (default 0, OFF in this build).
+       When 0: MOUNT_PRECHECK_RESULT is logged but never stops the batch
+       (diagnostic-only -- exactly what this build is for). When 1: if
+       MountValid=0, the batch stops before any OFFICIAL run runs
+       (BATCH,Status=MOUNT_INVALID,RejectReason=<...>), same as an
+       existing hard failure.
+
+WhatMountValidChecksRightNow=DELIBERATELY restricted to gross,
+    product-independent checks already validated elsewhere in this
+    pipeline: TrackingValid && shadow ClosureValid &&
+    AcquisitionResult==OK. It does NOT yet include the H1/H2
+    mounting-sensitive band found this session. Baking a numeric H1/H2
+    threshold in now would be a guess -- only one clean-vs-confounded
+    sample pair exists per product so far (P03, P05), and the two
+    products showed qualitatively different signatures (P03: H1 shrinks
+    moderately, curve shape barely changes; P05: H1 collapses toward
+    noise floor and H2 grows substantially, curve shape visibly
+    distorted). H1AmplitudeDeg/H1PhaseDeg/H2AmplitudeDeg/H2PhaseDeg are
+    logged on every single run specifically so this or a future build can
+    fold a real per-product profile in once enough pilot batches exist.
+    In practice, because TrackingValid/AcquisitionResult failures already
+    abort the sweep earlier via the existing E506 path before reaching
+    this code, MountValid will read 1 in nearly every real run today --
+    that is expected and correct for this milestone; the immediate value
+    of this build is the LOGGED H1/H2/RobustP2P data, not the gate firing.
+
+WhyThisServesNLSync=Per the standing rule: this is the mechanism half of
+    the "mounting repeatability, not the NL formula, is the real blocker"
+    conclusion reached earlier this session. It does not itself narrow
+    any JIG1-vs-JIG4 gap -- it is the instrumentation needed to eventually
+    reject bad-mount data automatically instead of relying on manual
+    after-the-fact curve/harmonic analysis (as done by hand for every
+    experiment this session).
+
+TestPlan=Run normal batches (any product, any jig) with this build and
+    check the MOUNT_PRECHECK_RESULT line in every log. Compare
+    H1AmplitudeDeg/H2AmplitudeDeg against this session's known references:
+      - P05, JIG1, good mounting (S1 remounts): H1 ~0.49-0.51 deg
+      - P05, JIG4, sensor-rotated (bad):        H1 ~0.02 deg, H2 ~0.28 deg
+      - P03, JIG1, good mounting (S1 remounts): H1 ~0.18-0.19 deg
+      - P03, JIG4, sensor-rotated (mild):       H1 ~0.07 deg
+    Collecting more such pairs (ideally with known, varied degrees of
+    intentional mounting error, and repeated per product) is what M0's
+    logged data is for -- it feeds the not-yet-built profile threshold,
+    not the other way around.
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - Full 29-script PowerShell regression suite: 0 failures.
+    - NOT yet verified against real hardware -- MOUNT_PRECHECK_RESULT has
+      never been printed on an actual capture yet. Treat the exact field
+      formatting as unconfirmed until the first real log is reviewed.
+
+NextStep=M1 (sparse 12-sector scan, to cut precheck time below a full
+    precondition sweep) is explicitly NOT started -- per the original
+    plan, M1 must be validated against M0's full-sweep decision before
+    being trusted, and M0 itself has no real hardware log yet.
+
+Plan=Q0-Q5 qualification plan / MOUNT_PRECHECK_V1 (see prior session
+    discussion, docs/CODEX_HANDOFF_NL_JIG_SYNC_2026-07-30.md context)
+BuildLabel=mount-precheck-v1-m0-diagnostic
+HexSHA256=45F3DD96C9EFA87FD590EA2A6ED98C1B440D3A097FF4F8EAF1671135F192C0F3
+ElfSHA256=0DC1BFE61EC2341182E6EEA7DD9121A8E54E22C1F991BDAADC97AFD6DB38C500

@@ -1,0 +1,176 @@
+{
+  "tool": "analyze_nl_curve.py",
+  "metric_contract": {
+    "pointwise_quantity": "logged DATA.Error curve",
+    "robust_nl": "mean(top 5) - mean(bottom 5) per run",
+    "analysis_indices": "0..359",
+    "closure_index": 360,
+    "closure_in_curve": false,
+    "alignment_policy": "zero-shift is primary; best circular alignment is diagnostic only"
+  },
+  "inputs": {
+    "A1": [
+      "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\S2-P03-JIG1-A1.txt"
+    ],
+    "B": [
+      "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\S2-P03-JIG4-B.txt"
+    ],
+    "A2": [
+      "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\S2-P03-JIG1-A2.txt"
+    ]
+  },
+  "thresholds": {
+    "within_sd_limit_deg": 0.03,
+    "minimum_cross_jig_limit_deg": 0.05,
+    "repeatability_multiplier": 2.77,
+    "tail_limit_deg": 0.1,
+    "correlation_min": 0.98,
+    "centered_rmse_limit_deg": 0.1,
+    "closure_limit_deg": 0.2
+  },
+  "leg_summary": [
+    {
+      "leg": "A1",
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "eligible_runs": 3,
+      "analysis_points": 360,
+      "nl_mean_deg": 2.590818,
+      "nl_sd_deg": 0.006619272165427165,
+      "top_mean_deg": 1.6122726666666667,
+      "top_sd_deg": 0.01092892205724494,
+      "bottom_mean_deg": -0.9785453333333333,
+      "bottom_sd_deg": 0.008536332780142347,
+      "closure_mean_deg": -0.012836666666666668,
+      "closure_sd_deg": 0.009287434163068577,
+      "closure_max_abs_deg": 0.02063,
+      "centered_pointwise_sd_mean_deg": 0.02225126538342456,
+      "centered_pointwise_sd_max_deg": 0.10860981758446832,
+      "centered_pointwise_sd_max_angle_deg": 75.0
+    },
+    {
+      "leg": "B",
+      "motor_id": "p03",
+      "jig_id": "JIG4",
+      "eligible_runs": 3,
+      "analysis_points": 360,
+      "nl_mean_deg": 2.584122666666667,
+      "nl_sd_deg": 0.025446002226937856,
+      "top_mean_deg": 1.564074,
+      "top_sd_deg": 0.025898995887871742,
+      "bottom_mean_deg": -1.0200486666666668,
+      "bottom_sd_deg": 0.0013558677418293716,
+      "closure_mean_deg": -0.014100000000000001,
+      "closure_sd_deg": 0.0019411594473406869,
+      "closure_max_abs_deg": 0.01581,
+      "centered_pointwise_sd_mean_deg": 0.02062540650124291,
+      "centered_pointwise_sd_max_deg": 0.12950949009791052,
+      "centered_pointwise_sd_max_angle_deg": 65.0
+    },
+    {
+      "leg": "A2",
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "eligible_runs": 3,
+      "analysis_points": 360,
+      "nl_mean_deg": 2.6036246666666663,
+      "nl_sd_deg": 0.014154290138800166,
+      "top_mean_deg": 1.647428,
+      "top_sd_deg": 0.009023194334602531,
+      "bottom_mean_deg": -0.9561966666666666,
+      "bottom_sd_deg": 0.007005706340786257,
+      "closure_mean_deg": -0.03247,
+      "closure_sd_deg": 0.023215272989995185,
+      "closure_max_abs_deg": 0.04895,
+      "centered_pointwise_sd_mean_deg": 0.020805298788794672,
+      "centered_pointwise_sd_max_deg": 0.13575419069578606,
+      "centered_pointwise_sd_max_angle_deg": 75.0
+    }
+  ],
+  "analysis": {
+    "motor_id": "p03",
+    "analysis_points": 360,
+    "jig_a": "JIG1",
+    "jig_b": "JIG4",
+    "zero_shift_correlation": 0.9882898952318938,
+    "zero_shift_centered_rmse_deg": 0.10662488571156253,
+    "aligned_centered_rmse_deg": 0.10662488571156253,
+    "alignment": {
+      "best_shift_points": 0,
+      "best_shift_deg": 0.0,
+      "best_shift_correlation": 0.9882898952318938,
+      "second_shift_points": 40,
+      "second_shift_deg": 40.0,
+      "second_shift_correlation": 0.9765189583408485,
+      "correlation_margin": 0.011770936891045358
+    },
+    "a1_to_a2_nl_drift_deg": 0.012806666666666189,
+    "a1_to_a2_centered_rmse_deg": 0.03740278899443748,
+    "a_nl_mean_deg": 2.597221333333333,
+    "b_nl_mean_deg": 2.584122666666667,
+    "nl_delta_b_minus_a_deg": -0.013098666666666148,
+    "pooled_nl_sd_deg": 0.017026582208836977,
+    "cross_jig_nl_limit_deg": 0.05,
+    "top_a_mean_deg": 1.6298503333333332,
+    "top_b_mean_deg": 1.564074,
+    "top_delta_b_minus_a_deg": -0.06577633333333321,
+    "bottom_a_mean_deg": -0.967371,
+    "bottom_b_mean_deg": -1.0200486666666668,
+    "bottom_delta_b_minus_a_deg": -0.052677666666666845,
+    "gates": {
+      "within_batch_nl_sd": {
+        "value_deg": 0.025446002226937856,
+        "limit": "<= 0.03000 deg",
+        "passed": true
+      },
+      "cross_jig_nl_delta": {
+        "value_deg": -0.013098666666666148,
+        "absolute_value_deg": 0.013098666666666148,
+        "limit_deg": 0.05,
+        "passed": true
+      },
+      "top_tail_delta": {
+        "value_deg": -0.06577633333333321,
+        "limit": "abs <= 0.10000 deg",
+        "passed": true
+      },
+      "bottom_tail_delta": {
+        "value_deg": -0.052677666666666845,
+        "limit": "abs <= 0.10000 deg",
+        "passed": true
+      },
+      "zero_shift_curve_correlation": {
+        "value": 0.9882898952318938,
+        "limit": ">= 0.98000",
+        "passed": true
+      },
+      "zero_shift_centered_rmse": {
+        "value_deg": 0.10662488571156253,
+        "limit": "<= 0.10000 deg",
+        "passed": false
+      },
+      "closure": {
+        "max_abs_deg": 0.04895,
+        "available": true,
+        "limit": "abs <= 0.20000 deg",
+        "passed": true
+      },
+      "all_primary_gates": {
+        "passed": false
+      },
+      "data_health": {
+        "invalid_official_reports": 0,
+        "config_state": "PASS",
+        "limit": "0 invalid OFFICIAL; CONFIG=PASS",
+        "passed": true
+      }
+    }
+  },
+  "config_health": {
+    "state": "PASS",
+    "config_records_seen": 12,
+    "config_failures": [],
+    "motor_errors": []
+  },
+  "warnings": []
+}

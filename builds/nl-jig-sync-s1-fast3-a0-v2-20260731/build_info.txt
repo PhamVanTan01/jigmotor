@@ -1,0 +1,24 @@
+Purpose=NL_JIG_SYNC_S1_SAME_JIG_REMOUNT_DIAGNOSTIC
+SavedAtLocal=2026-07-31T09:17:51+07:00
+Configuration=Release
+GitBranch=codex/motion-control-v2-dma
+GitCommit=45d18c37cde6ee8c34f361c8fbc11e6d3daf0138
+FirmwareBuildID=Jul 31 2026 09:17:44
+SourceOverride=NL_TEST_REPEAT_3_RUNS=1;NL_TEST_REPEAT_10_RUNS=0
+BatchProtocol=ONE_FULL_SWEEP_120S_V1_FAST3
+BatchSequence=1_PRECONDITION_PLUS_3_OFFICIAL
+CooldownProtocol=COOLDOWN_120S_V1
+ApproachProtocol=SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1
+ApproachMode=SHIFTED_REVERSAL_A0
+GridProtocol=UNIFORM_1_DEG_ROUNDED_RAW_V1
+AnalysisPoints=360
+ClosurePoint=360
+CanonicalContract=CANONICAL_Q16_1DEG360_V2
+DeadtimeCompensationFeedforward=OFF
+A4WideStepLimit=OFF
+MeasurementDefinition=WHOLE_SYSTEM_COMMAND_TRACKING
+AcceptanceMode=REPORT_ONLY
+IntendedProducts=P03,P05
+IntendedJig=JIG1
+IntendedProcedure=3_INDEPENDENT_REMOUNTS_PER_PRODUCT_FIXED_TORQUE_AND_ORIENTATION
+Important=This is a diagnostic FAST3 artifact. Do not use it as the final 10-run qualification image.

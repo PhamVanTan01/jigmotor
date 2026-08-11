@@ -1,0 +1,165 @@
+{
+  "sweeps": [
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG7",
+      "test_id": 1,
+      "sweep_id": 1,
+      "run_order": 0,
+      "run_role": "PRECONDITION",
+      "eligible_for_statistics": false,
+      "eligibility_source": "DECLARED_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": "CANONICAL_Q16_1DEG360_V2",
+      "officially_valid": false,
+      "problems": [
+        "META.RunRole=PRECONDITION (excluded from official statistics)",
+        "META.EligibleForStatistics=0 (excluded from official statistics)"
+      ],
+      "metrics": {
+        "analysis_count": 360,
+        "mean_dc": -0.019759416666666665,
+        "rms_ac": 0.0871130948565889,
+        "raw_p2p": 0.55665,
+        "system_inl_deg": 0.278325,
+        "robust_p2p": 0.48392599999999997,
+        "p99_abs_deviation": 0.3384405833333334,
+        "harmonics": {
+          "1": {
+            "amplitude": 0.013591135734029296,
+            "phase_deg": -127.19941504935366
+          },
+          "2": {
+            "amplitude": 0.0065386280594447845,
+            "phase_deg": -80.78044469364809
+          },
+          "3": {
+            "amplitude": 0.005842795377898223,
+            "phase_deg": -134.32685070766524
+          },
+          "6": {
+            "amplitude": 0.005306750707183815,
+            "phase_deg": 64.24922293568056
+          },
+          "9": {
+            "amplitude": 0.020143319877054124,
+            "phase_deg": 81.75091851391134
+          },
+          "12": {
+            "amplitude": 0.0061671062335117415,
+            "phase_deg": 1.473267513050486
+          },
+          "18": {
+            "amplitude": 0.019733498096347564,
+            "phase_deg": -69.48164551909755
+          },
+          "27": {
+            "amplitude": 0.010647392206663973,
+            "phase_deg": -172.72679656633997
+          },
+          "36": {
+            "amplitude": 0.0919247989187469,
+            "phase_deg": 83.46284703844188
+          },
+          "45": {
+            "amplitude": 0.0094115163057714,
+            "phase_deg": -6.465008606180617
+          },
+          "72": {
+            "amplitude": 0.01876950429381197,
+            "phase_deg": 42.14467042938186
+          },
+          "108": {
+            "amplitude": 0.0030840115917357695,
+            "phase_deg": 5.038467698822776
+          }
+        },
+        "closure_error_deg": -0.02591,
+        "closure_available": true,
+        "tracking_rms_deg": 0.08960849567137756,
+        "tracking_max_abs_deg": 0.428466796875,
+        "missing_indices": []
+      },
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\20260805-153817_UNKNOWN_JIG7_batch001_incomplete.txt"
+    }
+  ],
+  "group_summaries": [
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG7",
+      "run_count": 1,
+      "conditioned_run_count": 0,
+      "fields": {
+        "rms_ac": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "raw_p2p": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "system_inl_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "robust_p2p": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "closure_error_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "tracking_rms_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "tracking_max_abs_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "mean_dc": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "p99_abs_deviation": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A1": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A2": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A9": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A36": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        }
+      },
+      "invalid_runs": [
+        "TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)"
+      ]
+    }
+  ]
+}

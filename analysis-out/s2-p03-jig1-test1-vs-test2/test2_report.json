@@ -1,0 +1,444 @@
+{
+  "sweeps": [
+    {
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "test_id": 1,
+      "sweep_id": 1,
+      "run_order": 0,
+      "run_role": "PRECONDITION",
+      "eligible_for_statistics": false,
+      "eligibility_source": "DECLARED_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": "CANONICAL_Q16_1DEG360_V2",
+      "officially_valid": false,
+      "problems": [
+        "META.RunRole=PRECONDITION (excluded from official statistics)",
+        "META.EligibleForStatistics=0 (excluded from official statistics)"
+      ],
+      "metrics": {
+        "analysis_count": 360,
+        "mean_dc": 0.39984277777777777,
+        "rms_ac": 0.7138131471906944,
+        "raw_p2p": 2.93433,
+        "system_inl_deg": 1.467165,
+        "robust_p2p": 2.740058,
+        "p99_abs_deviation": 1.3725927777777778,
+        "harmonics": {
+          "1": {
+            "amplitude": 0.24314938009832876,
+            "phase_deg": -90.6929320408211
+          },
+          "2": {
+            "amplitude": 0.15267869395332193,
+            "phase_deg": -169.75647101515221
+          },
+          "3": {
+            "amplitude": 0.04738875384605997,
+            "phase_deg": 74.68638870888691
+          },
+          "6": {
+            "amplitude": 0.009801192635971206,
+            "phase_deg": 111.99100888160662
+          },
+          "9": {
+            "amplitude": 0.18027851011871593,
+            "phase_deg": 92.0243499432783
+          },
+          "12": {
+            "amplitude": 0.025001294401870294,
+            "phase_deg": 47.58256814728865
+          },
+          "18": {
+            "amplitude": 0.11493431953487387,
+            "phase_deg": -86.82615926630729
+          },
+          "27": {
+            "amplitude": 0.026757621043911387,
+            "phase_deg": 102.75077033353763
+          },
+          "36": {
+            "amplitude": 0.9028100547269573,
+            "phase_deg": 98.56598035342643
+          },
+          "45": {
+            "amplitude": 0.04607969095584947,
+            "phase_deg": -68.36245433043774
+          },
+          "72": {
+            "amplitude": 0.19424313060665763,
+            "phase_deg": -68.63623320140483
+          },
+          "108": {
+            "amplitude": 0.11496850279605685,
+            "phase_deg": 109.30104681013803
+          }
+        },
+        "closure_error_deg": 0.00412,
+        "closure_available": true,
+        "tracking_rms_deg": 0.8132963554884063,
+        "tracking_max_abs_deg": 1.95556640625,
+        "missing_indices": []
+      },
+      "source_file": "S2-P03-JIG1-test-2.txt"
+    },
+    {
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "test_id": 2,
+      "sweep_id": 2,
+      "run_order": 1,
+      "run_role": "OFFICIAL",
+      "eligible_for_statistics": true,
+      "eligibility_source": "DECLARED_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": "CANONICAL_Q16_1DEG360_V2",
+      "officially_valid": true,
+      "problems": [],
+      "metrics": {
+        "analysis_count": 360,
+        "mean_dc": 0.39405897222222225,
+        "rms_ac": 0.7130211806338959,
+        "raw_p2p": 2.93231,
+        "system_inl_deg": 1.466155,
+        "robust_p2p": 2.744718,
+        "p99_abs_deviation": 1.3663489722222222,
+        "harmonics": {
+          "1": {
+            "amplitude": 0.25796884415129384,
+            "phase_deg": -92.1856597838953
+          },
+          "2": {
+            "amplitude": 0.16665902088398457,
+            "phase_deg": -172.42183408230375
+          },
+          "3": {
+            "amplitude": 0.03812260797752541,
+            "phase_deg": 68.17918204164151
+          },
+          "6": {
+            "amplitude": 0.008159576148740362,
+            "phase_deg": 138.36677817752428
+          },
+          "9": {
+            "amplitude": 0.17466955651493823,
+            "phase_deg": 92.25542572672485
+          },
+          "12": {
+            "amplitude": 0.028978510735412164,
+            "phase_deg": 31.87244149785689
+          },
+          "18": {
+            "amplitude": 0.11436687318915587,
+            "phase_deg": -86.19194344962699
+          },
+          "27": {
+            "amplitude": 0.026846445181689868,
+            "phase_deg": 104.59034723409776
+          },
+          "36": {
+            "amplitude": 0.8967262511834208,
+            "phase_deg": 98.28943046312958
+          },
+          "45": {
+            "amplitude": 0.04892173236459141,
+            "phase_deg": -74.50588513596028
+          },
+          "72": {
+            "amplitude": 0.19171565194159484,
+            "phase_deg": -68.25647889426666
+          },
+          "108": {
+            "amplitude": 0.11502394413229645,
+            "phase_deg": 106.2693965022167
+          }
+        },
+        "closure_error_deg": 0.02667,
+        "closure_available": true,
+        "tracking_rms_deg": 0.810982344344213,
+        "tracking_max_abs_deg": 1.966552734375,
+        "missing_indices": []
+      },
+      "source_file": "S2-P03-JIG1-test-2.txt"
+    },
+    {
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "test_id": 3,
+      "sweep_id": 3,
+      "run_order": 2,
+      "run_role": "OFFICIAL",
+      "eligible_for_statistics": true,
+      "eligibility_source": "DECLARED_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": "CANONICAL_Q16_1DEG360_V2",
+      "officially_valid": true,
+      "problems": [],
+      "metrics": {
+        "analysis_count": 360,
+        "mean_dc": 0.37010452777777775,
+        "rms_ac": 0.7120895379810036,
+        "raw_p2p": 2.98053,
+        "system_inl_deg": 1.490265,
+        "robust_p2p": 2.744498,
+        "p99_abs_deviation": 1.3838654722222223,
+        "harmonics": {
+          "1": {
+            "amplitude": 0.2569179834542956,
+            "phase_deg": -91.59956670935226
+          },
+          "2": {
+            "amplitude": 0.16041584666470918,
+            "phase_deg": -168.00814694153087
+          },
+          "3": {
+            "amplitude": 0.040457724571225276,
+            "phase_deg": 70.88558852266893
+          },
+          "6": {
+            "amplitude": 0.011162518955552248,
+            "phase_deg": 144.29615950407143
+          },
+          "9": {
+            "amplitude": 0.17339282815443252,
+            "phase_deg": 92.34786292650892
+          },
+          "12": {
+            "amplitude": 0.028181405385028287,
+            "phase_deg": 32.14106405607117
+          },
+          "18": {
+            "amplitude": 0.1102951772308422,
+            "phase_deg": -86.21371853042682
+          },
+          "27": {
+            "amplitude": 0.02811521189615521,
+            "phase_deg": 103.2806674682027
+          },
+          "36": {
+            "amplitude": 0.8959032935328207,
+            "phase_deg": 98.27340634807163
+          },
+          "45": {
+            "amplitude": 0.05565755913277684,
+            "phase_deg": -74.65240975861839
+          },
+          "72": {
+            "amplitude": 0.19365792129753118,
+            "phase_deg": -69.2366585215533
+          },
+          "108": {
+            "amplitude": 0.11924637260753139,
+            "phase_deg": 107.10070985210753
+          }
+        },
+        "closure_error_deg": 0.01926,
+        "closure_available": true,
+        "tracking_rms_deg": 0.797697823318089,
+        "tracking_max_abs_deg": 1.900634765625,
+        "missing_indices": []
+      },
+      "source_file": "S2-P03-JIG1-test-2.txt"
+    },
+    {
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "test_id": 4,
+      "sweep_id": 4,
+      "run_order": 3,
+      "run_role": "OFFICIAL",
+      "eligible_for_statistics": true,
+      "eligibility_source": "DECLARED_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": "CANONICAL_Q16_1DEG360_V2",
+      "officially_valid": true,
+      "problems": [],
+      "metrics": {
+        "analysis_count": 360,
+        "mean_dc": 0.3810651388888889,
+        "rms_ac": 0.7091505666961962,
+        "raw_p2p": 2.87826,
+        "system_inl_deg": 1.43913,
+        "robust_p2p": 2.723744,
+        "p99_abs_deviation": 1.3297251388888889,
+        "harmonics": {
+          "1": {
+            "amplitude": 0.24788938284337403,
+            "phase_deg": -92.11149953379407
+          },
+          "2": {
+            "amplitude": 0.16328563420118583,
+            "phase_deg": -167.44316712709522
+          },
+          "3": {
+            "amplitude": 0.03940055590502095,
+            "phase_deg": 70.06899734643571
+          },
+          "6": {
+            "amplitude": 0.009778198170124581,
+            "phase_deg": 126.73962843680546
+          },
+          "9": {
+            "amplitude": 0.17493970654946386,
+            "phase_deg": 92.47170138222441
+          },
+          "12": {
+            "amplitude": 0.026194126973552,
+            "phase_deg": 40.37102291451599
+          },
+          "18": {
+            "amplitude": 0.11155477223923409,
+            "phase_deg": -86.41517110095755
+          },
+          "27": {
+            "amplitude": 0.025655396453577534,
+            "phase_deg": 96.05001620546072
+          },
+          "36": {
+            "amplitude": 0.8926256553404203,
+            "phase_deg": 98.34753366031543
+          },
+          "45": {
+            "amplitude": 0.04589559940905494,
+            "phase_deg": -72.68861609856609
+          },
+          "72": {
+            "amplitude": 0.1961558187647594,
+            "phase_deg": -68.7356087448575
+          },
+          "108": {
+            "amplitude": 0.12169538143806648,
+            "phase_deg": 107.34736394837367
+          }
+        },
+        "closure_error_deg": 0.03146,
+        "closure_available": true,
+        "tracking_rms_deg": 0.7996847041753126,
+        "tracking_max_abs_deg": 1.9281005859375,
+        "missing_indices": []
+      },
+      "source_file": "S2-P03-JIG1-test-2.txt"
+    }
+  ],
+  "group_summaries": [
+    {
+      "motor_id": "p03",
+      "jig_id": "JIG1",
+      "run_count": 4,
+      "conditioned_run_count": 3,
+      "fields": {
+        "rms_ac": {
+          "mean": 0.7114204284370319,
+          "sd": 0.0020201964632317643,
+          "cv_pct": 0.2839666085594522,
+          "run1": 0.7130211806338959,
+          "run2": 0.7120895379810036,
+          "run3": 0.7091505666961962
+        },
+        "raw_p2p": {
+          "mean": 2.9303666666666666,
+          "sd": 0.051162687901764176,
+          "cv_pct": 1.7459483307582957,
+          "run1": 2.93231,
+          "run2": 2.98053,
+          "run3": 2.87826
+        },
+        "system_inl_deg": {
+          "mean": 1.4651833333333333,
+          "sd": 0.025581343950882088,
+          "cv_pct": 1.7459483307582957,
+          "run1": 1.466155,
+          "run2": 1.490265,
+          "run3": 1.43913
+        },
+        "robust_p2p": {
+          "mean": 2.7376533333333333,
+          "sd": 0.012046338254147455,
+          "cv_pct": 0.44002423928087275,
+          "run1": 2.744718,
+          "run2": 2.744498,
+          "run3": 2.723744
+        },
+        "closure_error_deg": {
+          "mean": 0.025796666666666666,
+          "sd": 0.006146709146635568,
+          "cv_pct": 23.827532549304436,
+          "run1": 0.02667,
+          "run2": 0.01926,
+          "run3": 0.03146
+        },
+        "tracking_rms_deg": {
+          "mean": 0.8027882906125382,
+          "sd": 0.00716545960168507,
+          "cv_pct": 0.8925715142429056,
+          "run1": 0.810982344344213,
+          "run2": 0.797697823318089,
+          "run3": 0.7996847041753126
+        },
+        "tracking_max_abs_deg": {
+          "mean": 1.9317626953125,
+          "sd": 0.03311122067875694,
+          "cv_pct": 1.7140418312820025,
+          "run1": 1.966552734375,
+          "run2": 1.900634765625,
+          "run3": 1.9281005859375
+        },
+        "mean_dc": {
+          "mean": 0.3817428796296296,
+          "sd": 0.011991595037535222,
+          "cv_pct": 3.141275365546982,
+          "run1": 0.39405897222222225,
+          "run2": 0.37010452777777775,
+          "run3": 0.3810651388888889
+        },
+        "p99_abs_deviation": {
+          "mean": 1.3599798611111111,
+          "sd": 0.027626402328576428,
+          "cv_pct": 2.0313831931309263,
+          "run1": 1.3663489722222222,
+          "run2": 1.3838654722222223,
+          "run3": 1.3297251388888889
+        },
+        "A1": {
+          "mean": 0.25425873681632116,
+          "sd": 0.005540990847821983,
+          "cv_pct": 2.179272546227131,
+          "run1": 0.25796884415129384,
+          "run2": 0.2569179834542956,
+          "run3": 0.24788938284337403
+        },
+        "A2": {
+          "mean": 0.1634535005832932,
+          "sd": 0.0031249704678184705,
+          "cv_pct": 1.9118406498893168,
+          "run1": 0.16665902088398457,
+          "run2": 0.16041584666470918,
+          "run3": 0.16328563420118583
+        },
+        "A9": {
+          "mean": 0.1743340304062782,
+          "sd": 0.0008262212291197142,
+          "cv_pct": 0.47392997637594914,
+          "run1": 0.17466955651493823,
+          "run2": 0.17339282815443252,
+          "run3": 0.17493970654946386
+        },
+        "A36": {
+          "mean": 0.8950850666855539,
+          "sd": 0.002169295495569784,
+          "cv_pct": 0.24235634983863094,
+          "run1": 0.8967262511834208,
+          "run2": 0.8959032935328207,
+          "run3": 0.8926256553404203
+        }
+      },
+      "invalid_runs": [
+        "TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)"
+      ]
+    }
+  ]
+}

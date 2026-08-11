@@ -1,0 +1,59 @@
+SavedAtLocal=2026-08-04T00:00:00+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+NL_APPROACH_MODE=3 (NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 -- production default, unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3) -- matches
+    today's established remount-test build pattern.
+
+CodeChange=Core/Src/nonlinear_test.c:
+    1) New NL_KNOWN_JIGS[] entry "JIG8", MCU_UID=003E00323235511835383831
+       (UID_WORD0=0x003E0032, WORD1/WORD2=0x32355118/0x35383831 -- same
+       wafer lot as JIG6/JIG7, a third board from that lot, different die
+       position). Registered from two BOOT_SMOKE-context reads only
+       (Zero=0x0084, then 0x009F on a second power-up) -- BOOT_SMOKE never
+       gates anything and is documented elsewhere in this file as
+       unreliable at power-on; this instability matches JIG4's
+       already-diagnosed sensor power-on-settling pattern, not a new
+       concern. Profile is a PLACEHOLDER (matches JIG1-7's identical
+       profile) -- UNCONFIRMED, must be re-verified against a real
+       PRECONDITION_PRE_MOTOR/BATCH_PRE_MOTOR read once stable, same
+       discipline as JIG4/JIG6/JIG7's registration comments.
+    2) NL_TEST_REPEAT_3_RUNS=1, NL_TEST_REPEAT_10_RUNS=0 (was 0/1).
+       No other change.
+
+Purpose=Registering a third new board (JIG8) to test whether the
+    "new-board effect" found this session on JIG6/JIG7 -- the same
+    assembly reads ~0.26-0.31 deg lower NL magnitude on either JIG6 or
+    JIG7 than on its own original board, and a second, weaker-signal
+    assembly picks up an extra ~76/77/36 deg tail component on both
+    JIG6 and JIG7 (identical hybrid signature, 0.0 deg apart, r=0.996)
+    that is absent on that assembly's own original board -- is general to
+    any new board, or specific to the JIG6/JIG7 wafer lot. See
+    docs/session-summary-2026-08-03-mount-precheck-and-assembly-swap.md
+    and this session's 2026-08-04 follow-up analysis
+    (analysis-out/p05-jig6-*, analysis-out/p05-jig7-*).
+
+Verification=
+    - Clean build, only the pre-existing NlCreepResultName/
+      kNlB0BPreRollCheckpoints unused-symbol warnings.
+    - 28/29 PowerShell regression scripts pass; the 1 expected exception is
+      test_preconditioned_10run_contract.ps1, which asserts the default
+      10-run configuration and is not applicable to this intentional
+      3-run build (same pattern as every other FAST3 build today).
+    - NOT yet verified against real hardware -- JIG8's placeholder profile
+      has never been checked against a real PRECONDITION_PRE_MOTOR read.
+      Flash this build, attach the assembly to test, and confirm
+      Zero=0x0000 (matching JIG1-7) on the first PRECONDITION_PRE_MOTOR
+      read before trusting any P05 data from this board.
+
+WorkingTreeState=NL_TEST_REPEAT_3_RUNS/_10_RUNS are the ONLY flags
+    deviating from default in this build (will be reverted to the 10-run
+    default after packaging, per established session pattern). The new
+    JIG8 NL_KNOWN_JIGS[] entry is a permanent addition, not reverted.
+
+Plan=Q0-Q5 qualification plan / new-board-effect confirmation (JIG6/JIG7
+    -> JIG8)
+BuildLabel=jig8-registration-fast3
+HexSHA256=307BEC65EE35F5CFBEE9AEF281B9C5ED4FD578A9D2FCE9C34D5A9E957B237767
+ElfSHA256=D79CBD678D6F9BBAA687A691E0260B40449A3141A5CFC18F4B6CB9C9E65386AE

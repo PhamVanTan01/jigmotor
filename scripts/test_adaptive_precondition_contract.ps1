@@ -82,11 +82,11 @@ Assert-True ($source -match '(?s)bool\s+batchOfficialRunsComplete\s*=\s*\(nlCurr
 Assert-True ($source -match '(?s)bool\s+batchOfficialRunsComplete\s*=\s*\(!preconditionRun\)[\s\S]*?nlCurrentCycle\s*-\s*nlPreconditionRunsSoFar\)\s*>=\s*NL_OFFICIAL_RUN_COUNT\);') `
     'The adaptive-mode batch-complete condition must compare official runs completed (via the runtime precondition count) against NL_OFFICIAL_RUN_COUNT.'
 
-# --- COMPLETE log line: existing fields/values must stay exactly as
-# before (byte-identical when the flag is off); two new fields append at
-# the end using runtime state, never replacing the old ones. ---
-Assert-True ($source -match '(?s)"BATCH,BatchID=%lu,Status=COMPLETE,PreconditionCount=%lu,"\s*[\r\n]+\s*"RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=1,"\s*[\r\n]+\s*"PreconditionRunsUsed=%lu,PreconditionStabilityDeltaDeg=%s\\r\\n",\s*[\r\n\s]*\(unsigned long\)nlBatchId,\s*\(unsigned long\)NL_PRECONDITION_COUNT,\s*[\r\n\s]*\(unsigned long\)NL_OFFICIAL_RUN_COUNT,\s*[\r\n\s]*\(unsigned long\)NL_BATCH_TOTAL_CYCLE_COUNT,') `
-    'The BATCH COMPLETE line must keep its original fields/args unchanged and append PreconditionRunsUsed/PreconditionStabilityDeltaDeg using runtime values.'
+# --- COMPLETE log line: report the real precondition state. Diagnostic FAST3
+# batches may complete after an invalid precondition, so hard-coding 1 would
+# contradict META/PRECONDITION_RESULT. ---
+Assert-True ($source -match '(?s)"BATCH,BatchID=%lu,Status=COMPLETE,PreconditionCount=%lu,"\s*[\r\n]+\s*"RunCount=%lu,TotalCycleCount=%lu,PreconditionValid=%d,"\s*[\r\n]+\s*"PreconditionRunsUsed=%lu,PreconditionStabilityDeltaDeg=%s\\r\\n",\s*[\r\n\s]*\(unsigned long\)nlBatchId,\s*\(unsigned long\)NL_PRECONDITION_COUNT,\s*[\r\n\s]*\(unsigned long\)NL_OFFICIAL_RUN_COUNT,\s*[\r\n\s]*\(unsigned long\)NL_BATCH_TOTAL_CYCLE_COUNT,\s*[\r\n\s]*nlPreconditionValid \? 1 : 0,') `
+    'The BATCH COMPLETE line must report runtime PreconditionValid and retain the adaptive fields.'
 
 # --- OnButtonPress must reset the new state at every batch start so a
 # second batch never inherits stability/delta state from a previous one. ---

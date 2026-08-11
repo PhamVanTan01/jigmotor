@@ -1,0 +1,60 @@
+SavedAtLocal=2026-08-05T13:38:22+07:00
+Configuration=Release
+JigAppMode=Measurement(2)
+GitCommit=5d459f0cc30e217052220dbeb9f978c4fd41db7b
+GitDirty=yes
+BuildLabel=sweep-point-creep-v5-2-single-recovery-fast3-20260805
+
+Batch=1 precondition + 3 official (ONE_FULL_SWEEP_120S_V1_FAST3)
+ApproachMode=NL_APPROACH_MODE_SHIFTED_REVERSAL_A0 (unchanged)
+CanonicalContract=CANONICAL_Q16_1DEG360_V2 (unchanged)
+SweepCreepEnabled=1
+SweepCreepProtocol=ADAPTIVE_GAP_BUDGET_SINGLE_RECOVERY_V1
+TargetCrossingGuard=STOP_BEFORE_NEXT_COMMAND_V1
+RecoveryProtocol=SINGLE_REVERSAL_SAME_STEP_V1
+
+AdaptiveRule=Use EXTENDED only when abs(live post-settle initial gap) > 200 raw.
+BaseConfig=budget 220 raw, max iterations 15
+ExtendedConfig=budget 320 raw, max iterations 21
+RecoveryConfig=one reversal only, separate budget 320 raw, max iterations 21
+UnchangedConfig=step 16 raw, deadband 16 raw, power 1.0, ramp/settle/motion profile unchanged
+
+MotionRule=After each ordinary creep step, evaluate a fresh settled MA600
+    sample. A landing inside deadband is success. A first crossing outside
+    deadband records pre/post gaps and enables one reverse-direction recovery.
+    A second crossing stops before the next command with RECOVERY_RECROSSED.
+    No angle whitelist, second reversal, or global budget increase is present.
+
+B0BIsolation=Both B0-B approach-creep call sites pass recovery budget=0 and
+    recovery iterations=0; their existing motion behavior remains frozen.
+
+ValidityPolicy=OK_RECOVERED is valid only after a fresh settled sample enters
+    +/-16 raw. Recovery timeout, budget exhaustion, re-cross, or acquisition
+    failure increments RecoveryFailed and suppresses eligibility/Motor OK.
+    TargetCrossed alone is diagnostic and is not invalid when recovered.
+
+Telemetry=SWEEP_CREEP_CONFIG reports recovery protocol/budget. Per-point logs
+    add PreCrossGapRaw, CrossingGapRaw, RecoveryAttempted, RecoverySucceeded,
+    RecoveryIterations and RecoveryCorrectionRaw. END adds aggregate recovery
+    counts/work. BATCH COMPLETE now reports actual runtime PreconditionValid.
+
+Analyzer=PRECONDITION_RESULT Status=DIAGNOSTIC_INVALID with
+    CreepIntegrityValid=0 is accepted for diagnostic parsing. Official records
+    with EligibleForStatistics=0 are retained but excluded from Summary.
+
+Memory=Release map .ccmram_bss=0x6E78 (28,280 bytes of 65,536; 43.2%).
+Verification=Default Release build passed. Feature-on FAST3 Release build
+    passed. Firmware contract tests passed. The real V5.1 diagnostic-invalid
+    log parses completely and contributes zero records to Summary statistics.
+
+HardwarePilot=Use the same JIG7/motor/mount as V5.1. Run the complete 1
+    PRECONDITION + 3 OFFICIAL batch. Required: acquisition clean,
+    RecoveryFailed=0, RecoveryRecrossed=0, every recovered FinalGapRaw within
+    +/-16, 3/3 official eligible/valid, and no point-66 +280-raw endpoint mode.
+
+WorkingTreeAfterPackaging=Source defaults restored to SweepCreepEnabled=0 and
+    10-official-run batch; this artifact retains SweepCreepEnabled=1 + FAST3.
+
+HexSHA256=1f2d7882711f2df7578e38edc2519a3a04e9b5375291e6f55791435cda6b6260
+ElfSHA256=483107962f2d606d3c79fe58219f4b482e0d61d9059ec0d5eb845eefa173aa37
+MapSHA256=0e632bc5f8002894a64f66450521c69eea1d8c4c032bb6a0d0bbd6ac16d6b13f

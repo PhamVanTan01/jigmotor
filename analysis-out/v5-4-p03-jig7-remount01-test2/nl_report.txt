@@ -1,0 +1,30 @@
+NL STABILITY REPORT
+===================
+Accepted official sweeps: 3
+Excluded sweeps: 1
+NL definition: mean(top 5 DATA error values) - mean(bottom 5), first AnalysisPoints rows.
+Precondition policy: excluded unless --include-precondition is used.
+The 2.77*SD value is a repeatability diagnostic, not an ISO pass claim without a qualified study.
+
+STABILITY
+---------
+V5.4-R1: n=3 mean=0.562355 deg SD=0.027276 CV=4.850% range=0.054372 r(2.77s)=0.075554 deg slope=+0.015509 deg/run R2=0.3233
+ALL: n=3 mean=0.562355 deg SD=0.027276 CV=4.850% range=0.054372 r(2.77s)=0.075554 deg slope=+0.015509 deg/run R2=0.3233
+
+DATA/FIRMWARE CROSS-CHECK
+-------------------------
+max |recomputed NL - firmware rounded NL| = 0.00355400 deg
+max |recomputed RMS_AC - shadow RMS_AC| = 0.00101438 deg
+max |recomputed A36 - shadow A36| = 0.00120754 deg
+
+POOLED LINEAR RELATIONSHIPS (Y = NL)
+------------------------------------
+ShadowP2P_Deg: n=3 r=+0.9887 R2=0.9775 slope=+0.543634 residualSD=0.005791
+RMS_AC_Deg: n=3 r=+0.9921 R2=0.9842 slope=+3.925337 residualSD=0.004841
+A36_Deg: n=3 r=+0.9950 R2=0.9900 slope=+4.102178 residualSD=0.003864
+ClosureErrorDeg: n=3 r=+0.3361 R2=0.1130 slope=+0.904963 residualSD=0.036330
+AnalysisStartRawCentered: n=3 r=-0.9884 R2=0.9770 slope=-0.003086 residualSD=0.005848
+
+EXCLUSIONS
+----------
+S2-P03-JIG7-remount01-test-2-v5-4.txt TestID=2 SweepID=1 RunOrder=0: precondition excluded

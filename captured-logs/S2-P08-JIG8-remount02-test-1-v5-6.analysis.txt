@@ -1,0 +1,53 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG8-remount02-test-1-v5-6.txt
+TerminalStatus=COMPLETE
+OfficialValid=2/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+AutoVerdict=FAIL
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=5 SweepID=5 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG8-remount02-test-1-v5-6.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0810 RawP2P=0.3410 System_INL=0.1705 RobustP2P=0.2436 Closure=-0.11142 TrackRMS=0.0839 TrackMax=0.2087
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=6 SweepID=6 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG8-remount02-test-1-v5-6.txt
+      - 11 of 360 analysis points missing (indices [349, 350, 351, 352, 353, 354, 355, 356, 357, 358]...)
+      - point 360 (closure) not captured
+      RMS_AC=0.0810 RawP2P=0.3239 System_INL=0.1620 RobustP2P=0.2394 Closure=N/A TrackRMS=0.0823 TrackMax=0.2142
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=7 SweepID=7 RunOrder=2 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG8-remount02-test-1-v5-6.txt
+      RMS_AC=0.0808 RawP2P=0.2710 System_INL=0.1355 RobustP2P=0.2280 Closure=-0.09119 TrackRMS=0.0825 TrackMax=0.1593
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=8 SweepID=8 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\S2-P08-JIG8-remount02-test-1-v5-6.txt
+      RMS_AC=0.0798 RawP2P=0.3242 System_INL=0.1621 RobustP2P=0.2345 Closure=-0.09192 TrackRMS=0.0808 TrackMax=0.2087
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=4, statistically eligible=2)
+    Excluded runs:
+      - TestID=5 SweepID=5 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=6 SweepID=6 RunOrder=1: 11 of 360 analysis points missing (indices [349, 350, 351, 352, 353, 354, 355, 356, 357, 358]...); point 360 (closure) not captured
+    rms_ac: mean=0.0803 sd=0.0007 cv=0.84%
+    raw_p2p: mean=0.2976 sd=0.0377 cv=12.65%
+    system_inl_deg: mean=0.1488 sd=0.0188 cv=12.65%
+    robust_p2p: mean=0.2312 sd=0.0046 cv=1.97%
+    closure_error_deg: mean=-0.0916 sd=0.0005 cv=0.56%
+    tracking_rms_deg: mean=0.0817 sd=0.0012 cv=1.49%
+    tracking_max_abs_deg: mean=0.1840 sd=0.0350 cv=19.00%
+    mean_dc: mean=0.0041 sd=0.0012 cv=29.46%
+    p99_abs_deviation: mean=0.1115 sd=0.0030 cv=2.69%
+    A1: mean=0.0062 sd=0.0010 cv=15.94%
+    A2: mean=0.0106 sd=0.0006 cv=6.09%
+    A9: mean=0.0224 sd=0.0004 cv=2.00%
+    A36: mean=0.0959 sd=0.0008 cv=0.87%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

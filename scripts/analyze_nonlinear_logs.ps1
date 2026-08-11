@@ -18,6 +18,9 @@ $KnownJigsByUid = @{
     '0027002E3234470438353535' = 'JIG4'
     '0049003A3034510B31363339' = 'JIG4'
     '001D00283234470438353535' = 'JIG5'
+    '005100323235511835383831' = 'JIG6'
+    '004600323235511835383831' = 'JIG7'
+    '003E00323235511835383831' = 'JIG8'
 }
 
 function Convert-ToNullableDouble {
@@ -518,9 +521,23 @@ foreach ($inputPath in $Path) {
             }
 
             if ($meta.ContainsKey('PreconditionProtocol')) {
+                # ONE_FULL_SWEEP_120S_V1 (validated, 10 official runs) and
+                # ONE_FULL_SWEEP_120S_V1_FAST3 (fast-iteration screening
+                # only, 3 official runs -- see nonlinear_test.c's
+                # NL_TEST_REPEAT_3_RUNS branch) share the same batch
+                # structure and are both accepted here; everything else
+                # about the contract below is identical between them.
+                $preconditionProtocolBatchRunCounts = @{
+                    'ONE_FULL_SWEEP_120S_V1' = '10'
+                    'ONE_FULL_SWEEP_120S_V1_FAST3' = '3'
+                }
+                $observedPreconditionProtocol = $meta['PreconditionProtocol']
+                if (-not $preconditionProtocolBatchRunCounts.ContainsKey($observedPreconditionProtocol)) {
+                    throw "Unrecognized PreconditionProtocol=$observedPreconditionProtocol in $file."
+                }
                 $requiredBatchValues = @{
-                    PreconditionProtocol = 'ONE_FULL_SWEEP_120S_V1'
-                    BatchRunCount = '10'
+                    PreconditionProtocol = $observedPreconditionProtocol
+                    BatchRunCount = $preconditionProtocolBatchRunCounts[$observedPreconditionProtocol]
                     ThermalProtocol = 'COOLDOWN_120S_V1'
                 }
                 foreach ($requiredField in $requiredBatchValues.Keys) {
@@ -555,10 +572,9 @@ foreach ($inputPath in $Path) {
                         throw "Precondition cycle is missing PRECONDITION_RESULT in $file."
                     }
                     $requiredPreconditionResult = @{
-                        Protocol = 'ONE_FULL_SWEEP_120S_V1'
+                        Protocol = $observedPreconditionProtocol
                         RunRole = 'PRECONDITION'
                         EligibleForStatistics = '0'
-                        Status = 'VALID'
                     }
                     foreach ($requiredField in $requiredPreconditionResult.Keys) {
                         if (-not $preconditionResult.ContainsKey($requiredField) -or
@@ -566,6 +582,21 @@ foreach ($inputPath in $Path) {
                                     $requiredPreconditionResult[$requiredField]) {
                             throw "PRECONDITION_RESULT requires $requiredField=$($requiredPreconditionResult[$requiredField]) in $file."
                         }
+                    }
+                    if (-not $preconditionResult.ContainsKey('Status')) {
+                        throw "PRECONDITION_RESULT is missing Status in $file."
+                    }
+                    $preconditionResultValid =
+                        ($preconditionResult['Status'] -eq 'VALID' -and
+                         (-not $preconditionResult.ContainsKey('CreepIntegrityValid') -or
+                          $preconditionResult['CreepIntegrityValid'] -eq '1'))
+                    $preconditionResultDiagnosticInvalid =
+                        ($preconditionResult['Status'] -eq 'DIAGNOSTIC_INVALID' -and
+                         $preconditionResult.ContainsKey('CreepIntegrityValid') -and
+                         $preconditionResult['CreepIntegrityValid'] -eq '0')
+                    if (-not $preconditionResultValid -and
+                            -not $preconditionResultDiagnosticInvalid) {
+                        throw "PRECONDITION_RESULT has inconsistent Status/CreepIntegrityValid in $file."
                     }
                     foreach ($identityField in @('BatchID', 'CycleOrder', 'TestID')) {
                         if (-not $preconditionResult.ContainsKey($identityField) -or
@@ -576,10 +607,16 @@ foreach ($inputPath in $Path) {
                 } elseif ($meta['RunRole'] -eq 'OFFICIAL') {
                     $cooldownActualMs = [int64]$meta['CooldownActualMs']
                     $timeSincePreviousRunMs = [int64]$meta['TimeSincePreviousRunMs']
-                    if ($cycleOrder -lt 2 -or $cycleOrder -gt 11 -or
+                    $maxCycleOrder = 1 + [int]$requiredBatchValues['BatchRunCount']
+                    $eligibilityContractValid =
+                        (($meta['EligibleForStatistics'] -eq '1' -and
+                          $meta['PreconditionValid'] -eq '1') -or
+                         ($meta['EligibleForStatistics'] -eq '0' -and
+                          ($meta['PreconditionValid'] -eq '0' -or
+                           $meta['PreconditionValid'] -eq '1')))
+                    if ($cycleOrder -lt 2 -or $cycleOrder -gt $maxCycleOrder -or
                             $runOrder -ne ($cycleOrder - 1) -or
-                            $meta['EligibleForStatistics'] -ne '1' -or
-                            $meta['PreconditionValid'] -ne '1' -or
+                            -not $eligibilityContractValid -or
                             $meta['FirstRunInBatch'] -ne '0' -or
                             $meta['CooldownTargetMs'] -ne '120000' -or
                             $meta['CooldownValid'] -ne '1' -or
@@ -588,6 +625,11 @@ foreach ($inputPath in $Path) {
                             $timeSincePreviousRunMs -lt $cooldownActualMs -or
                             $preconditionResultMatch.Success) {
                         throw "Invalid official role/eligibility/order contract in $file."
+                    }
+                    if ($meta['EligibleForStatistics'] -eq '0' -and
+                            $meta['PreconditionValid'] -eq '1' -and
+                            $end.ContainsKey('Status') -and $end['Status'] -ne 'INVALID') {
+                        throw "Ineligible official record with valid precondition requires END.Status=INVALID in $file."
                     }
                 } else {
                     throw "Unknown preconditioned batch RunRole '$($meta['RunRole'])' in $file."
@@ -692,6 +734,8 @@ foreach ($inputPath in $Path) {
                 }
             }
 
+            $shadowContractEffectiveVersion = ""
+            $shadowContractLegacyAlias = '0'
             $shadowEnabled = $meta.ContainsKey('ShadowCanonicalEnabled') -and
                 $meta['ShadowCanonicalEnabled'] -eq '1'
             if ($shadowEnabled) {
@@ -703,9 +747,38 @@ foreach ($inputPath in $Path) {
                         -not $shadowEndMatch.Success) {
                     throw "Phase-2B shadow record is missing SHADOW_META/RESULT/END in $file."
                 }
+                $analysisPointsForContract = if ($meta.ContainsKey('AnalysisPoints')) {
+                    [int]$meta['AnalysisPoints']
+                } else {
+                    256
+                }
+                $expectedShadowContract = if ($analysisPointsForContract -eq 360) {
+                    'CANONICAL_Q16_1DEG360_V2'
+                } elseif ($analysisPointsForContract -eq 256) {
+                    'CANONICAL_Q16_V1'
+                } else {
+                    throw "Unsupported shadow AnalysisPoints=$analysisPointsForContract in $file."
+                }
+                $observedShadowContract = if ($shadowMeta.ContainsKey('ContractVersion')) {
+                    $shadowMeta['ContractVersion']
+                } else {
+                    ""
+                }
+                $historicalV1On360 = $analysisPointsForContract -eq 360 -and
+                    $observedShadowContract -eq 'CANONICAL_Q16_V1'
+                if ($observedShadowContract -ne $expectedShadowContract -and
+                        -not $historicalV1On360) {
+                    throw "Shadow ContractVersion=$observedShadowContract is incompatible with AnalysisPoints=$analysisPointsForContract in $file."
+                }
+                if ($meta.ContainsKey('ShadowContractVersion') -and
+                        $meta['ShadowContractVersion'] -ne $observedShadowContract) {
+                    throw "META.ShadowContractVersion does not match SHADOW_META.ContractVersion in $file."
+                }
+                $shadowContractEffectiveVersion = $expectedShadowContract
+                $shadowContractLegacyAlias = if ($historicalV1On360) { '1' } else { '0' }
+
                 $requiredShadowMeta = @{
                     Official = '0'
-                    ContractVersion = 'CANONICAL_Q16_V1'
                     SignedConvention = 'MEASURED_MINUS_TARGET'
                     ReferenceDefinition = 'POINT0_CANONICAL_MEAN'
                     CanonicalMeanSource = 'ALL_TIER1'
@@ -1087,6 +1160,8 @@ foreach ($inputPath in $Path) {
                 OfficialResultSource = if ($meta.ContainsKey('OfficialResultSource')) { $meta['OfficialResultSource'] } else { "" }
                 ShadowCanonicalEnabled = if ($shadowEnabled) { '1' } else { '0' }
                 ShadowContractVersion = if ($shadowMeta.ContainsKey('ContractVersion')) { $shadowMeta['ContractVersion'] } else { "" }
+                ShadowContractEffectiveVersion = $shadowContractEffectiveVersion
+                ShadowContractLegacyAlias = $shadowContractLegacyAlias
                 ShadowValid = if ($shadowResult.ContainsKey('Valid')) { $shadowResult['Valid'] } else { "" }
                 ShadowRMS_AC = if ($shadowResult.ContainsKey('RMS_AC')) { Convert-ToNullableDouble $shadowResult['RMS_AC'] } else { $null }
                 ShadowA36 = if ($shadowResult.ContainsKey('A36')) { Convert-ToNullableDouble $shadowResult['A36'] } else { $null }

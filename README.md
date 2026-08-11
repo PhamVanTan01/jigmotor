@@ -38,6 +38,12 @@ documented in `docs/motion-control-v2-implementation-plan.md`. Run
 `scripts/test_motion_control_v2_contract.ps1` whenever changing the home,
 alignment, or point-to-point trajectory code.
 
+For a complete 360-point nonlinear-error assessment, including raw/centered
+curves, pointwise repeatability, A1-B-A2 differential, robust-NL tail
+locations, and the harmonic spectrum, use `tools/analyze_nl_curve.py`.
+Its measurement contract and output files are documented in
+`docs/nl-pointwise-curve-analysis.md`.
+
 For a new Codex session or a clone on another computer, read
 `docs/CODEX_HANDOFF_MOTION_V2_DMA.md` first. It records the effective branch,
 measurement invariants, implemented DMA/motion behavior, build commands,

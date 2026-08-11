@@ -18,9 +18,10 @@ META/RESULT/END/CONFIG/BATCH/SHADOW_*):
     END,SchemaVersion=...,TestID=...,SweepID=...,...,Status=VALID|INVALID
 
 A sweep is only "official-analyzable" if it has a META record identifying
-it AND an END record with Status=VALID. Sweeps without both are still
-parsed and reported, but flagged invalid/incomplete and excluded from the
-cross-run/cross-jig statistics.
+it, an END record with Status=VALID, MeasurementValid=1, and -- whenever
+the batch-role fields exist -- RunRole=OFFICIAL plus
+EligibleForStatistics=1. Sweeps without those conditions are still parsed
+and reported, but excluded from cross-run/cross-jig statistics.
 
 Usage:
     python tools/analyze_motor_logs.py LOGFILE [LOGFILE ...] [--csv OUT.csv] [--json OUT.json]
@@ -40,15 +41,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
-# Constants mirroring Core/Src/nonlinear_test.c exactly. Do not "simplify"
-# these without re-deriving them from the firmware source -- see
-# docs/nonlinear-metric-contract-v1.md / docs/nonlinear_algorithm_audit.md.
+# Contract defaults. Current logs declare AnalysisPoints in META and use
+# CANONICAL_Q16_1DEG360_V2. The 256-point values below are only a legacy
+# fallback for old records that predate AnalysisPoints.
 # ---------------------------------------------------------------------------
 
 FULL_TURN_RAW = 65536.0
-DEFAULT_STEP_RAW = 256  # NL_POS_INCREASE; overridden per-sweep from META.StepRaw if present.
-ANALYSIS_POINT_COUNT = 256  # points 0..255 only, per project convention.
-CLOSURE_INDEX = 256  # point 256 = one full mechanical turn; closure-only, never in 0..255 stats.
+LEGACY_ANALYSIS_POINT_COUNT = 256
+LEGACY_STEP_RAW = 256
+CURRENT_ANALYSIS_POINT_COUNT = 360
 HARMONIC_ORDERS = (1, 2, 3, 6, 9, 12, 18, 27, 36, 45, 72, 108)  # NL_HARMONIC_ORDERS
 ROBUST_EXTREME_COUNT = 5  # NL_ROBUST_EXTREME_COUNT
 
@@ -78,7 +79,8 @@ class Sweep:
     run_order: Optional[int] = None            # from META RunOrder, if batch mode
     run_role: Optional[str] = None             # META RunRole: "PRECONDITION"/"OFFICIAL" (new schema only)
     eligible_for_statistics: Optional[bool] = None  # META EligibleForStatistics (new schema only)
-    step_raw: int = DEFAULT_STEP_RAW
+    step_raw: Optional[int] = None
+    shadow_contract_version: Optional[str] = None
     meta_measurement_valid: Optional[bool] = None
     meta_tracking_valid: Optional[bool] = None
     end_status: Optional[str] = None            # "VALID" / "INVALID" / None if no END seen
@@ -93,19 +95,59 @@ class Sweep:
         return self.test_id is not None and self.sweep_id is not None and self.jig_id is not None
 
     @property
+    def analysis_point_count(self) -> int:
+        if self.analysis_points is not None and self.analysis_points > 0:
+            return self.analysis_points
+        return LEGACY_ANALYSIS_POINT_COUNT
+
+    @property
+    def closure_index(self) -> int:
+        return self.analysis_point_count
+
+    @property
+    def uses_declared_role_contract(self) -> bool:
+        return self.run_role is not None or self.eligible_for_statistics is not None
+
+    def analysis_angle_deg(self, index: int) -> float:
+        """Returns the analysis coordinate for one point.
+
+        Legacy fixed-step logs use StepRaw=256. Current one-degree logs
+        deliberately emit StepRaw=0 because their rounded 182/183-raw
+        increments cannot be represented by one fixed raw step.
+        """
+        if self.step_raw is not None and self.step_raw > 0:
+            return 360.0 * index * self.step_raw / FULL_TURN_RAW
+        return 360.0 * index / self.analysis_point_count
+
+    @property
     def is_official_valid(self) -> bool:
-        """True only when both META and END agree the sweep is usable.
+        """True only when META, END, and declared batch-role semantics agree.
 
         Deliberately does NOT fall back to firmware's RESULT-line presence
         or to "no END seen but looks fine" -- an incomplete/truncated
         capture (crash, UART drop, power loss mid-batch) must never be
         silently treated as valid.
         """
-        return (
+        base_valid = (
             self.has_meta
             and self.end_status == "VALID"
             and (self.meta_measurement_valid is True)
         )
+        if not base_valid:
+            return False
+        if self.uses_declared_role_contract:
+            return (
+                self.run_role == "OFFICIAL"
+                and self.eligible_for_statistics is True
+            )
+        # Legacy logs have no role fields. Keep them analyzable, but callers
+        # label their eligibility source as legacy instead of guessing that
+        # "the first run" was a precondition.
+        return True
+
+    @property
+    def eligibility_source(self) -> str:
+        return "DECLARED_ROLE" if self.uses_declared_role_contract else "LEGACY_NO_ROLE"
 
     def sorted_points(self) -> List[DataPoint]:
         return [self.points[i] for i in sorted(self.points.keys())]
@@ -225,8 +267,9 @@ def load_sweeps(path: Path) -> Tuple[List[Sweep], List[str]]:
             sw.run_role = f.get("RunRole")
             sw.eligible_for_statistics = _to_bool01(f.get("EligibleForStatistics"))
             step_raw = _to_int(f.get("StepRaw"))
-            if step_raw:
+            if step_raw is not None:
                 sw.step_raw = step_raw
+            sw.shadow_contract_version = f.get("ShadowContractVersion")
             sw.meta_measurement_valid = _to_bool01(f.get("MeasurementValid"))
             sw.meta_tracking_valid = _to_bool01(f.get("TrackingValid"))
             sw.captured_points = _to_int(f.get("CapturedPoints"))
@@ -330,10 +373,24 @@ def wrap_signed_deg(deg: float) -> float:
     return deg
 
 
-def compute_harmonic(errors: List[float], mean: float, order: int, step_raw: int) -> HarmonicResult:
-    """Matches ComputeHarmonicFull() in nonlinear_test.c exactly:
+def analysis_angle_deg(index: int, analysis_points: int,
+                       step_raw: Optional[int] = None) -> float:
+    if step_raw is not None and step_raw > 0:
+        return 360.0 * index * step_raw / FULL_TURN_RAW
+    return 360.0 * index / analysis_points
+
+
+def compute_harmonic(errors: List[float], mean: float, order: int,
+                     analysis_points: int,
+                     step_raw: Optional[int] = None) -> HarmonicResult:
+    """Matches ComputeHarmonicFull() in nonlinear_test.c.
+
+    Fixed-step legacy logs use theta=360*i*StepRaw/65536. Current
+    one-degree logs use theta=360*i/AnalysisPoints because StepRaw=0 is an
+    explicit marker for the rounded 182/183-raw target grid.
+
     a = (2/N)*sum(centered*cos(order*theta)), b = (2/N)*sum(centered*sin(order*theta)),
-    theta_i = 360*i*step_raw/65536 degrees, amplitude=hypot(a,b), phase=atan2(b,a) in degrees.
+    amplitude=hypot(a,b), phase=atan2(b,a) in degrees.
     """
     n = len(errors)
     if n == 0:
@@ -341,7 +398,7 @@ def compute_harmonic(errors: List[float], mean: float, order: int, step_raw: int
     sum_cos = 0.0
     sum_sin = 0.0
     for i, e in enumerate(errors):
-        angle_deg = 360.0 * i * step_raw / FULL_TURN_RAW
+        angle_deg = analysis_angle_deg(i, analysis_points, step_raw)
         angle_rad = math.radians(angle_deg)
         h_rad = order * angle_rad
         centered = e - mean
@@ -356,13 +413,15 @@ def compute_harmonic(errors: List[float], mean: float, order: int, step_raw: int
 
 def recompute_metrics(sweep: Sweep) -> Optional[RecomputedMetrics]:
     """Recomputes every official metric from sweep.points directly -- never
-    reads a RESULT line. Returns None if there are not enough of points
-    0..255 present to compute anything meaningful (reported by the caller
-    as a data-completeness problem, not silently averaged over gaps).
+    reads a RESULT line. The META AnalysisPoints field defines both the
+    analysis range (0..N-1) and closure index N. Returns None if no analysis
+    points are present; missing points are reported and make the record
+    ineligible instead of being silently accepted.
     """
-    missing = [i for i in range(ANALYSIS_POINT_COUNT) if i not in sweep.points]
-    present_indices = [i for i in range(ANALYSIS_POINT_COUNT) if i in sweep.points]
-    if len(present_indices) < ANALYSIS_POINT_COUNT:
+    analysis_count = sweep.analysis_point_count
+    missing = [i for i in range(analysis_count) if i not in sweep.points]
+    present_indices = [i for i in range(analysis_count) if i in sweep.points]
+    if len(present_indices) < analysis_count:
         if not present_indices:
             return None
     errors = [sweep.points[i].error_deg for i in present_indices]
@@ -385,12 +444,14 @@ def recompute_metrics(sweep: Sweep) -> Optional[RecomputedMetrics]:
     p99 = abs_dev_sorted[p99_idx]
 
     harmonics = {
-        order: compute_harmonic(errors, mean_dc, order, sweep.step_raw)
+        order: compute_harmonic(
+            errors, mean_dc, order, analysis_count, sweep.step_raw)
         for order in HARMONIC_ORDERS
     }
 
-    closure_available = CLOSURE_INDEX in sweep.points
-    closure_error_deg = sweep.points[CLOSURE_INDEX].error_deg if closure_available else None
+    closure_index = sweep.closure_index
+    closure_available = closure_index in sweep.points
+    closure_error_deg = sweep.points[closure_index].error_deg if closure_available else None
 
     # Tracking RMS/max recomputed independently from AngleRaw/TargetRawAbs
     # columns (both present per-row in DATA), exactly mirroring the
@@ -439,6 +500,7 @@ class SweepReport:
 
 def build_report(sweep: Sweep) -> SweepReport:
     problems: List[str] = []
+    contract_compatible = True
     if not sweep.has_meta:
         problems.append("no META record (unauthoritative identity)")
     if sweep.end_status is None:
@@ -449,18 +511,54 @@ def build_report(sweep: Sweep) -> SweepReport:
         problems.append("META.MeasurementValid=0")
     if sweep.meta_measurement_valid is None and sweep.has_meta:
         problems.append("META.MeasurementValid missing")
+    if sweep.uses_declared_role_contract:
+        if sweep.run_role != "OFFICIAL":
+            problems.append(f"META.RunRole={sweep.run_role or 'MISSING'} "
+                            "(excluded from official statistics)")
+        if sweep.eligible_for_statistics is not True:
+            eligibility = ("MISSING" if sweep.eligible_for_statistics is None
+                           else "0")
+            problems.append(f"META.EligibleForStatistics={eligibility} "
+                            "(excluded from official statistics)")
+
+    if sweep.shadow_contract_version:
+        expected_contract = (
+            "CANONICAL_Q16_1DEG360_V2"
+            if sweep.analysis_point_count == CURRENT_ANALYSIS_POINT_COUNT
+            else "CANONICAL_Q16_V1"
+        )
+        historical_alias = (
+            sweep.analysis_point_count == CURRENT_ANALYSIS_POINT_COUNT
+            and sweep.shadow_contract_version == "CANONICAL_Q16_V1"
+        )
+        if historical_alias:
+            problems.append(
+                "historical contract alias: CANONICAL_Q16_V1 stamped on "
+                "AnalysisPoints=360; interpreted as CANONICAL_Q16_1DEG360_V2")
+        elif sweep.shadow_contract_version != expected_contract:
+            problems.append(
+                f"META.ShadowContractVersion={sweep.shadow_contract_version} "
+                f"is incompatible with AnalysisPoints={sweep.analysis_point_count}")
+            contract_compatible = False
 
     metrics = recompute_metrics(sweep)
+    analysis_count = sweep.analysis_point_count
     if metrics is None:
-        problems.append("no usable DATA points (0 of 0..255 present)")
+        problems.append(
+            f"no usable DATA points (0 of 0..{analysis_count - 1} present)")
     elif metrics.missing_indices:
-        problems.append(f"{len(metrics.missing_indices)} of 256 analysis points missing "
+        problems.append(f"{len(metrics.missing_indices)} of {analysis_count} analysis points missing "
                          f"(indices {metrics.missing_indices[:10]}"
                          f"{'...' if len(metrics.missing_indices) > 10 else ''})")
     if metrics is not None and not metrics.closure_available:
-        problems.append(f"point {CLOSURE_INDEX} (closure) not captured")
+        problems.append(f"point {sweep.closure_index} (closure) not captured")
 
-    officially_valid = sweep.is_official_valid and metrics is not None and not metrics.missing_indices
+    officially_valid = (
+        sweep.is_official_valid
+        and contract_compatible
+        and metrics is not None
+        and not metrics.missing_indices
+    )
     return SweepReport(sweep=sweep, metrics=metrics, officially_valid=officially_valid, problems=problems)
 
 
@@ -471,8 +569,9 @@ def group_key(sw: Sweep) -> Tuple[str, str]:
 def infer_run_order(reports: List[SweepReport]) -> None:
     """Fills in run_order from file order when META has no RunOrder (schema
     v4 / non-batch logs): first sweep encountered per (motor,jig) group in
-    file order is run 1 (precondition), etc. Mutates sweep.run_order in
-    place. Never overwrites a real META RunOrder.
+    file order is display run 1, etc. This does not infer a precondition or
+    statistical role. Mutates sweep.run_order in place and never overwrites
+    a real META RunOrder.
     """
     by_group: Dict[Tuple[str, str], List[SweepReport]] = {}
     for r in reports:
@@ -502,7 +601,7 @@ class GroupSummary:
     motor_id: str
     jig_id: str
     run_count: int
-    conditioned_run_count: int  # runs 2..N, excludes run 1 precondition
+    conditioned_run_count: int  # declared official/eligible, or explicit legacy fallback
     fields: Dict[str, Dict[str, Optional[float]]]  # field name -> {mean, sd, cv, run2, run3, ...}
     invalid_runs: List[str]
 
@@ -519,7 +618,10 @@ def summarize_group(motor_id: str, jig_id: str, reports: List[SweepReport]) -> G
         f"{'; '.join(r.problems)}"
         for r in reports if not r.officially_valid
     ]
-    conditioned = [r for r in valid_reports if (r.sweep.run_order or 0) >= 2]
+    # is_official_valid already applies the declared RunRole and
+    # EligibleForStatistics contract. Do not add a second, positional
+    # definition such as RunOrder>=2 here.
+    conditioned = valid_reports
 
     fields: Dict[str, Dict[str, Optional[float]]] = {}
     for name in TRACKED_FIELDS:
@@ -601,9 +703,15 @@ def print_text_report(reports: List[SweepReport], summaries: List[GroupSummary],
     print("=" * 78, file=out)
     for r in reports:
         sw = r.sweep
-        status = "OFFICIAL-VALID" if r.officially_valid else "EXCLUDED"
+        if r.officially_valid:
+            status = ("OFFICIAL-VALID" if sw.uses_declared_role_contract
+                      else "LEGACY-VALID")
+        else:
+            status = "EXCLUDED"
         print(f"  [{status}] Motor={sw.motor_id} Jig={sw.jig_id} TestID={sw.test_id} "
-              f"SweepID={sw.sweep_id} RunOrder={sw.run_order} file={sw.source_file}", file=out)
+              f"SweepID={sw.sweep_id} RunOrder={sw.run_order} "
+              f"Role={sw.run_role or 'LEGACY'} Eligible={sw.eligible_for_statistics} "
+              f"AnalysisPoints={sw.analysis_point_count} file={sw.source_file}", file=out)
         for p in r.problems:
             print(f"      - {p}", file=out)
         if r.metrics:
@@ -615,11 +723,11 @@ def print_text_report(reports: List[SweepReport], summaries: List[GroupSummary],
 
     print(file=out)
     print("=" * 78, file=out)
-    print("GROUP SUMMARY (Run 1 = precondition, excluded; Run 2+ = conditioned)", file=out)
+    print("GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)", file=out)
     print("=" * 78, file=out)
     for s in summaries:
         print(f"\n  Motor={s.motor_id} Jig={s.jig_id}  "
-              f"(runs total={s.run_count}, conditioned used={s.conditioned_run_count})", file=out)
+              f"(runs total={s.run_count}, statistically eligible={s.conditioned_run_count})", file=out)
         if s.invalid_runs:
             print("    Excluded runs:", file=out)
             for line in s.invalid_runs:
@@ -629,7 +737,7 @@ def print_text_report(reports: List[SweepReport], summaries: List[GroupSummary],
             sd = stats.get("sd")
             cv = stats.get("cv_pct")
             if mean is None:
-                print(f"    {field_name}: no valid conditioned runs", file=out)
+                print(f"    {field_name}: no statistically eligible runs", file=out)
                 continue
             cv_str = f"{cv:.2f}%" if cv is not None else "N/A"
             print(f"    {field_name}: mean={mean:.4f} sd={sd:.4f} cv={cv_str}", file=out)
@@ -643,7 +751,10 @@ def print_text_report(reports: List[SweepReport], summaries: List[GroupSummary],
 
 
 def write_csv(reports: List[SweepReport], path: Path) -> None:
-    fieldnames = ["motor_id", "jig_id", "test_id", "sweep_id", "run_order", "officially_valid",
+    fieldnames = ["motor_id", "jig_id", "test_id", "sweep_id", "run_order",
+                  "run_role", "eligible_for_statistics", "eligibility_source",
+                  "analysis_points", "closure_index", "shadow_contract_version",
+                  "officially_valid",
                   "problems", "rms_ac", "raw_p2p", "system_inl_deg", "robust_p2p",
                   "closure_error_deg", "tracking_rms_deg", "tracking_max_abs_deg", "mean_dc",
                   "p99_abs_deviation"] + [f"A{o}" for o in HARMONIC_ORDERS]
@@ -654,7 +765,13 @@ def write_csv(reports: List[SweepReport], path: Path) -> None:
             row = {
                 "motor_id": r.sweep.motor_id, "jig_id": r.sweep.jig_id,
                 "test_id": r.sweep.test_id, "sweep_id": r.sweep.sweep_id,
-                "run_order": r.sweep.run_order, "officially_valid": r.officially_valid,
+                "run_order": r.sweep.run_order, "run_role": r.sweep.run_role,
+                "eligible_for_statistics": r.sweep.eligible_for_statistics,
+                "eligibility_source": r.sweep.eligibility_source,
+                "analysis_points": r.sweep.analysis_point_count,
+                "closure_index": r.sweep.closure_index,
+                "shadow_contract_version": r.sweep.shadow_contract_version,
+                "officially_valid": r.officially_valid,
                 "problems": "; ".join(r.problems),
             }
             if r.metrics:
@@ -691,7 +808,14 @@ def write_json(reports: List[SweepReport], summaries: List[GroupSummary], path: 
             {
                 "motor_id": r.sweep.motor_id, "jig_id": r.sweep.jig_id,
                 "test_id": r.sweep.test_id, "sweep_id": r.sweep.sweep_id,
-                "run_order": r.sweep.run_order, "officially_valid": r.officially_valid,
+                "run_order": r.sweep.run_order,
+                "run_role": r.sweep.run_role,
+                "eligible_for_statistics": r.sweep.eligible_for_statistics,
+                "eligibility_source": r.sweep.eligibility_source,
+                "analysis_points": r.sweep.analysis_point_count,
+                "closure_index": r.sweep.closure_index,
+                "shadow_contract_version": r.sweep.shadow_contract_version,
+                "officially_valid": r.officially_valid,
                 "problems": r.problems, "metrics": metrics_to_dict(r.metrics),
                 "source_file": r.sweep.source_file,
             }
@@ -715,11 +839,14 @@ def write_json(reports: List[SweepReport], summaries: List[GroupSummary], path: 
 # real log file.
 # ---------------------------------------------------------------------------
 
-def _self_test_case(name: str, x_fn, expected: Dict[str, float], tol: float = 0.01) -> bool:
-    n = ANALYSIS_POINT_COUNT
+def _self_test_case(name: str, x_fn, expected: Dict[str, float],
+                    analysis_points: int,
+                    step_raw: Optional[int] = None,
+                    tol: float = 0.01) -> bool:
+    n = analysis_points
     errors = []
     for i in range(n):
-        theta_deg = 360.0 * i * DEFAULT_STEP_RAW / FULL_TURN_RAW
+        theta_deg = analysis_angle_deg(i, analysis_points, step_raw)
         errors.append(x_fn(theta_deg))
     mean = sum(errors) / n
     rms_ac = math.sqrt(sum((e - mean) ** 2 for e in errors) / n)
@@ -735,7 +862,7 @@ def _self_test_case(name: str, x_fn, expected: Dict[str, float], tol: float = 0.
     check("mean", mean, expected["mean"])
     check("rms_ac", rms_ac, expected["rms_ac"])
     for order, exp_amp in expected.get("amplitudes", {}).items():
-        h = compute_harmonic(errors, mean, order, DEFAULT_STEP_RAW)
+        h = compute_harmonic(errors, mean, order, analysis_points, step_raw)
         check(f"A{order}", h.amplitude, exp_amp)
 
     print(f"  Case '{name}': {'PASS' if ok else 'FAIL'}")
@@ -747,18 +874,59 @@ def run_self_test() -> bool:
     print("(synthetic curves with known closed-form DFT coefficients)\n")
 
     case1_ok = _self_test_case(
-        "Case1: x=1.5+2.0*cos(6*theta+30deg)",
+        "Legacy 256: x=1.5+2.0*cos(6*theta+30deg)",
         lambda theta_deg: 1.5 + 2.0 * math.cos(math.radians(6 * theta_deg + 30.0)),
         expected={"mean": 1.5000, "rms_ac": 1.4142, "amplitudes": {6: 2.0000, 1: 0.0, 2: 0.0}},
+        analysis_points=LEGACY_ANALYSIS_POINT_COUNT,
+        step_raw=LEGACY_STEP_RAW,
     )
     case2_ok = _self_test_case(
-        "Case2: x=0.4+1.2*cos(6*theta)+0.3*cos(12*theta)-0.2*sin(3*theta)",
+        "Current 360: x=0.4+1.2*cos(6*theta)+0.3*cos(12*theta)-0.2*sin(3*theta)",
         lambda theta_deg: (0.4 + 1.2 * math.cos(math.radians(6 * theta_deg))
                             + 0.3 * math.cos(math.radians(12 * theta_deg))
                             - 0.2 * math.sin(math.radians(3 * theta_deg))),
         expected={"mean": 0.4000, "rms_ac": math.sqrt(0.5 * (1.2 ** 2 + 0.3 ** 2 + 0.2 ** 2)),
                   "amplitudes": {3: 0.2000, 6: 1.2000, 12: 0.3000, 1: 0.0}},
+        analysis_points=CURRENT_ANALYSIS_POINT_COUNT,
+        step_raw=0,
     )
+
+    # Regression for the historical silent failure: a 360-point record must
+    # use all points 0..359 and point 360 as closure, never point 256.
+    dynamic = Sweep(
+        test_id=1, sweep_id=1, jig_id="JIG_TEST", motor_id="P_TEST",
+        run_order=1, run_role="OFFICIAL", eligible_for_statistics=True,
+        step_raw=0, analysis_points=CURRENT_ANALYSIS_POINT_COUNT,
+        meta_measurement_valid=True, end_status="VALID",
+    )
+    for i in range(CURRENT_ANALYSIS_POINT_COUNT + 1):
+        dynamic.points[i] = DataPoint(
+            index=i,
+            target_raw_abs=round(i * FULL_TURN_RAW / CURRENT_ANALYSIS_POINT_COUNT) % 65536,
+            angle_raw=round(i * FULL_TURN_RAW / CURRENT_ANALYSIS_POINT_COUNT) % 65536,
+            angle_deg=float(i),
+            error_deg=-5.0 if i == LEGACY_ANALYSIS_POINT_COUNT else 0.0,
+        )
+    dynamic.points[CURRENT_ANALYSIS_POINT_COUNT].error_deg = -0.09
+    dynamic_metrics = recompute_metrics(dynamic)
+    dynamic_ok = (
+        dynamic_metrics is not None
+        and dynamic_metrics.analysis_count == CURRENT_ANALYSIS_POINT_COUNT
+        and not dynamic_metrics.missing_indices
+        and dynamic_metrics.closure_available
+        and abs((dynamic_metrics.closure_error_deg or 0.0) - (-0.09)) < 1e-12
+    )
+    print(f"  Case 'Dynamic AnalysisPoints/closure': "
+          f"{'PASS' if dynamic_ok else 'FAIL'}")
+
+    precondition = Sweep(
+        test_id=2, sweep_id=1, jig_id="JIG_TEST", motor_id="P_TEST",
+        run_order=0, run_role="PRECONDITION", eligible_for_statistics=False,
+        meta_measurement_valid=True, end_status="VALID",
+    )
+    role_ok = dynamic.is_official_valid and not precondition.is_official_valid
+    print(f"  Case 'RunRole/EligibleForStatistics': "
+          f"{'PASS' if role_ok else 'FAIL'}")
 
     # P2P shift-invariance identity used in docs/cross_jig_measurement_analysis.md
     # section 8: P2P(e - c) == P2P(e) for any constant c.
@@ -770,7 +938,7 @@ def run_self_test() -> bool:
     print(f"  Case 'P2P shift-invariance': {'PASS' if shift_ok else 'FAIL'} "
           f"(P2P(e)={p2p_a:.4f}, P2P(e-c)={p2p_b:.4f})")
 
-    all_ok = case1_ok and case2_ok and shift_ok
+    all_ok = case1_ok and case2_ok and dynamic_ok and role_ok and shift_ok
     print(f"\nSelf-test overall: {'PASS' if all_ok else 'FAIL'}")
     return all_ok
 
@@ -813,9 +981,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     reports = [build_report(sw) for sw in all_sweeps]
     infer_run_order(reports)
-    # Re-check validity after run-order inference (officially_valid does not
-    # depend on run_order, so this is just for the group summaries below to
-    # see a stable, non-None run_order for every report already gathered).
+    # Validity never depends on inferred file position. Inference is only for
+    # stable display keys on legacy records without META.RunOrder.
 
     by_group: Dict[Tuple[str, str], List[SweepReport]] = {}
     for r in reports:

@@ -65,6 +65,19 @@ test_jig_delta();
 test_sector_response();
 test_sector_match_gate();
 test_sector_calibration_parsing();
+test_nl_extreme_angles();
+test_rank_motor_nl_quality();
+test_harmonic_spectrum();
+test_deadtime_harmonic_signature();
+test_full_curve_quality();
+test_cross_jig_point_delta();
+test_find_outlier_mount_sessions();
+test_session_feature_table();
+test_compare_features_across_jigs();
+test_mount_precheck();
+test_peak_signature_tools();
+test_sweep_creep_analysis();
+test_offaxis_calibration_risk();
 
 fprintf("[ OK ] NL stability MATLAB analysis regression test passed.\n");
 end
@@ -320,6 +333,817 @@ for batchIndex = 1:3
     assert(abs(row.ErrorRaw - achievedErrors(batchIndex)) < 1e-9);
     assert(row.SweepCount == 2);
 end
+end
+
+function test_nl_extreme_angles()
+% Two groups (motor M1, jig JA/JB), 2 identical runs each, n=8, k=3.
+% Group B's mean curve is EXACTLY group A's curve rotated by 2 points, so
+% every quantity is hand-computable: best shift must recover exactly 2,
+% best correlation exactly 1, post-alignment tail distances exactly 0,
+% and (since B is a pure rotation of A, not an amplitude change) every
+% top5/bottom5/robust-NL delta must be exactly 0.
+curveA = [5, 1, 2, 3, -5, -1, -2, -3];
+n = numel(curveA);
+curveB = zeros(1, n);
+for j = 0:n - 1
+    curveB(j + 1) = curveA(mod(j - 2, n) + 1);
+end
+
+fileA = write_extreme_angle_log(curveA, "M1", "JA");
+fileB = write_extreme_angle_log(curveB, "M1", "JB");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileA, fileB}, "MotorId", {"M1", "M1"}, "JigId", {"JA", "JB"});
+[groups, pairs] = analyze_nl_extreme_angles(fileGroups, 3);
+
+assert(numel(groups) == 2);
+assert(numel(pairs) == 1);
+p = pairs(1);
+
+assert(p.BestShiftPoints == 2);
+assert(abs(p.BestShiftCorrelation - 1) < 1e-9);
+assert(abs(p.Top5MeanDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Bottom5MeanDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Top5MaxDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Bottom5MaxDistanceAlignedDeg) < 1e-9);
+assert(abs(p.Top5DeltaBMinusADeg) < 1e-9);
+assert(abs(p.Bottom5DeltaBMinusADeg) < 1e-9);
+assert(abs(p.RobustNLDeltaBMinusADeg) < 1e-9);
+
+expectedRobust = mean([5, 3, 2]) - mean([-5, -3, -2]);
+assert(abs(p.RobustNLADeg - expectedRobust) < 1e-9);
+assert(abs(p.RobustNLBDeg - expectedRobust) < 1e-9);
+
+% Zero-shift correlation must be strictly worse than the best-shift one --
+% curveA and curveB are NOT aligned at shift 0 by construction.
+assert(p.ZeroShiftCorrelation < p.BestShiftCorrelation - 1e-6);
+end
+
+function file = write_extreme_angle_log(curve, motorId, jigId) %#ok<INUSD>
+n = numel(curve);
+lines = strings(0, 1);
+for runIndex = 1:2
+    lines(end + 1) = sprintf(strcat("META,SchemaVersion=5,TestID=%d,SweepID=%d,", ...
+        "RunRole=OFFICIAL,EligibleForStatistics=1,MeasurementValid=1,AnalysisPoints=%d,", ...
+        "AnalysisStartRaw=0,ApproachProtocol=SYNTH"), ...
+        runIndex, runIndex, n); %#ok<AGROW>
+    for dataIndex = 0:n - 1
+        lines(end + 1) = sprintf("DATA,,%d,%d,,,,%d,0,0,0,%.10f", ...
+            runIndex, runIndex, dataIndex, curve(dataIndex + 1)); %#ok<AGROW>
+    end
+    lines(end + 1) = "SHADOW_RESULT,ClosureErrorDeg=0.0"; %#ok<AGROW>
+    lines(end + 1) = "END,Status=VALID"; %#ok<AGROW>
+end
+file = write_temp_log(lines);
+end
+
+function test_rank_motor_nl_quality()
+% Three motors, single jig "JX" each, n=360, 3 runs/motor. M1: small pure
+% 36th-harmonic amplitude (low NL, low A36) -- "good". M2: large pure
+% 36th-harmonic amplitude (high NL, high A36) -- consistently bad on both
+% metrics. M3: the SAME small amplitude as M1 (so A36 must match M1)
+% plus a single-point spike added at one index -- a single point can
+% dominate a top-5-of-360 mean, inflating NL_RobustP2P, while barely
+% moving the 36th-order DFT amplitude. This is the textbook "NL rank
+% distorted, A36 rank not" case the RankShift warning exists to catch.
+n = 360;
+index = (0:n - 1)';
+theta = 2 * pi * 36 * index / n;
+
+files = strings(1, 3);
+amps = [0.3, 1.0, 0.3];
+% Index 7 (angle 252 deg) puts the spike's DFT contribution roughly
+% opposite the base sine's own phase, so it slightly REDUCES M3's
+% resultant A36 amplitude below M1's (0.2737 vs 0.3) while still
+% dominating M3's top-5/bottom-5 mean (NL_RobustP2P only depends on error
+% VALUES, not their DFT phase, so the spike inflates NL regardless of
+% which index it sits at) -- this is what makes M3 rank BETTER than M1 on
+% A36 but WORSE on NL, the exact case the RankShift warning targets.
+spikeAt = [-1, -1, 7]; % 0-based DATA index to spike, -1 = none
+for m = 1:3
+    lines = strings(0, 1);
+    for run = 1:3
+        errors = amps(m) * sin(theta);
+        if spikeAt(m) >= 0
+            errors(spikeAt(m) + 1) = errors(spikeAt(m) + 1) + 5.0;
+        end
+        lines(end + 1) = sprintf(strcat("META,SchemaVersion=5,TestID=%d,SweepID=%d,", ...
+            "RunRole=OFFICIAL,EligibleForStatistics=1,MeasurementValid=1,AnalysisPoints=360,", ...
+            "AnalysisStartRaw=0,ApproachProtocol=SYNTH"), run, run); %#ok<AGROW>
+        for dataIndex = 0:n - 1
+            lines(end + 1) = sprintf("DATA,,%d,%d,,,,%d,0,0,0,%.10f", ...
+                run, run, dataIndex, errors(dataIndex + 1)); %#ok<AGROW>
+        end
+        lines(end + 1) = "SHADOW_RESULT,ClosureErrorDeg=0.0"; %#ok<AGROW>
+        lines(end + 1) = "END,Status=VALID"; %#ok<AGROW>
+    end
+    files(m) = write_temp_log(lines);
+end
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+fileGroups = struct("Files", {files(1), files(2), files(3)}, ...
+    "MotorId", {"M1", "M2", "M3"}, "JigId", {"JX", "JX", "JX"});
+result = rank_motor_nl_quality(fileGroups);
+lb = result.Leaderboard;
+
+m1 = lb(lb.Motor == "M1", :);
+m2 = lb(lb.Motor == "M2", :);
+m3 = lb(lb.Motor == "M3", :);
+
+assert(m1.NL_Rank == 1);          % smallest amplitude, no spike -- clearly best
+assert(m2.NL_Rank == 3);          % largest amplitude -- clearly worst on NL
+assert(m2.A36_Rank == 3);         % ...and on A36 too (consistently bad)
+assert(m3.NL_Mean_Deg > m1.NL_Mean_Deg);
+assert(abs(m3.A36_Mean_Deg - m1.A36_Mean_Deg) < 0.05); % spike barely moves A36
+assert(m3.NL_Rank > m1.NL_Rank);
+% The rank-shift flag must catch M3: A36 rank much better than its NL rank.
+assert(m3.RankShift_A36MinusNL <= -1);
+end
+
+function test_harmonic_spectrum()
+% Pure sinusoid at order 36, amplitude 0.8, plus a DC offset -- must
+% recover 0.8 at order 36 (cross-checked against compute_nl_sweep_metrics'
+% own A36 formula, same input) and near-zero at unrelated orders (1, 12).
+n = 360;
+index = (0:n - 1)';
+amp = 0.8;
+errors = 0.05 + amp * sin(2 * pi * 36 * index / n);
+
+spectrum = compute_harmonic_spectrum(errors, [1, 12, 36]);
+assert(abs(spectrum(3) - amp) < 1e-6);   % order 36: recovers the amplitude
+assert(spectrum(1) < 1e-6);              % order 1: no such component
+assert(spectrum(2) < 1e-6);              % order 12: no such component
+end
+
+function test_deadtime_harmonic_signature()
+% One motor "MX", two jigs. JigA's mean curve is a pure order-12 sine
+% (EVEN multiple of the 6-pole-pair electrical fundamental, amplitude
+% 0.5) -- the "motor signature" class this project has already found
+% jig-invariant. JigB's curve is JigA's PLUS a pure order-18 sine (ODD
+% multiple, amplitude 0.4) -- the dead-time-predicted class. By
+% construction the cross-jig delta must be exactly 0.4 at order 18 and
+% exactly 0 at order 12, and the pooled ODD-class mean must exceed the
+% EVEN-class mean.
+n = 360;
+index = (0:n - 1)';
+curveA = 0.5 * sin(2 * pi * 12 * index / n);
+curveB = curveA + 0.4 * sin(2 * pi * 18 * index / n);
+
+fileA = write_extreme_angle_log(curveA', "MX", "JA");
+fileB = write_extreme_angle_log(curveB', "MX", "JB");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileA, fileB}, "MotorId", {"MX", "MX"}, "JigId", {"JA", "JB"});
+result = analyze_deadtime_harmonic_signature(fileGroups, 3); % multiples 1,2,3 -> orders 6,12,18
+
+d = result.Detail;
+row12 = d(d.Order == 12, :);
+row18 = d(d.Order == 18, :);
+assert(abs(row12.AbsDelta_Deg) < 1e-6);          % even multiple: no delta by construction
+assert(abs(row18.AbsDelta_Deg - 0.4) < 1e-6);    % odd multiple: exactly the added amplitude
+
+oddMean = result.ByParity.mean_AbsDelta_Deg(result.ByParity.Parity == "ODD");
+evenMean = result.ByParity.mean_AbsDelta_Deg(result.ByParity.Parity == "EVEN");
+assert(oddMean > evenMean);
+end
+
+function test_full_curve_quality()
+% Three motors, single jig "JX" each, n=360, 2 identical runs/motor
+% (fully deterministic, SD=0 everywhere). MG: flat curve, no bad points --
+% FractionWithinTolerance must be exactly 1, zero regions. MB: a clean
+% 20-point contiguous bad region (0-based indices 100..119, value +2.0)
+% against a tolerance of 0.5 -- must recover exactly 1 region, length 20
+% deg, start 100 deg. MW: the SAME 20-point bad region but split across
+% the 360/0 wrap boundary (0-based indices 350..359 and 0..9) -- must
+% still be detected as ONE region (proves the circular wrap logic works
+% end-to-end), not two.
+n = 360;
+tol = 0.5;
+
+curveMG = zeros(1, n);
+
+curveMB = zeros(1, n);
+curveMB(101:120) = 2.0; % 0-based indices 100..119 -> MATLAB 101:120
+
+curveMW = zeros(1, n);
+curveMW([351:360, 1:10]) = 1.5; % 0-based indices 350..359, 0..9 (wraps)
+
+files = strings(1, 3);
+labels = ["MG", "MB", "MW"];
+curves = {curveMG, curveMB, curveMW};
+for m = 1:3
+    files(m) = write_extreme_angle_log(curves{m}, labels(m), "JX");
+end
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+fileGroups = struct("Files", {files(1), files(2), files(3)}, ...
+    "MotorId", {"MG", "MB", "MW"}, "JigId", {"JX", "JX", "JX"});
+result = analyze_full_curve_quality(fileGroups, tol);
+lb = result.Leaderboard;
+
+mg = lb(lb.Motor == "MG", :);
+mb = lb(lb.Motor == "MB", :);
+mw = lb(lb.Motor == "MW", :);
+
+assert(abs(mg.FractionWithinTolerance - 1) < 1e-9);
+assert(mg.OutOfToleranceRegionCount == 0);
+
+assert(abs(mb.FractionWithinTolerance - (340 / 360)) < 1e-9);
+assert(mb.OutOfToleranceRegionCount == 1);
+assert(abs(mb.WorstRegionLengthDeg - 20) < 1e-9);
+assert(abs(mb.WorstRegionStartDeg - 100) < 1e-9);
+expectedPeakMB = 2.0 - 20 * 2.0 / n; % raw spike value minus the curve's own mean (centering)
+assert(abs(mb.WorstRegionPeakDeg - expectedPeakMB) < 1e-6);
+
+assert(abs(mw.FractionWithinTolerance - (340 / 360)) < 1e-9);
+assert(mw.OutOfToleranceRegionCount == 1); % must NOT be split at the 360/0 boundary
+assert(abs(mw.WorstRegionLengthDeg - 20) < 1e-9);
+end
+
+function test_cross_jig_point_delta()
+% One motor "MX", two jigs "JA"/"JB", n=360. JigA's curve is flat zero;
+% JigB's curve is flat zero EXCEPT a clean 15-point contiguous region
+% (0-based indices 200..214, value +2.0) -- every quantity is hand-
+% computable since curveA contributes nothing to the delta.
+n = 360;
+curveA = zeros(1, n);
+curveB = zeros(1, n);
+curveB(201:215) = 2.0; % 0-based 200..214 -> MATLAB 201:215
+
+fileA = write_extreme_angle_log(curveA, "MX", "JA");
+fileB = write_extreme_angle_log(curveB, "MX", "JB");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileA, fileB}, "MotorId", {"MX", "MX"}, "JigId", {"JA", "JB"});
+result = analyze_cross_jig_point_delta(fileGroups, 0.3, "zero");
+
+s = result.Summary;
+assert(height(s) == 1);
+assert(abs(s.MeanAbsDeltaDeg - (15 * 2.0 / n)) < 1e-9);
+assert(abs(s.RmsDeltaDeg - sqrt(15 * 2.0^2 / n)) < 1e-9);
+assert(abs(s.MaxDeltaDeg - 2.0) < 1e-9);
+assert(abs(s.MaxDeltaAtDeg - 200) < 1e-9);
+assert(s.RegionCount == 1);
+assert(abs(s.WorstRegionLengthDeg - 15) < 1e-9);
+assert(abs(s.WorstRegionStartDeg - 200) < 1e-9);
+
+% useShift="best": jig B's curve is a pure rotation of jig A's own curve
+% (not flat-zero-plus-spike this time) -- after best-fit alignment the
+% delta must collapse to ~0 everywhere, proving the shift is actually
+% applied before differencing, not just reported.
+curveC = 0.5 * sin(2 * pi * 36 * (0:n - 1) / n);
+curveD = zeros(1, n);
+for j = 0:n - 1
+    curveD(j + 1) = curveC(mod(j - 5, n) + 1);
+end
+fileC = write_extreme_angle_log(curveC, "MY", "JA");
+fileD = write_extreme_angle_log(curveD, "MY", "JB");
+cleanup2 = onCleanup(@() cellfun(@delete_if_exists, {fileC, fileD})); %#ok<NASGU>
+fileGroups2 = struct("Files", {fileC, fileD}, "MotorId", {"MY", "MY"}, "JigId", {"JA", "JB"});
+resultShifted = analyze_cross_jig_point_delta(fileGroups2, 0.01, "best");
+s2 = resultShifted.Summary;
+assert(abs(s2.ShiftUsedDeg - 5) < 1e-6);
+assert(s2.RmsDeltaDeg < 1e-6);
+assert(s2.RegionCount == 0);
+end
+
+function test_find_outlier_mount_sessions()
+% One motor "MX", 4 sessions. S1,S2,S3 are all the SAME pure order-2 sine
+% (0.5 amplitude, a mounting-eccentricity-like low-order component, NOT
+% order 36 -- a pure order-36 curve is invariant under any 10-degree-
+% multiple rotation since 360/36=10, which would make a 40-degree shift
+% test degenerate) -- the "majority" orientation. S4 is that SAME curve
+% rotated by 40 mechanical degrees -- the "R4 pattern" found by hand in
+% the real p06 remount investigation: everyone else agrees at 0-degree
+% shift, S4 alone needs +40.
+n = 360;
+index = 0:n - 1;
+baseCurve = 0.5 * sin(2 * pi * 2 * index / n);
+rotatedCurve = zeros(1, n);
+for j = 0:n - 1
+    rotatedCurve(j + 1) = baseCurve(mod(j - 40, n) + 1);
+end
+
+files = strings(1, 4);
+labels = ["S1", "S2", "S3", "S4"];
+curves = {baseCurve, baseCurve, baseCurve, rotatedCurve};
+for k = 1:4
+    files(k) = write_extreme_angle_log(curves{k}, "MX", labels(k));
+end
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+fileGroups = struct("Files", {files(1), files(2), files(3), files(4)}, ...
+    "MotorId", {"MX", "MX", "MX", "MX"}, "JigId", {"S1", "S2", "S3", "S4"});
+result = find_outlier_mount_sessions(fileGroups, 15);
+
+s = result.Summary;
+s1 = s(s.Session == "S1", :);
+s2 = s(s.Session == "S2", :);
+s3 = s(s.Session == "S3", :);
+s4 = s(s.Session == "S4", :);
+
+assert(s1.AlignmentCount == 2); % aligned with S2,S3 (not S4)
+assert(s2.AlignmentCount == 2);
+assert(s3.AlignmentCount == 2);
+assert(s4.AlignmentCount == 0); % aligned with none
+
+assert(s4.IsOutlier == true);
+assert(s1.IsOutlier == false);
+assert(s2.IsOutlier == false);
+assert(s3.IsOutlier == false);
+
+assert(abs(abs(s4.ShiftFromMajorityDeg) - 40) < 1e-6);
+end
+
+function test_session_feature_table()
+% One motor/jig, one OFFICIAL sweep, with CONTROL_STATE/MOTION_RESULT/
+% CLOSURE_PROBE_RESULT lines added -- confirms build_session_feature_table
+% flattens across all of them (not just the tags parse_nl_log already
+% served to other tools), prefixes correctly, drops non-numeric fields
+% (HomeResult=OK), and still recomputes NL_RobustP2P_Deg/A36 alongside.
+file = write_feature_log("M1", "JA", 1, 1, 0.25, 3, 4);
+cleanup = onCleanup(@() delete_if_exists(file)); %#ok<NASGU>
+
+features = build_session_feature_table(file, "M1", "JA");
+assert(height(features) == 1);
+assert(features.MotorId(1) == "M1");
+assert(features.JigId(1) == "JA");
+assert(abs(features.CTRL_HomeFinalErrorDeg(1) - 0.25) < 1e-9);
+assert(features.MOTION_SettleRetries(1) == 3);
+assert(features.CLOSUREPROBE_ValidStages(1) == 4);
+assert(abs(features.SHADOW_ClosureErrorDeg(1) - 0) < 1e-9);
+assert(~ismember("CTRL_HomeResult", string(features.Properties.VariableNames)));
+assert(~isnan(features.NL_RobustP2P_Deg(1)));
+end
+
+function test_compare_features_across_jigs()
+% Two motors, two jigs each. CTRL_HomeFinalErrorDeg shifts by a
+% consistent ~+0.3 from JA to JB for BOTH motors (a genuine jig effect);
+% MOTION_SettleRetries shifts by +3 for M1 but -3 for M2 (motor-specific
+% noise, no consistent jig effect). The ranked-first feature must be the
+% consistent one, with a much higher ConsistencyScore and AllSameSign.
+f1 = write_feature_log("M1", "JA", 1, 1, 0.10, 2, 4);
+f2 = write_feature_log("M1", "JB", 1, 1, 0.40, 5, 4);
+f3 = write_feature_log("M2", "JA", 1, 1, 0.12, 5, 4);
+f4 = write_feature_log("M2", "JB", 1, 1, 0.44, 2, 4);
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {f1, f2, f3, f4})); %#ok<NASGU>
+
+fileGroups = struct("Files", {f1, f2, f3, f4}, ...
+    "MotorId", {"M1", "M1", "M2", "M2"}, "JigId", {"JA", "JB", "JA", "JB"});
+result = compare_features_across_jigs(fileGroups, "JA", "JB");
+
+assert(result.Ranking.Feature(1) == "CTRL_HomeFinalErrorDeg");
+assert(result.Ranking.AllSameSign(1) == true);
+assert(result.Ranking.ConsistencyScore(1) > 10);
+
+noisyIdx = find(result.Ranking.Feature == "MOTION_SettleRetries");
+assert(~isempty(noisyIdx));
+assert(result.Ranking.AllSameSign(noisyIdx) == false);
+assert(result.Ranking.ConsistencyScore(noisyIdx) < 1);
+assert(result.Ranking.ConsistencyScore(1) > result.Ranking.ConsistencyScore(noisyIdx));
+end
+
+function file = write_feature_log(motorId, jigId, testId, sweepId, homeFinalErrorDeg, settleRetries, validStages)
+n = 8;
+curve = [1, 2, 3, 4, -4, -3, -2, -1];
+lines = strings(0, 1);
+lines(end + 1) = sprintf(strcat("META,SchemaVersion=5,TestID=%d,SweepID=%d,RunRole=OFFICIAL,", ...
+    "EligibleForStatistics=1,MeasurementValid=1,AnalysisPoints=%d,JigID=%s,MotorID=%s"), ...
+    testId, sweepId, n, jigId, motorId);
+for i = 0:n - 1
+    lines(end + 1) = sprintf("DATA,,%d,%d,,,,%d,0,0,0,%.10f", testId, sweepId, i, curve(i + 1)); %#ok<AGROW>
+end
+lines(end + 1) = "SHADOW_RESULT,ClosureErrorDeg=0.0";
+lines(end + 1) = sprintf("CONTROL_STATE,TestID=%d,SweepID=%d,HomeFinalErrorDeg=%.6f,HomeResult=OK", ...
+    testId, sweepId, homeFinalErrorDeg);
+lines(end + 1) = sprintf("MOTION_RESULT,TestID=%d,SweepID=%d,SettleRetries=%d", ...
+    testId, sweepId, settleRetries);
+lines(end + 1) = sprintf("CLOSURE_PROBE_RESULT,TestID=%d,SweepID=%d,ValidStages=%d", ...
+    testId, sweepId, validStages);
+lines(end + 1) = "END,Status=VALID";
+file = write_temp_log(lines);
+end
+
+function test_mount_precheck()
+% Two synthetic groups mimicking the firmware comment's own description
+% (Core/Src/nonlinear_test.c, MOUNT_PRECHECK_V1 M0): "GOOD" mounts have a
+% larger H1 (concentricity) amplitude and small H2; "BAD" mounts have H1
+% shrunk and H2 grown, per "H1 shrinks and sometimes H2 grows under bad
+% mounting". One BAD record is also MountValid=0/CLOSURE_INVALID, to
+% check RejectReason pooling. Two files per group so file-level pooling
+% (not just record-level) is exercised.
+h1Good = [0.40, 0.42];
+h2Good = [0.05, 0.06];
+h1Bad = [0.05, 0.06];
+h2Bad = [0.30, 0.28];
+
+fileGoodA = write_mount_precheck_log("JIG1", "p05", 2.50, h1Good(1), h2Good(1), 0.05, 1, "NONE", 1);
+fileGoodB = write_mount_precheck_log("JIG1", "p05", 2.60, h1Good(2), h2Good(2), 0.04, 1, "NONE", 1);
+fileBadA = write_mount_precheck_log("JIG5", "p05", 3.00, h1Bad(1), h2Bad(1), 0.25, 0, "CLOSURE_INVALID", 0);
+fileBadB = write_mount_precheck_log("JIG5", "p05", 3.10, h1Bad(2), h2Bad(2), 0.03, 1, "NONE", 1);
+files = [fileGoodA, fileGoodB, fileBadA, fileBadB];
+cleanup = onCleanup(@() cellfun(@delete_if_exists, cellstr(files))); %#ok<NASGU>
+
+% parse_mount_precheck_log.m on a single multi-record file: two batches
+% logged back to back must both be recovered, in order.
+combined = write_temp_log([ ...
+    mount_precheck_line("JIG1", "p03", 1, 1, 2.10, 0.30, 0.02, 0.01, 1, "NONE", 0), ...
+    mount_precheck_line("JIG1", "p03", 2, 1, 2.15, 0.31, 0.02, 0.02, 1, "NONE", 0)]);
+cleanup2 = onCleanup(@() delete_if_exists(combined)); %#ok<NASGU>
+singleFileRecords = parse_mount_precheck_log(combined);
+assert(height(singleFileRecords) == 2);
+assert(singleFileRecords.BatchID(1) == 1 && singleFileRecords.BatchID(2) == 2);
+assert(abs(singleFileRecords.H1AmplitudeDeg(2) - 0.31) < 1e-9);
+assert(singleFileRecords.AcquisitionResult(1) == "OK");
+
+labels = ["GOOD", "GOOD", "BAD", "BAD"];
+result = analyze_mount_precheck_batch(files, labels);
+assert(height(result.Records) == 4);
+assert(height(result.ByLabel) == 2);
+
+goodRow = result.ByLabel(result.ByLabel.Label == "GOOD", :);
+badRow = result.ByLabel(result.ByLabel.Label == "BAD", :);
+assert(abs(goodRow.Mean_H1AmplitudeDeg - mean(h1Good)) < 1e-9);
+assert(abs(goodRow.Mean_H2AmplitudeDeg - mean(h2Good)) < 1e-9);
+assert(abs(goodRow.MountValidRatePct - 100) < 1e-9);
+assert(abs(badRow.Mean_H1AmplitudeDeg - mean(h1Bad)) < 1e-9);
+assert(abs(badRow.Mean_H2AmplitudeDeg - mean(h2Bad)) < 1e-9);
+assert(abs(badRow.MountValidRatePct - 50) < 1e-9);
+
+% The firmware-observed direction ("H1 shrinks, H2 grows under bad
+% mounting") must show up as BAD's H1 lower and H2OverH1 much higher.
+assert(badRow.Mean_H1AmplitudeDeg < goodRow.Mean_H1AmplitudeDeg);
+assert(badRow.Mean_H2OverH1 > goodRow.Mean_H2OverH1);
+
+% Sorted ascending by Mean_H1AmplitudeDeg -- BAD (lower H1) must come first.
+assert(result.ByLabel.Label(1) == "BAD");
+
+rrc = result.RejectReasonCounts;
+badClosureRow = rrc(rrc.Label == "BAD" & rrc.RejectReason == "CLOSURE_INVALID", :);
+assert(height(badClosureRow) == 1);
+assert(badClosureRow.GroupCount == 1);
+goodNoneRow = rrc(rrc.Label == "GOOD" & rrc.RejectReason == "NONE", :);
+assert(goodNoneRow.GroupCount == 2);
+end
+
+function file = write_mount_precheck_log(jigId, motorId, robustP2P, h1Amp, h2Amp, closureErr, mountValid, rejectReason, gateEnabled)
+line = mount_precheck_line(jigId, motorId, 1, 1, robustP2P, h1Amp, h2Amp, closureErr, mountValid, rejectReason, gateEnabled);
+file = write_temp_log(line);
+end
+
+function line = mount_precheck_line(jigId, motorId, batchId, cycleOrder, robustP2P, h1Amp, h2Amp, closureErr, mountValid, rejectReason, gateEnabled)
+line = sprintf(strcat("MOUNT_PRECHECK_RESULT,SchemaVersion=5,BatchID=%d,CycleOrder=%d,TestID=1,", ...
+    "Protocol=PRECONDITION_FULL_SWEEP_MOUNT_GATE_V1,JigID=%s,MotorID=%s,RobustP2PDeg=%.5f,", ...
+    "H1AmplitudeDeg=%.5f,H1PhaseDeg=-50.00,H2AmplitudeDeg=%.5f,H2PhaseDeg=10.00,", ...
+    "ClosureErrorDeg=%.5f,TrackingValid=1,ClosureValid=%d,AcquisitionResult=OK,", ...
+    "MountValid=%d,RejectReason=%s,GateEnabled=%d"), ...
+    batchId, cycleOrder, jigId, motorId, robustP2P, h1Amp, h2Amp, closureErr, ...
+    double(rejectReason == "NONE"), mountValid, rejectReason, gateEnabled);
+end
+
+function test_peak_signature_tools()
+% find_circular_extrema: n=8, period-4 square-ish wave [0 1 0 -1 0 1 0 -1]
+% (0-based idx 0..7). With window=1, promThresh=0.5, must recover exactly
+% the two maxima (idx 1,5, value 1) and two minima (idx 3,7, value -1) --
+% hand-checkable by construction.
+curve = [0; 1; 0; -1; 0; 1; 0; -1];
+[maxIdx, maxVal] = find_circular_extrema(curve, 1, 0.5, true);
+[minIdx, minVal] = find_circular_extrema(curve, 1, 0.5, false);
+assert(isequal(maxIdx, [1; 5]));
+assert(isequal(maxVal, [1; 1]));
+assert(isequal(minIdx, [3; 7]));
+assert(isequal(minVal, [-1; -1]));
+
+% A promThresh above the actual prominence must find nothing.
+[noneIdx, ~] = find_circular_extrema(curve, 1, 1.5, true);
+assert(isempty(noneIdx));
+
+% match_circular_peaks: two points in A, two in B, each within tolerance
+% of exactly one A point -- every quantity hand-computable.
+mResult = match_circular_peaks([1;5], [1;1], [2;6], [1.2;0.8], 8, 2);
+assert(mResult.NMatched == 2);
+assert(isequal(mResult.MatchedIndexA, [1;5]));
+assert(isequal(mResult.MatchedIndexB, [2;6]));
+assert(all(abs(mResult.Delta - [0.2; -0.2]) < 1e-9));
+assert(isempty(mResult.UnmatchedIndexA));
+assert(isempty(mResult.UnmatchedIndexB));
+
+% Outside tolerance: no candidate pairs within reach -- both unmatched.
+mFar = match_circular_peaks([0], [1], [4], [1], 8, 2);
+assert(mFar.NMatched == 0);
+assert(isequal(mFar.UnmatchedIndexA, 0));
+assert(isequal(mFar.UnmatchedIndexB, 4));
+
+% classify_jig_peak_signatures end-to-end: 3 synthetic jigs, one motor.
+% JA and JB are the IDENTICAL pure order-36 curve (0.5 amplitude) --
+% MeanAbsDeltaDeg must be exactly 0, classified SAME_CLASS. JC is JA
+% scaled by 1.6x everywhere -- every matched peak/trough differs by
+% exactly 0.6*valueA at that point (same sign as A, since it's a pure
+% scale, not a shift), comfortably above the default 0.10 deg threshold,
+% classified DIFFERENT_CLASS. Peak POSITIONS must be identical across all
+% three (scaling doesn't move zero-crossings/extrema locations), so all
+% 36 maxima and 36 minima must match on every pair.
+n = 360;
+theta = 2 * pi * 36 * (0:n - 1) / n;
+curveA = 0.5 * sin(theta);
+curveB = curveA;
+curveC = 1.6 * curveA;
+
+fileA = write_extreme_angle_log(curveA, "MZ", "JA");
+fileB = write_extreme_angle_log(curveB, "MZ", "JB");
+fileC = write_extreme_angle_log(curveC, "MZ", "JC");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileA, fileB, fileC})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileA, fileB, fileC}, ...
+    "MotorId", {"MZ", "MZ", "MZ"}, "JigId", {"JA", "JB", "JC"});
+result = classify_jig_peak_signatures(fileGroups);
+
+pairs = result.PairSummary;
+assert(height(pairs) == 3);
+rowAB = pairs(pairs.JigA == "JA" & pairs.JigB == "JB", :);
+rowAC = pairs(pairs.JigA == "JA" & pairs.JigB == "JC", :);
+rowBC = pairs(pairs.JigA == "JB" & pairs.JigB == "JC", :);
+
+assert(rowAB.NMaxMatched == 36 && rowAB.NMinMatched == 36);
+assert(rowAC.NMaxMatched == 36 && rowAC.NMinMatched == 36);
+assert(abs(rowAB.MeanAbsDeltaDeg) < 1e-9);
+assert(rowAB.Class == "SAME_CLASS");
+assert(rowAC.MeanAbsDeltaDeg > 0.10);
+assert(rowAC.Class == "DIFFERENT_CLASS");
+assert(rowBC.MeanAbsDeltaDeg > 0.10);
+assert(rowBC.Class == "DIFFERENT_CLASS");
+
+expectedRows = (rowAB.NMaxMatched + rowAB.NMinMatched) + (rowAC.NMaxMatched + rowAC.NMinMatched) ...
+    + (rowBC.NMaxMatched + rowBC.NMinMatched);
+assert(height(result.PeakDetail) == expectedRows);
+
+% Spot-check one PeakDetail row against the hand-derived scale relationship.
+detailAC = result.PeakDetail(result.PeakDetail.JigA == "JA" & result.PeakDetail.JigB == "JC" ...
+    & result.PeakDetail.Kind == "MAX", :);
+assert(height(detailAC) == 36);
+assert(all(abs(detailAC.ValueB_Deg - 1.6 * detailAC.ValueA_Deg) < 1e-9));
+end
+
+function test_sweep_creep_analysis()
+% Five synthetic sweeps mimicking the real V5.1->V5.6 schema evolution
+% (docs/session-summary-2026-08-05.md): sweep A is "V5.1-style" (POINT
+% lines missing PreCrossGapRaw/Recovery*/FineLanding* -- must fill NaN/""
+% rather than error); sweep B is "V5.3-style" (full fields). Point 66 is
+% built as a genuine trouble point in BOTH sweeps (TARGET_CROSSED /
+% RECOVERY_RECROSSED, RecoveryAttempted=1, StickSlipJumpDetected=1 in the
+% V5.3 sweep) so it must rank first in ByPoint; points 10/20 are clean OK
+% every time so they must rank at the bottom (TroubleScore=0).
+linesA = strings(0, 1);
+linesA(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=5,TestID=1,SweepID=1,JigID=JIG7,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_GAP_BUDGET_CROSS_GUARD_V1,TriggerRaw=200,BaseBudgetRaw=220,BaseMaxIterations=15,StepRaw=16,DeadbandRaw=16,Power=1.000";
+linesA(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=5,TestID=1,SweepID=1,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,InitialGapRaw=223,InitialAbsGapRaw=223,BudgetClass=EXTENDED,SelectedBudgetRaw=320,SelectedMaxIterations=21,Iterations=21,TotalCorrectionRaw=336,FinalGapRaw=-311,Result=TARGET_CROSSED";
+linesA(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=5,TestID=1,SweepID=1,JigID=JIG7,MotorID=p03,Direction=CW,Point=10,Official=0,InitialGapRaw=40,InitialAbsGapRaw=40,BudgetClass=BASE,SelectedBudgetRaw=220,SelectedMaxIterations=15,Iterations=3,TotalCorrectionRaw=48,FinalGapRaw=-8,Result=OK";
+linesA(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=5,TestID=1,SweepID=1,JigID=JIG7,MotorID=p03,Direction=CW,Point=20,Official=0,InitialGapRaw=30,InitialAbsGapRaw=30,BudgetClass=BASE,SelectedBudgetRaw=220,SelectedMaxIterations=15,Iterations=2,TotalCorrectionRaw=32,FinalGapRaw=-2,Result=OK";
+linesA(end + 1) = "END,SchemaVersion=5,TestID=1,SweepID=1,Status=INVALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=3,SweepPointCreepTotalIterations=26,SweepPointCreepTotalCorrectionRaw=416,SweepPointCreepTimeouts=0,SweepPointCreepBudgetExceeded=0,SweepPointCreepTargetCrossed=1,SweepPointCreepRecoveryAttempted=0,SweepPointCreepRecoverySucceeded=0,SweepPointCreepRecoveryFailed=0,SweepPointCreepRecoveryRecrossed=0,SweepPointCreepRecoveryTotalIterations=0,SweepPointCreepRecoveryTotalCorrectionRaw=0,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=1,SweepPointCreepExtendedPoints=1,SweepPointCreepExtendedOk=0,SweepPointCreepExtendedTotalIterations=21,SweepPointCreepExtendedTotalCorrectionRaw=336,SweepPointCreepExtendedTimeouts=0,SweepPointCreepExtendedBudgetExceeded=0,SweepPointCreepExtendedTargetCrossed=1,SweepPointCreepFineLandingAttempted=0,SweepPointCreepFineLandingSucceeded=0,SweepPointCreepFineLandingFailed=0,SweepPointCreepStickSlipJump=0,SweepPointCreepMaxObservedStepDeltaRaw=87,SweepPointCreepIntegrityValid=0";
+fileA = write_temp_log(linesA);
+
+linesB = strings(0, 1);
+linesB(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=6,TestID=5,SweepID=5,JigID=JIG7,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_GAP_BUDGET_POINT66_FINE_LANDING_V1,TriggerRaw=200,BaseBudgetRaw=220,BaseMaxIterations=15,ExtendedBudgetRaw=320,ExtendedMaxIterations=21,StepRaw=16,DeadbandRaw=16,Power=1.000,FineTargetPoint=66,FineEntryRaw=64,FineStepRaw=4,FineMaxIterations=81,JumpThresholdRaw=96,TraceCapacity=100";
+linesB(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=6,TestID=5,SweepID=5,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,InitialGapRaw=-238,InitialAbsGapRaw=238,BudgetClass=EXTENDED,SelectedBudgetRaw=320,SelectedMaxIterations=21,Iterations=21,TotalCorrectionRaw=336,PreCrossGapRaw=-18,CrossingGapRaw=279,RecoveryAttempted=1,RecoverySucceeded=0,RecoveryIterations=9,RecoveryCorrectionRaw=144,FineLandingAttempted=0,FineLandingSucceeded=0,FineIterations=0,FineCorrectionRaw=0,StickSlipJumpDetected=1,MaxObservedStepDeltaRaw=211,TraceCount=23,FinalGapRaw=-100,Result=RECOVERY_RECROSSED";
+linesB(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=6,TestID=5,SweepID=5,JigID=JIG7,MotorID=p03,Direction=CW,Point=10,Official=0,InitialGapRaw=38,InitialAbsGapRaw=38,BudgetClass=BASE,SelectedBudgetRaw=220,SelectedMaxIterations=15,Iterations=3,TotalCorrectionRaw=48,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,FineLandingAttempted=0,FineLandingSucceeded=0,FineIterations=0,FineCorrectionRaw=0,StickSlipJumpDetected=0,MaxObservedStepDeltaRaw=12,TraceCount=0,FinalGapRaw=-6,Result=OK";
+linesB(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=1,TestID=5,SweepID=5,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,StepOrder=1,Iteration=1,Phase=COARSE,CommandStepRaw=-16,GapBeforeRaw=-238,ObservedDeltaRaw=-15,GapAfterRaw=-223,StickSlipJumpDetected=0";
+linesB(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=1,TestID=5,SweepID=5,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,StepOrder=9,Iteration=9,Phase=COARSE,CommandStepRaw=-16,GapBeforeRaw=-18,ObservedDeltaRaw=-211,GapAfterRaw=193,StickSlipJumpDetected=1";
+linesB(end + 1) = "END,SchemaVersion=6,TestID=5,SweepID=5,Status=INVALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=2,SweepPointCreepTotalIterations=24,SweepPointCreepTotalCorrectionRaw=384,SweepPointCreepTimeouts=0,SweepPointCreepBudgetExceeded=0,SweepPointCreepTargetCrossed=1,SweepPointCreepRecoveryAttempted=1,SweepPointCreepRecoverySucceeded=0,SweepPointCreepRecoveryFailed=1,SweepPointCreepRecoveryRecrossed=1,SweepPointCreepRecoveryTotalIterations=9,SweepPointCreepRecoveryTotalCorrectionRaw=144,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=0,SweepPointCreepExtendedPoints=1,SweepPointCreepExtendedOk=0,SweepPointCreepExtendedTotalIterations=21,SweepPointCreepExtendedTotalCorrectionRaw=336,SweepPointCreepExtendedTimeouts=0,SweepPointCreepExtendedBudgetExceeded=0,SweepPointCreepExtendedTargetCrossed=1,SweepPointCreepFineLandingAttempted=0,SweepPointCreepFineLandingSucceeded=0,SweepPointCreepFineLandingFailed=0,SweepPointCreepStickSlipJump=1,SweepPointCreepMaxObservedStepDeltaRaw=211,SweepPointCreepIntegrityValid=0";
+fileB = write_temp_log(linesB);
+
+linesC = strings(0, 1);
+linesC(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=7,TestID=9,SweepID=9,JigID=JIG7,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_GAP_BUDGET_UNIVERSAL_FINE_LANDING_V1,SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=200,BaseBudgetRaw=220,BaseMaxIterations=56,ExtendedBudgetRaw=320,ExtendedMaxIterations=81,StepRaw=16,DeadbandRaw=16,Power=1.000,FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1,FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY,FineTargetPoint=-1,FineEntryRaw=64,FineStepRaw=4,FineBaseMaxIterations=56,FineExtendedMaxIterations=81,JumpThresholdRaw=96,TracePolicy=FIRST_INTEGRITY_FAILURE_V1,TraceCapacity=100";
+linesC(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=7,TestID=9,SweepID=9,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,InitialGapRaw=35,InitialAbsGapRaw=35,BudgetClass=BASE,SelectedBudgetRaw=220,SelectedMaxIterations=56,Iterations=5,TotalCorrectionRaw=20,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,FineLandingAttempted=1,FineLandingSucceeded=0,FineIterations=5,FineCorrectionRaw=20,StickSlipJumpDetected=1,MaxObservedStepDeltaRaw=105,TraceCaptured=1,TraceCount=5,FinalGapRaw=-70,Result=STICK_SLIP_JUMP";
+linesC(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=2,TestID=9,SweepID=9,JigID=JIG7,MotorID=p03,Direction=CW,Point=66,Official=0,StepOrder=5,Iteration=5,Phase=FINE,CommandStepRaw=4,GapBeforeRaw=35,ObservedDeltaRaw=105,GapAfterRaw=-70,StickSlipJumpDetected=1";
+linesC(end + 1) = "END,SchemaVersion=7,TestID=9,SweepID=9,Status=INVALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=1,SweepPointCreepTotalIterations=5,SweepPointCreepTotalCorrectionRaw=20,SweepPointCreepTimeouts=0,SweepPointCreepBudgetExceeded=0,SweepPointCreepTargetCrossed=0,SweepPointCreepRecoveryAttempted=0,SweepPointCreepRecoverySucceeded=0,SweepPointCreepRecoveryFailed=0,SweepPointCreepRecoveryRecrossed=0,SweepPointCreepRecoveryTotalIterations=0,SweepPointCreepRecoveryTotalCorrectionRaw=0,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=0,SweepPointCreepExtendedPoints=0,SweepPointCreepExtendedOk=0,SweepPointCreepExtendedTotalIterations=0,SweepPointCreepExtendedTotalCorrectionRaw=0,SweepPointCreepExtendedTimeouts=0,SweepPointCreepExtendedBudgetExceeded=0,SweepPointCreepExtendedTargetCrossed=0,SweepPointCreepFineLandingAttempted=1,SweepPointCreepFineLandingSucceeded=0,SweepPointCreepFineLandingFailed=1,SweepPointCreepFineBaseAttempted=1,SweepPointCreepFineExtendedAttempted=0,SweepPointCreepTracePoint=66,SweepPointCreepStickSlipJump=1,SweepPointCreepMaxObservedStepDeltaRaw=105,SweepPointCreepIntegrityValid=0";
+fileC = write_temp_log(linesC);
+
+linesD = strings(0, 1);
+linesD(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=8,TestID=12,SweepID=12,JigID=JIG7,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_UNIVERSAL_FINE_LANDING_V2,SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=200,BudgetEscalationProtocol=BASE_EXHAUSTION_TO_EXTENDED_CAP_V1,BaseBudgetRaw=220,BasePrimaryBudgetRaw=220,BaseHardBudgetRaw=320,BaseMaxIterations=56,BaseEscalatedMaxIterations=81,ExtendedBudgetRaw=320,ExtendedMaxIterations=81,StepRaw=16,DeadbandRaw=16,Power=1.000,FineLandingProtocol=UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1,FineSelectionRule=ALL_POINTS_LIVE_GAP_LE_ENTRY,FineTargetPoint=-1,FineEntryRaw=64,FineStepRaw=4,FineBaseMaxIterations=81,FineExtendedMaxIterations=81,JumpThresholdRaw=96,TracePolicy=FIRST_HARD_CAP_BUDGET_OR_INTEGRITY_FAILURE_V1,TraceCapacity=100";
+linesD(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=8,TestID=12,SweepID=12,JigID=JIG7,MotorID=p03,Direction=CW,Point=9,Official=0,InitialGapRaw=-122,InitialAbsGapRaw=122,BudgetClass=BASE,SelectedBudgetRaw=220,PrimaryBudgetRaw=220,HardBudgetRaw=320,BudgetEscalated=1,EscalationCorrectionRaw=44,SelectedMaxIterations=81,Iterations=26,TotalCorrectionRaw=264,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,FineLandingAttempted=1,FineLandingSucceeded=1,FineIterations=16,FineCorrectionRaw=64,StickSlipJumpDetected=0,MaxObservedStepDeltaRaw=-14,TraceCaptured=0,TraceCount=0,FinalGapRaw=-14,Result=OK";
+linesD(end + 1) = "END,SchemaVersion=5,TestID=12,SweepID=12,Status=VALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=1,SweepPointCreepTotalIterations=26,SweepPointCreepTotalCorrectionRaw=264,SweepPointCreepBaseBudgetExceeded=0,SweepPointCreepBaseTargetCrossed=0,SweepPointCreepBaseEscalationAttempted=1,SweepPointCreepBaseEscalationSucceeded=1,SweepPointCreepBaseEscalationFailed=0,SweepPointCreepBaseEscalationCorrectionRaw=44,SweepPointCreepFineLandingAttempted=1,SweepPointCreepFineLandingSucceeded=1,SweepPointCreepFineLandingFailed=0,SweepPointCreepFineBaseAttempted=1,SweepPointCreepFineExtendedAttempted=0,SweepPointCreepTracePoint=-1,SweepPointCreepStickSlipJump=0,SweepPointCreepIntegrityValid=1";
+fileD = write_temp_log(linesD);
+
+linesE = strings(0, 1);
+linesE(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=9,TestID=15,SweepID=15,JigID=JIG8,MotorID=p03,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_BASE_TO_EXTENDED_THREE_STAGE_LANDING_V3,SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=200,BudgetEscalationProtocol=BASE_EXHAUSTION_TO_EXTENDED_CAP_V1,BaseBudgetRaw=220,BasePrimaryBudgetRaw=220,BaseHardBudgetRaw=320,BaseMaxIterations=56,BaseEscalatedMaxIterations=81,ExtendedBudgetRaw=320,ExtendedMaxIterations=81,DeadbandRaw=16,Power=1.000,LandingProtocol=LIVE_GAP_MONOTONIC_16_8_4_DIAG_V1,StepSelectionRule=COARSE_GT96_MID_GT64_FINE_LE64,ResponsePolicy=MEASURE_ONLY_NO_RUNTIME_ADAPTATION_V1,CoarseStepRaw=16,MidEntryRaw=96,MidStepRaw=8,MidEntryBasis=ABS_LIVE_TARGET_GAP_BEFORE_COMMAND,FineEntryRaw=64,FineStepRaw=4,StickSlipJumpThresholdRaw=96,JumpThresholdBasis=ABS_SETTLED_OBSERVED_DELTA_PER_COMMAND,RecoveryProtocol=MONOTONIC_PHASE_SINGLE_REVERSAL_V2,TracePolicy=FIRST_HARD_CAP_BUDGET_OR_INTEGRITY_FAILURE_V1,TraceCapacity=100";
+linesE(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=9,TestID=15,SweepID=15,JigID=JIG8,MotorID=p03,Direction=CW,Point=8,Official=0,InitialGapRaw=120,InitialAbsGapRaw=120,BudgetClass=BASE,SelectedBudgetRaw=220,PrimaryBudgetRaw=220,HardBudgetRaw=320,BudgetEscalated=0,EscalationCorrectionRaw=0,SelectedMaxIterations=81,Iterations=7,TotalCorrectionRaw=76,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,MidLandingAttempted=1,MidIterations=2,MidCorrectionRaw=16,MidEntryGapRaw=88,CoarseTailDirectedRaw=24,CoarseTailCommandRaw=48,CoarseTailCommandCount=3,CoarseTailOppositeSteps=0,FineLandingAttempted=1,FineLandingSucceeded=1,FineIterations=2,FineCorrectionRaw=8,StickSlipJumpDetected=0,MaxObservedStepDeltaRaw=15,TraceCaptured=0,TraceCount=0,FinalGapRaw=12,Result=OK";
+linesE(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=9,TestID=15,SweepID=15,JigID=JIG8,MotorID=p03,Direction=CW,Point=28,Official=0,InitialGapRaw=90,InitialAbsGapRaw=90,BudgetClass=BASE,SelectedBudgetRaw=220,PrimaryBudgetRaw=220,HardBudgetRaw=320,BudgetEscalated=0,EscalationCorrectionRaw=0,SelectedMaxIterations=81,Iterations=3,TotalCorrectionRaw=24,PreCrossGapRaw=0,CrossingGapRaw=0,RecoveryAttempted=0,RecoverySucceeded=0,RecoveryIterations=0,RecoveryCorrectionRaw=0,MidLandingAttempted=1,MidIterations=2,MidCorrectionRaw=16,MidEntryGapRaw=90,CoarseTailDirectedRaw=0,CoarseTailCommandRaw=0,CoarseTailCommandCount=0,CoarseTailOppositeSteps=0,FineLandingAttempted=1,FineLandingSucceeded=0,FineIterations=1,FineCorrectionRaw=4,StickSlipJumpDetected=1,MaxObservedStepDeltaRaw=100,TraceCaptured=1,TraceCount=1,FinalGapRaw=-20,Result=STICK_SLIP_JUMP";
+linesE(end + 1) = "SWEEP_CREEP_STEP,SchemaVersion=3,TestID=15,SweepID=15,JigID=JIG8,MotorID=p03,Direction=CW,Point=28,Official=0,StepOrder=1,Iteration=3,Phase=FINE,CommandStepRaw=4,GapBeforeRaw=60,ObservedDeltaRaw=100,GapAfterRaw=-40,StickSlipJumpDetected=1";
+linesE(end + 1) = "SWEEP_CREEP_RESPONSE,SchemaVersion=1,TestID=15,SweepID=15,Official=0,CoarseIterations=3,CoarseCommandRaw=48,CoarseDirectedResponseRaw=24,CoarseZeroResponseSteps=0,CoarseOppositeResponseSteps=0,CoarseLargeResponseSteps=0,MidIterations=4,MidCommandRaw=32,MidDirectedResponseRaw=24,MidZeroResponseSteps=0,MidOppositeResponseSteps=0,MidLargeResponseSteps=0,FineIterations=3,FineCommandRaw=12,FineDirectedResponseRaw=-96,FineZeroResponseSteps=0,FineOppositeResponseSteps=1,FineLargeResponseSteps=1,RecoveryIterations=0,RecoveryCommandRaw=0,RecoveryDirectedResponseRaw=0,RecoveryZeroResponseSteps=0,RecoveryOppositeResponseSteps=0,RecoveryLargeResponseSteps=0,CoarseTailIterations=3,CoarseTailCommandRaw=48,CoarseTailDirectedResponseRaw=24,CoarseTailOppositeResponseSteps=0";
+linesE(end + 1) = "END,SchemaVersion=5,TestID=15,SweepID=15,Status=INVALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=2,SweepPointCreepTotalIterations=10,SweepPointCreepTotalCorrectionRaw=100,SweepPointCreepBaseEscalationAttempted=0,SweepPointCreepBaseEscalationSucceeded=0,SweepPointCreepBaseEscalationFailed=0,SweepPointCreepMidLandingAttempted=2,SweepPointCreepCoarseIterations=3,SweepPointCreepCoarseCommandRaw=48,SweepPointCreepCoarseDirectedResponseRaw=24,SweepPointCreepCoarseZeroResponseSteps=0,SweepPointCreepCoarseOppositeResponseSteps=0,SweepPointCreepCoarseLargeResponseSteps=0,SweepPointCreepMidIterations=4,SweepPointCreepMidCommandRaw=32,SweepPointCreepMidDirectedResponseRaw=24,SweepPointCreepMidZeroResponseSteps=0,SweepPointCreepMidOppositeResponseSteps=0,SweepPointCreepMidLargeResponseSteps=0,SweepPointCreepFineIterations=3,SweepPointCreepFineCommandRaw=12,SweepPointCreepFineDirectedResponseRaw=-96,SweepPointCreepFineZeroResponseSteps=0,SweepPointCreepFineOppositeResponseSteps=1,SweepPointCreepFineLargeResponseSteps=1,SweepPointCreepRecoveryResponseIterations=0,SweepPointCreepRecoveryResponseCommandRaw=0,SweepPointCreepRecoveryDirectedResponseRaw=0,SweepPointCreepRecoveryZeroResponseSteps=0,SweepPointCreepRecoveryOppositeResponseSteps=0,SweepPointCreepRecoveryLargeResponseSteps=0,SweepPointCreepCoarseTailIterations=3,SweepPointCreepCoarseTailCommandRaw=48,SweepPointCreepCoarseTailDirectedResponseRaw=24,SweepPointCreepCoarseTailOppositeResponseSteps=0,SweepPointCreepExpectedPointTelemetry=2,SweepPointCreepEmittedPointTelemetry=2,SweepPointCreepExpectedStepTelemetry=1,SweepPointCreepEmittedStepTelemetry=1,SweepPointCreepTracePoint=28,SweepPointCreepStickSlipJump=1,SweepPointCreepIntegrityValid=0";
+fileE = write_temp_log(linesE);
+
+linesF = strings(0, 1);
+linesF(end + 1) = "SWEEP_CREEP_CONFIG,SchemaVersion=8,TestID=20,SweepID=20,JigID=JIG8,MotorID=p08,Direction=CW,Official=0,Enabled=1,Protocol=ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_UNIVERSAL_FINE_LANDING_V2";
+linesF(end + 1) = "SWEEP_CREEP_POINT,SchemaVersion=8,TestID=20,SweepID=20,JigID=JIG8,MotorID=p08,Direction=CW,Point=308,Official=0,InitialGapRaw=180,InitialAbsGapRaw=180,BudgetClass=BASE,SelectedBudgetRaw=220,PrimaryBudgetRaw=220,HardBudgetRaw=320,BudgetEscalated=1,EscalationCorrectionRaw=100,SelectedMaxIterations=81,Iterations=81,TotalCorrectionRaw=320,FinalGapRaw=44,Result=BUDGET_EXCEEDED";
+linesF(end + 1) = "SWEEP_CREEP_HOLD_CONFIG,SchemaVersion=1,TestID=20,SweepID=20,JigID=JIG8,MotorID=p08,Direction=CW,Official=0,Enabled=1,Protocol=FIRST_HARD_CAP_PASSIVE_HOLD_0_10_25_50_100_200MS_V1,UnderTestMotionProtocol=ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_UNIVERSAL_FINE_LANDING_V2,SelectionRule=FIRST_HARD_CAP_BUDGET_EXCEEDED,SampleScheduleMs=0|10|25|50|100|200,MaterialDeltaRaw=9,NoMotorCommandDuringHold=1,PointDataFrozenBeforeHold=1,RunEligibleForStatistics=0";
+holdTimes = [0, 10, 25, 50, 100, 200];
+holdGaps = [34, 33, 33, 32, 33, 32];
+for holdIndex = 1:numel(holdTimes)
+    linesF(end + 1) = "SWEEP_CREEP_HOLD_SAMPLE,SchemaVersion=1,TestID=20,SweepID=20,JigID=JIG8,MotorID=p08,Direction=CW,Official=0,Point=308,SampleOrder=" + holdIndex + ",NominalHoldMs=" + holdTimes(holdIndex) + ",ActualElapsedMs=" + holdTimes(holdIndex) + ",StoredCommandRaw=56384,TargetCommandRaw=56064,TargetUnwrappedRaw=56064,ObservedUnwrappedRaw=" + (56064 - holdGaps(holdIndex)) + ",GapRaw=" + holdGaps(holdIndex) + ",DeltaFromBaselineRaw=" + (holdGaps(1) - holdGaps(holdIndex)) + ",AcquisitionResult=OK,Valid=1";
+end
+linesF(end + 1) = "SWEEP_CREEP_HOLD_RESULT,SchemaVersion=1,TestID=20,SweepID=20,JigID=JIG8,MotorID=p08,Direction=CW,Official=0,Protocol=FIRST_HARD_CAP_PASSIVE_HOLD_0_10_25_50_100_200MS_V1,CandidateLatched=1,Attempted=1,Complete=1,Point=308,BudgetClass=BASE,CreepResult=BUDGET_EXCEEDED,CreepInitialGapRaw=180,CreepFinalGapRaw=44,ValidSamples=6,ExpectedSamples=6,HoldInitialGapRaw=34,HoldFinalGapRaw=32,PreHoldGapReductionRaw=10,GapReductionRaw=2,TotalGapReductionRaw=12,PreHoldObservedDriftRaw=10,ObservedDriftRaw=2,TotalObservedDriftRaw=12,ClassificationBasis=CREEP_FINAL_TO_HOLD_200MS,DominantInterval=PRE_HOLD_DATA_WINDOW,MaterialDeltaRaw=9,AcquisitionResult=OK,Classification=RELAXES_TOWARD_TARGET";
+linesF(end + 1) = "END,SchemaVersion=5,TestID=20,SweepID=20,Status=VALID,AcquisitionResult=OK,SweepPointCreepPointsCorrected=1,SweepPointCreepIntegrityValid=1";
+fileF = write_temp_log(linesF);
+
+linesG = strings(0, 1);
+linesG(end + 1) = "SWEEP_POINT_TIMING,SchemaVersion=1,TestID=30,SweepID=30,JigID=JIG8,MotorID=p08,Direction=CW,Point=0,Official=0,ClockHz=168000000,HasCommand=0,TimingValid=1,NominalTargetRaw=0,NominalStepCommandRaw=NA,InitialGapRaw=NA,FinalGapRaw=NA,CreepIterations=0,CreepCorrectionCommandRaw=0,SettlePollCount=8,RampCycles=NA,InitialSettleCycles=NA,CreepCycles=NA,CommandToStopCycles=NA,ReachedDeadband=0,TimeToDeadbandCycles=NA,LegacyCaptureCycles=168000,ShadowCaptureCycles=168000,CommandToDataFrozenCycles=NA,CommandToAllCaptureDoneCycles=NA,CreepResult=NOT_RUN";
+linesG(end + 1) = "SWEEP_POINT_TIMING,SchemaVersion=1,TestID=30,SweepID=30,JigID=JIG8,MotorID=p08,Direction=CW,Point=1,Official=0,ClockHz=168000000,HasCommand=1,TimingValid=1,NominalTargetRaw=182,NominalStepCommandRaw=182,InitialGapRaw=100,FinalGapRaw=2,CreepIterations=10,CreepCorrectionCommandRaw=160,SettlePollCount=8,RampCycles=6552000,InitialSettleCycles=1512000,CreepCycles=13440000,CommandToStopCycles=21504000,ReachedDeadband=1,TimeToDeadbandCycles=21504000,LegacyCaptureCycles=168000,ShadowCaptureCycles=168000,CommandToDataFrozenCycles=21672000,CommandToAllCaptureDoneCycles=21840000,CreepResult=OK";
+linesG(end + 1) = "SWEEP_POINT_TIMING,SchemaVersion=1,TestID=30,SweepID=30,JigID=JIG8,MotorID=p08,Direction=CW,Point=2,Official=0,ClockHz=168000000,HasCommand=1,TimingValid=1,NominalTargetRaw=364,NominalStepCommandRaw=182,InitialGapRaw=180,FinalGapRaw=40,CreepIterations=20,CreepCorrectionCommandRaw=320,SettlePollCount=9,RampCycles=6552000,InitialSettleCycles=1680000,CreepCycles=26880000,CommandToStopCycles=35112000,ReachedDeadband=0,TimeToDeadbandCycles=NA,LegacyCaptureCycles=168000,ShadowCaptureCycles=168000,CommandToDataFrozenCycles=35280000,CommandToAllCaptureDoneCycles=35448000,CreepResult=BUDGET_EXCEEDED";
+linesG(end + 1) = "SWEEP_POINT_TIMING_END,SchemaVersion=1,TestID=30,SweepID=30,JigID=JIG8,MotorID=p08,Direction=CW,Official=0,ExpectedPoints=3,EmittedPoints=3,ValidPoints=3,CommandPoints=2,ReachedDeadbandPoints=1,Complete=1";
+fileG = write_temp_log(linesG);
+cleanup = onCleanup(@() cellfun(@delete_if_exists, ...
+    {fileA, fileB, fileC, fileD, fileE, fileF, fileG})); %#ok<NASGU>
+
+% parse_sweep_creep_log.m on the V5.1-style file: fields absent from that
+% schema (PreCrossGapRaw, RecoveryAttempted, FineLandingAttempted, ...)
+% must come back as NaN, not error, and Config/Points/Steps/SweepSummary
+% must all be populated from the single file correctly.
+parsedA = parse_sweep_creep_log(fileA);
+assert(height(parsedA.Config) == 1);
+assert(height(parsedA.Points) == 3);
+assert(height(parsedA.Steps) == 0);
+assert(height(parsedA.SweepSummary) == 1);
+row66A = parsedA.Points(parsedA.Points.Point == 66, :);
+assert(isnan(row66A.RecoveryAttempted));
+assert(isnan(row66A.FineLandingAttempted));
+assert(row66A.Result == "TARGET_CROSSED");
+
+parsedB = parse_sweep_creep_log(fileB);
+assert(height(parsedB.Steps) == 2);
+row66B = parsedB.Points(parsedB.Points.Point == 66, :);
+assert(row66B.RecoveryAttempted == 1);
+assert(row66B.StickSlipJumpDetected == 1);
+assert(row66B.Result == "RECOVERY_RECROSSED");
+
+parsedC = parse_sweep_creep_log(fileC);
+assert(parsedC.Config.FineSelectionRule == "ALL_POINTS_LIVE_GAP_LE_ENTRY");
+assert(parsedC.Config.TracePolicy == "FIRST_INTEGRITY_FAILURE_V1");
+assert(parsedC.Points.TraceCaptured == 1);
+assert(parsedC.Points.TraceCount == 5);
+assert(parsedC.Steps.SchemaVersion == 2);
+assert(parsedC.SweepSummary.SweepPointCreepFineBaseAttempted == 1);
+assert(parsedC.SweepSummary.SweepPointCreepFineExtendedAttempted == 0);
+assert(parsedC.SweepSummary.SweepPointCreepTracePoint == 66);
+
+parsedD = parse_sweep_creep_log(fileD);
+assert(parsedD.Config.SchemaVersion == 8);
+assert(parsedD.Config.BudgetEscalationProtocol == "BASE_EXHAUSTION_TO_EXTENDED_CAP_V1");
+assert(parsedD.Config.BasePrimaryBudgetRaw == 220);
+assert(parsedD.Config.BaseHardBudgetRaw == 320);
+assert(parsedD.Points.BudgetEscalated == 1);
+assert(parsedD.Points.EscalationCorrectionRaw == 44);
+assert(parsedD.SweepSummary.SweepPointCreepBaseEscalationSucceeded == 1);
+
+parsedE = parse_sweep_creep_log(fileE);
+assert(parsedE.Config.SchemaVersion == 9);
+assert(parsedE.Config.MidEntryRaw == 96 && parsedE.Config.MidStepRaw == 8);
+assert(parsedE.Config.MidEntryBasis == "ABS_LIVE_TARGET_GAP_BEFORE_COMMAND");
+assert(parsedE.Config.JumpThresholdBasis == "ABS_SETTLED_OBSERVED_DELTA_PER_COMMAND");
+assert(height(parsedE.Points) == 2 && all(parsedE.Points.MidLandingAttempted == 1));
+assert(parsedE.Steps.SchemaVersion == 3 && parsedE.Steps.Phase == "FINE");
+assert(height(parsedE.Response) == 1 && parsedE.Response.MidDirectedResponseRaw == 24);
+
+parsedF = parse_sweep_creep_log(fileF);
+assert(height(parsedF.HoldConfig) == 1);
+assert(height(parsedF.HoldSamples) == 6);
+assert(parsedF.HoldSamples.GapRaw(end) == 32);
+assert(height(parsedF.HoldResult) == 1);
+assert(parsedF.HoldResult.Classification == "RELAXES_TOWARD_TARGET");
+assert(parsedF.HoldResult.TotalGapReductionRaw == 12);
+assert(parsedF.HoldResult.DominantInterval == "PRE_HOLD_DATA_WINDOW");
+
+parsedG = parse_sweep_creep_log(fileG);
+assert(height(parsedG.Timing) == 3);
+assert(height(parsedG.TimingEnd) == 1 && parsedG.TimingEnd.Complete == 1);
+assert(isnan(parsedG.Timing.TimeToDeadbandCycles(parsedG.Timing.Point == 2)));
+
+result = analyze_sweep_creep_batch([fileA, fileB, fileC, fileD, fileE, fileF, fileG], ...
+    ["V5.1", "V5.3", "V5.4", "V5.5", "V5.6", "V5.7", "V5.8"]);
+assert(height(result.Points) == 10);
+assert(height(result.Steps) == 4);
+assert(height(result.SweepSummary) == 6);
+% build_hold_by_label emits one row per unique label passed in (7: V5.1,
+% V5.3-V5.8), not just the one (V5.7/fileF) that actually has hold data --
+% labels without hold rows still get a row of zeros/NaN via the empty subset.
+assert(height(result.HoldByLabel) == 7);
+v57Hold = result.HoldByLabel(result.HoldByLabel.Label == "V5.7", :);
+assert(v57Hold.NCandidates == 1 && v57Hold.NRelaxesTowardTarget == 1);
+assert(v57Hold.MeanTotalGapReductionRaw == 12);
+
+byPoint = result.ByPoint;
+% TroubleScore==1.0 is now a 3-way tie (points 28/66/308 each all-non-OK
+% across their own appearances -- fileE/fileF added a single-appearance
+% non-OK point each), so the sorted top row is whichever tied point sorts
+% first under sortrows' stable tie-break (ascending Point, since byPoint
+% is built from unique(points.Point) before the descend sort) -- not
+% necessarily 66. Assert what's actually guaranteed instead: row 1 is
+% AT the top score, and point 66 -- identified by N==3, the only point
+% with three separate non-OK appearances (fileA/B/C) rather than one --
+% shares that same top score.
+assert(abs(byPoint.TroubleScore(1) - 1.0) < 1e-9);
+point66Row = byPoint(byPoint.Point == 66, :);
+assert(point66Row.N == 3);
+assert(abs(point66Row.TroubleScore - 1.0) < 1e-9);
+point10 = byPoint(byPoint.Point == 10, :);
+assert(abs(point10.TroubleScore - 0.0) < 1e-9);
+% Point 66 appears in fileA (NaN -- V5.1 schema lacks the field), fileB
+% (RecoveryAttempted=1, StickSlipJumpDetected=1) and fileC (RecoveryAttempted=0,
+% StickSlipJumpDetected=1) -- the fraction is computed over only the two
+% non-NaN appearances: RecoveryAttempted mean([1,0])=0.5,
+% StickSlipJumpDetected mean([1,1])=1.0.
+point66Row = byPoint(byPoint.Point == 66, :);
+assert(abs(point66Row.FracRecoveryAttempted - 0.5) < 1e-9);
+assert(abs(point66Row.FracStickSlipJump - 1.0) < 1e-9);
+assert(abs(point66Row.MaxAbsFinalGapRaw - 311) < 1e-9); % max(|-311|, |-100|, |-70|)
+
+byLabel = result.ByLabel;
+v51Row = byLabel(byLabel.Label == "V5.1", :);
+v53Row = byLabel(byLabel.Label == "V5.3", :);
+v55Row = byLabel(byLabel.Label == "V5.5", :);
+assert(v51Row.NPointRows == 3);
+assert(v53Row.NPointRows == 2);
+assert(abs(v51Row.IntegrityValidRatePct - 0.0) < 1e-9); % the one sweep is INVALID
+assert(v53Row.TotalRecoveryRecrossed == 1);
+assert(v53Row.TotalStickSlipJump == 1);
+assert(v55Row.TotalBaseEscalationAttempted == 1);
+assert(v55Row.TotalBaseEscalationSucceeded == 1);
+assert(v55Row.TotalBaseEscalationFailed == 0);
+assert(abs(v55Row.BaseEscalationSuccessRatePct - 100.0) < 1e-9);
+v56Mid = result.PhaseResponseByLabel(result.PhaseResponseByLabel.Label == "V5.6" ...
+    & result.PhaseResponseByLabel.Phase == "MID", :);
+v56Tail = result.PhaseResponseByLabel(result.PhaseResponseByLabel.Label == "V5.6" ...
+    & result.PhaseResponseByLabel.Phase == "COARSE_TAIL", :);
+assert(abs(v56Mid.EfficiencyPermille - 750.0) < 1e-9);
+assert(abs(v56Tail.EfficiencyPermille - 500.0) < 1e-9);
+assert(height(result.TelemetryCompleteness) == 1);
+assert(result.TelemetryCompleteness.MechanismTelemetryComplete == 1);
+v58Timing = result.TimingByLabel(result.TimingByLabel.Label == "V5.8", :);
+assert(v58Timing.NCommandPoints == 2);
+assert(abs(v58Timing.ReachedDeadbandRatePct - 50.0) < 1e-9);
+assert(abs(v58Timing.MeanTimeToDeadbandMs - 128.0) < 1e-9);
+assert(abs(v58Timing.MeanFailedStopLatencyMs - 209.0) < 1e-9);
+assert(v58Timing.TelemetryComplete == 1);
+end
+
+function test_offaxis_calibration_risk()
+% simulate_lut_calibration_residual.m, hand-checkable cases first:
+% (a) a constant curve must calibrate to ~0 residual everywhere (a flat
+% line is exactly representable between any two knots); (b) a single
+% isolated spike placed at a NON-knot index (knots for n=8,lutPoints=4
+% sit at round((0:3)*2)=[0,2,4,6]; index 5 is between knots 4 and 6, i.e.
+% not itself a knot) must leave a large residual AT that index, close to
+% the spike's own value, since its knot-interpolated neighbors are ~0.
+constCurve = 5 * ones(8, 1);
+residualConst = simulate_lut_calibration_residual(constCurve, 4);
+assert(all(abs(residualConst) < 1e-9));
+
+spikeCurve = zeros(8, 1);
+spikeCurve(6) = 100; % 0-based index 5
+residualSpike = simulate_lut_calibration_residual(spikeCurve, 4);
+assert(abs(residualSpike(6) - 100) < 1e-9); % neighbors are 0, so interpolation there is ~0
+assert(all(abs(residualSpike([1 2 3 4 5 7 8])) < 1e-9)); % exact at/away from the spike
+
+% analyze_offaxis_calibration_risk.m end-to-end: two synthetic motors,
+% n=360. SMOOTH is a pure order-1 + order-6 sine (both low-order,
+% MotorHarmonicMultiple=6 default covers the order-6 term as "motor
+% family", so OtherHighOrderRmsDeg should be ~0 and the curve is smooth
+% enough that a 32-point table tracks it closely). OFFAXIS is the SAME
+% base curve plus one single-point spike (an isolated, non-periodic
+% local distortion, exactly the "field gradient hot spot" signature this
+% tool is built to flag) -- must dominate on all three diagnostics and
+% the reported jump location must match the spike's own angle exactly.
+n = 360;
+theta = 2 * pi * (0:n - 1)' / n;
+smoothCurve = 0.05 * sin(theta) + 0.3 * sin(6 * theta);
+spikeAtIndex = 251; % arbitrary, unrelated to any knot of a 32-point table
+offaxisCurve = smoothCurve;
+offaxisCurve(spikeAtIndex + 1) = offaxisCurve(spikeAtIndex + 1) + 8.0;
+
+fileSmooth = write_extreme_angle_log(smoothCurve, "MS", "JX");
+fileOffaxis = write_extreme_angle_log(offaxisCurve, "MO", "JX");
+cleanup = onCleanup(@() cellfun(@delete_if_exists, {fileSmooth, fileOffaxis})); %#ok<NASGU>
+
+fileGroups = struct("Files", {fileSmooth, fileOffaxis}, "MotorId", {"MS", "MO"}, "JigId", {"JX", "JX"});
+result = analyze_offaxis_calibration_risk(fileGroups);
+
+s = result.Summary;
+smoothRow = s(s.MotorId == "MS", :);
+offaxisRow = s(s.MotorId == "MO", :);
+
+% OFFAXIS must rank first (sorted by MaxAbsJumpDeg descending).
+assert(s.MotorId(1) == "MO");
+assert(offaxisRow.MaxAbsJumpDeg > smoothRow.MaxAbsJumpDeg);
+assert(offaxisRow.OtherHighOrderRmsDeg > smoothRow.OtherHighOrderRmsDeg);
+assert(offaxisRow.MaxAbsResidualDeg > smoothRow.MaxAbsResidualDeg);
+% MaxAbsJumpDeg uses a forward difference, so an isolated one-point spike
+% produces an equal-magnitude jump on both the entering edge (index
+% spikeAtIndex-1) and the leaving edge (index spikeAtIndex) -- max() ties
+% resolve to the first, i.e. one point before the spike itself.
+assert(abs(offaxisRow.JumpAtAngleDeg - (spikeAtIndex - 1)) < 1.0);
+assert(abs(offaxisRow.ResidualAtAngleDeg - spikeAtIndex) < 1.0);
+% The smooth curve has no content outside the order-1/order-6 family, so
+% its "other high order" energy must be near the floor.
+assert(smoothRow.OtherHighOrderRmsDeg < 0.01);
 end
 
 function file = write_temp_log(lines)
