@@ -315,3 +315,86 @@ doc's own header names as pending ("hardware promotion remains blocked on S4/S5 
 pilot evidence"). Per the plan's own S5 order: repeat on an independent remount next, then A/B/A
 against the legacy/diagnostic build on the same mount to rule out session drift, before extending
 to P08/P09.
+
+## MATLAB tooling catch-up for schema v6 + independent polar-chart cross-check
+
+Pulled the above into a fresh session (branch `codex/motion-control-v2-dma`), read RULE 0 and the
+run02 result, then closed a real gap: `parse_nl_log.m` (schema v4/v5) cannot read schema v6 at all
+-- its DATA parser requires exactly 12 comma fields and schema v6 DATA lines have 15 (12 legacy
+positional + 3 appended `CommandRawQ16`/`MeanUnwrappedRawQ16`/`ErrorRawQ16` key=value fields), so
+every DATA line would have been silently skipped, and RESULT's field set changed completely
+(`OpenLoopNL_Deg` as primary, full A1..A108/H*_PhaseSweepDeg harmonic set, tracking/model fields).
+
+### New tools (commit `9f95ac7`, already pushed)
+
+- `analysis/matlab/nl/parse_openloop_nl_log.m` -- dedicated schema-v6 parser, deliberately
+  separate from `parse_nl_log.m` per the schema doc's own rule ("a parser must never infer v6
+  semantics from a v5 record"). Recomputes `ErrorDeg` from `ErrorRawQ16` for schema>=6
+  (`error_deg = ErrorRawQ16 * 360 / (65536 * 65536)`, matching `analyze_motor_logs.py` exactly)
+  rather than trusting the legacy positional field. Exposes `IsOpenLoopOfficial` per sweep: the
+  full RULE-0 gate (`MeasurementProfile=GREMSY_COMPAT_OPEN_LOOP_NL_V1` AND `OfficialOpenLoopNL=1`
+  AND `FeedbackActuationEnabled=0` AND `RunRole=OFFICIAL` AND `EligibleForStatistics=1`).
+- `analysis/matlab/nl/analyze_openloop_nl_batch.m` -- pools multiple v6 files behind that gate,
+  prints every exclusion reason instead of dropping silently, and additionally asserts open-loop
+  *purity* per included sweep (`SweepPointCreepIntegrityValid=1`, every `SweepPointCreep*` counter
+  zero) -- refuses a sweep that claims open-loop but shows any leaked feedback-actuation evidence.
+- Verified against the real newest S4 log
+  (`tools/dist/captured-logs/S4-P03-JIG8-remount01-openloop-v1-run02.txt`): reproduces this doc's
+  own numbers above exactly (`OpenLoopNL_Deg` mean 2.8611°/SD 0.0350°/CV 1.22%, `A36` 0.8976°/CV
+  0.11%). Paired run01 (`CAPTURE INVALID`) correctly yields zero included sweeps.
+- New `test_openloop_nl_batch()` in `test_nl_stability_analysis.m`, three synthetic sweeps
+  covering PRECONDITION exclusion, clean inclusion, and purity-violation exclusion. Full 5-suite
+  MATLAB regression (`test_a2_analysis`, `test_a3_a4_a5_analysis`, `test_b0b_analysis`,
+  `test_nl_stability_analysis`, `test_health_analysis`) still green.
+
+### Polar chart, independent MATLAB implementation vs the existing Python one
+
+`tools/motor_quality_polar.py` (updated by a parallel session, forward-compatible with schema v6)
+had already auto-generated `S4-P03-JIG8-remount01-openloop-v1-run02.polar.png` at capture time --
+single error-curve panel only, correctly no gap/timing panels since a genuine open-loop log has
+zero `SWEEP_CREEP_POINT`/`SWEEP_POINT_TIMING` records by construction.
+
+Built `analysis/matlab/nl/plot_openloop_nl_polar.m` as an independent MATLAB cross-check (separate
+codebase, same authoritative `ErrorRawQ16` source): averages `IsOpenLoopOfficial` sweeps per
+label, circular-smooths + offsets the curve for the polar plot, marks the order-2 (motor-locked
+eccentricity/tilt) peak angles. Result on the same file: **motor-locked angles 276°/96° -- exact
+match with the Python chart's own computed value**, and visually identical curve shape (two large
+lobes around 240-315°). Two independently-written implementations agreeing on both the angle and
+the shape is a real correctness cross-check for both tools, not just a duplicate chart.
+
+### Attempted (and correctly abandoned) cross-reference to closed-loop response data
+
+Asked whether this open-loop chart also identifies "low response capability" angle ranges. Tried
+to check by comparing the open-loop run02 H2 fingerprint against the nearest closed-loop V5.9 data
+on the same jig (`captured-logs/v5.9/P03-JIG8-remount01-test-1-v5-9-16.4.txt` and
+`...-remount02-test-1-v5-9-16-4.txt`, same `MCU_UID` = same JIG8 unit):
+
+| Source | H2 amplitude | H2 phase |
+|---|---:|---|
+| Open-loop run02 | 0.163° | -168.3° |
+| V5.9 closed-loop remount01 | 0.011° | -179.9° |
+| V5.9 closed-loop remount02 | 0.010° | +177.7° |
+
+The comparison is **not methodologically valid**: closed-loop H2 is ~16x smaller purely because
+creep/terminal correction actively closes the gap before capture, not because the mount is
+better -- open-loop and closed-loop magnitudes are not comparable on the same scale (this is
+exactly the measurand-drift problem RULE 0 was written to prevent). Also, matching `MCU_UID` only
+proves same jig, not same physical motor mount/clocking as this specific open-loop run; the
+closed-loop H2 amplitudes here are small enough to be noise-floor, so their phase is not a
+reliable mount fingerprint either (same caveat established earlier for P09's low-H2 remounts).
+**Conclusion given to the user**: this open-loop chart characterizes where the motor's own NL
+concentrates (static/mechanical), not response capability (a closed-loop/dynamic property);
+answering "which angle range responds poorly" requires a diagnostic closed-loop run on the *same*
+physical mount as an open-loop run, which does not exist yet as a matched pair.
+
+### Answered: does a different jig always produce a "bad" angle range somewhere?
+
+Yes, expected by construction, not by new evidence: the order-2 motor-locked defect rotates with
+the rotor (remount-phase-lock evidence from 2026-08-10) so its absolute angle shifts with each
+remount/jig (no locating pin fixes clocking); jig-locked friction/hard-points (P09's 3-remount
+common-point fingerprint, also 2026-08-10) are fixed for a given physical jig unit but differ
+between jig units. Since both real motors and real jigs always carry some asymmetry, a perfectly
+flat E(theta) is not realistic on any hardware -- some angular non-uniformity is expected on every
+jig, just at a different location each time. This does not by itself mean "defective": no
+calibrated pass/fail threshold exists yet to separate normal angular variation from a real
+problem (same open gap noted throughout this project's H2 investigation).
