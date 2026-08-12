@@ -355,3 +355,44 @@ Còn 2 file bắt buộc (`system_measurement_architecture.md` — đã xong,
 tiên của bạn. Các phần còn lại (cross-jig analysis, error budget, canonical
 design, test plan, Python parser, executive summary) cần dữ liệu log đã xử
 lý qua parser độc lập — đúng như đã thống nhất, sẽ làm ở bước kế tiếp.
+
+## Correction note (2026-08-12) — xem `docs/open-loop-nl-direction-correction-handoff-2026-08-12.md`
+
+Ba finding trên đã được re-audit trực tiếp trên code hiện tại, kết quả khác
+với bảng gốc ở trên cho ALG-005, và thu hẹp phạm vi ảnh hưởng cho ALG-001:
+
+- **ALG-005 — INTERPRETATION CORRECTED, không còn là finding cần sửa.**
+  `RampCommandToTarget()` hiện có đọc MA600 ở mỗi micro-step (cả nhánh
+  S-curve mặc định lẫn nhánh legacy), nhưng sample chỉ ghi vào
+  `motionDiag`/backtrack-counter/step-log — không bao giờ quay lại `*pos`
+  hay tái tính command profile. Đây vẫn là open-loop actuation với
+  observability, không phải "không đọc encoder" (claim gốc sai) và cũng
+  không phải "đã có feedback control" (một cách hiểu sai khác cần tránh).
+  Không cần thêm feedback actuation vào ramp để đạt Open-loop NL — ngược
+  lại, thêm vào sẽ VI PHẠM mục tiêu hiện tại. Tên field `RampFeedbackEnabled`
+  nên đổi thành `RampEncoderObservationEnabled`/`RampFeedbackActuationEnabled=0`.
+- **ALG-001 — FIXED (2026-08-12).** `CaptureSweep()` giờ tích lũy
+  `unwrappedRawSum` (int64) cùng vòng lặp 64-mẫu tạo `angleSampleSum`, tính
+  `meanUnwrappedRaw` (round-to-nearest away-from-zero), rồi derive
+  `rawAtPoint` bằng modulo 65536 — không còn transaction SPI thứ 65 nào.
+  `DATA.AngleRaw`/`rawAtMax`/`rawAtMin`/`absoluteAngleAtMax/Min` giờ luôn
+  cùng nguồn với `Error` đã chọn chúng làm cực trị. Verify: compile sạch cả
+  2 profile, negative-test xác nhận contract script bắt được nếu dòng
+  `rawAtPoint` bị phá. Xem
+  `docs/open-loop-nl-direction-correction-handoff-2026-08-12.md` mục 18.5.
+- **ALG-002 — vẫn đúng nhưng cần một ranh giới rõ:** target-proximity là
+  gate hợp lệ (stable-nhưng-lệch-target → `MeasurementValid=0`, không sửa
+  command) — không sai per se. Nó chỉ vi phạm Open-loop NL khi cùng gap đó
+  bị dùng để TRIGGER command correction (đây là điều sweep-point creep
+  V5.1-V5.9 làm — xem tài liệu correction handoff, không phải điều
+  `WaitForPointSettle()`/`SettleTargetProximityValid` tự thân làm).
+- **Nguyên nhân drift thật không nằm ở ALG-001/005** mà ở
+  `CreepToUnwrappedTargetProfiled()` (và toàn bộ recovery/terminal
+  correction liên quan) — dùng chính MA600 đang đo để sửa electrical
+  command trước khi DATA được chốt. Đây là closed-loop feedback actuation
+  thật, không tương đương Gremsy open-loop NL, dù rất hữu ích như
+  `POSITION_RESPONSE_DIAGNOSTIC_V5X`.
+
+Đọc `docs/open-loop-nl-direction-correction-handoff-2026-08-12.md` (mục 7,
+18) để có bảng compliance đầy đủ trước khi dùng lại các finding ALG-001/005
+ở trên cho bất kỳ quyết định nào.

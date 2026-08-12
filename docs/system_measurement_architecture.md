@@ -112,8 +112,14 @@ MoveToZeroAndCheckDirection() [nonlinear_test.c]
 ### 3.3 Move tới từng test point (ramp)
 ```
 CaptureSweep() [nonlinear_test.c], vòng ramp trong while(sweptAngleDeg<370)
- → while (pos != targetPos): pos += 8 (NL_RAMP_STEP); Motor_SetElectricalPos(pos,1.0f); osDelay(1)
-   -- KHÔNG có lời gọi MA600 nào trong vòng này (xem ALG-005)
+ → RampCommandToTarget(): command từ S-curve profile (mặc định) hoặc bước
+   cố định (nhánh legacy); Motor_SetElectricalPos(pos,1.0f)
+   -- STALE (2026-08-12): dòng "KHÔNG có lời gọi MA600 nào trong vòng này"
+      không còn đúng. MA600_AcquireSample() ĐƯỢC gọi ở mỗi micro-step (cả
+      2 nhánh) để ghi observability/backtrack — nhưng sample KHÔNG quay lại
+      *pos*, ramp vẫn là open-loop actuation thuần túy. Xem ALG-005
+      correction note trong nonlinear_algorithm_audit.md và
+      docs/open-loop-nl-direction-correction-handoff-2026-08-12.md mục 5.3/7.1.
 ```
 
 ### 3.4 Đọc encoder

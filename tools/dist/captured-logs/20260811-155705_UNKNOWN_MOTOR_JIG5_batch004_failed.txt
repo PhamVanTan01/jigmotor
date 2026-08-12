@@ -1,0 +1,6 @@
+RUNTIME,FreeHeap=85536,MinEverFreeHeap=85536,TestStackHighWaterWords=2276
+BATCH,BatchID=4,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1,PreconditionCount=1,RunCount=2,TotalCycleCount=3,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug 11 2026 15:50:09,MCU_UID=001D00283234470438353535,JigID=JIG5,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=0,PolicyAGatePassed=0,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=FILT_MISMATCH,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x0C,Status=0x00,Prt=0x80,RmapId=0x3C,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+Motor ERROR: E510 (MA600 config gate rejected: FILT_MISMATCH)!
+BATCH,BatchID=4,Status=FAILED,CycleOrder=1,RunOrder=0,RunRole=PRECONDITION

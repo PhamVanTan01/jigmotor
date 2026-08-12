@@ -1,0 +1,72 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\v5.9\P09-JIG8-remount03-test-1-v5-9-16-3.txt
+TerminalStatus=COMPLETE
+AnalysisMode=RESPONSE_TIMING_DIAGNOSTIC
+OfficialValid=0/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=DIAGNOSTIC PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=9 SweepID=9 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\v5.9\P09-JIG8-remount03-test-1-v5-9-16-3.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0796 RawP2P=0.2238 System_INL=0.1119 RobustP2P=0.2178 Closure=-0.08484 TrackRMS=0.0809 TrackMax=0.1318
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=10 SweepID=10 RunOrder=1 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\v5.9\P09-JIG8-remount03-test-1-v5-9-16-3.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0779 RawP2P=0.2203 System_INL=0.1101 RobustP2P=0.2158 Closure=-0.07129 TrackRMS=0.0786 TrackMax=0.1318
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=11 SweepID=11 RunOrder=2 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\v5.9\P09-JIG8-remount03-test-1-v5-9-16-3.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0805 RawP2P=0.2312 System_INL=0.1156 RobustP2P=0.2195 Closure=-0.07678 TrackRMS=0.0811 TrackMax=0.1318
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=12 SweepID=12 RunOrder=3 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\captured-logs\v5.9\P09-JIG8-remount03-test-1-v5-9-16-3.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0796 RawP2P=0.2367 System_INL=0.1184 RobustP2P=0.2207 Closure=-0.08392 TrackRMS=0.0816 TrackMax=0.1373
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=4, statistically eligible=0)
+    Excluded runs:
+      - TestID=9 SweepID=9 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=10 SweepID=10 RunOrder=1: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=11 SweepID=11 RunOrder=2: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=12 SweepID=12 RunOrder=3: META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================
+
+MOTOR RESPONSE TIMING (V5.8)
+TimingRows=1484,CommandPoints=1480,ReachedDeadband=1480,StoppedOutsideDeadband=0,ReachedRate=100.00%,TelemetryComplete=1
+CommandToStop: n=1480,mean=183.941ms,median=183.384ms,p95=297.439ms,max=384.387ms
+TimeToDeadband(reached-only): n=1480,mean=183.941ms,median=183.384ms,p95=297.439ms,max=384.387ms
+Ramp: n=1480,mean=38.389ms,median=38.391ms,p95=38.393ms,max=38.393ms
+InitialSettle: n=1480,mean=9.691ms,median=7.994ms,p95=20.993ms,max=37.993ms
+Creep: n=1480,mean=135.859ms,median=136.501ms,p95=240.001ms,max=328.001ms
+Legacy64+anchor: n=1484,mean=0.830ms,median=0.830ms,p95=0.831ms,max=0.831ms
+Shadow64: n=1484,mean=0.778ms,median=0.776ms,p95=0.779ms,max=1.027ms
+CommandToDataFrozen: n=1480,mean=184.776ms,median=184.219ms,p95=298.274ms,max=385.222ms
+CreepResponseEfficiencyPermille: mean=848.0,median=781.2,p05=403.0,p95=1486.8
+NominalStepTrackingPermille: mean=1000.2,median=1000.0,p05=851.6,p95=1142.9
+SlowestCommandPoints=T10/S10/P130:384.387ms/OK|T10/S10/P170:363.388ms/OK|T12/S12/P170:363.388ms/OK|T9/S9/P170:350.385ms/OK|T11/S11/P170:350.385ms/OK|T9/S9/P180:346.388ms/OK|T11/S11/P130:344.389ms/OK|T9/S9/P178:341.389ms/OK|T12/S12/P130:341.386ms/OK|T11/S11/P178:339.385ms/OK

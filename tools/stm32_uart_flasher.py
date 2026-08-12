@@ -51,10 +51,12 @@ from auto_log_analysis import (
     save_capture,
     suggested_capture_filename,
 )
+from analyze_motor_logs import parse_data_line
 
 try:
-    from motor_quality_polar import generate_polar_quality_chart
+    from motor_quality_polar import generate_nl_curve_chart, generate_polar_quality_chart
 except ImportError:  # matplotlib missing on this machine -- chart tab stays off
+    generate_nl_curve_chart = None  # type: ignore[assignment]
     generate_polar_quality_chart = None  # type: ignore[assignment]
 
 try:
@@ -69,7 +71,7 @@ except ImportError:  # handled when an ELF file is selected
 
 
 APP_NAME = "STM32 UART Flasher"
-APP_VERSION = "1.10.0"
+APP_VERSION = "1.11.0"
 DEFAULT_FLASH_ADDRESS = 0x08000000
 DEFAULT_APPLICATION_BAUD = 921600
 DEFAULT_WRITE_BLOCK_SIZE = 128
@@ -991,11 +993,11 @@ class FlasherApp(tk.Tk):
         ).grid(row=1, column=2, columnspan=2, sticky="w", pady=(8, 0))
         polar_checkbox = ttk.Checkbutton(
             options,
-            text="Tự vẽ biểu đồ polar",
+            text="Tự vẽ đồ thị NL + polar",
             variable=self.auto_plot_polar_var,
         )
         polar_checkbox.grid(row=2, column=4, columnspan=4, sticky="w", pady=(6, 0))
-        if generate_polar_quality_chart is None:
+        if generate_nl_curve_chart is None or generate_polar_quality_chart is None:
             polar_checkbox.state(["disabled"])
         ttk.Label(options, text="Thư mục log:").grid(
             row=1, column=4, sticky="e", pady=(8, 0)
@@ -1157,15 +1159,11 @@ class FlasherApp(tk.Tk):
 
     @staticmethod
     def _parse_plot_line(line: str) -> Optional[tuple[int, float]]:
-        if not line.startswith("DATA,"):
+        parsed = parse_data_line(line)
+        if parsed is None:
             return None
-        parts = line.split(",")
-        if len(parts) != 12:
-            return None
-        try:
-            return int(parts[7]), float(parts[11])
-        except ValueError:
-            return None
+        point = parsed[-1]
+        return point.index, point.error_deg
 
     def _feed_plot_line(self, line: str) -> None:
         """Parse one DATA,... line and push it to the live NL chart.
@@ -1208,19 +1206,26 @@ class FlasherApp(tk.Tk):
             if not requested_filename or not requested_filename.strip():
                 requested_filename = suggested_name
 
-        run_polar_plot = bool(self.auto_plot_polar_var.get()) and generate_polar_quality_chart is not None
+        run_quality_plots = (
+            bool(self.auto_plot_polar_var.get())
+            and generate_nl_curve_chart is not None
+            and generate_polar_quality_chart is not None
+        )
 
         def task() -> None:
             try:
                 log_path = save_capture(capture, output_dir, requested_filename)
                 self.log(f"AUTO SAVE: {log_path}")
 
-                if run_polar_plot:
+                if run_quality_plots:
                     try:
-                        chart_path = generate_polar_quality_chart(log_path)
-                        if chart_path is not None:
-                            self.log(f"AUTO PLOT: {chart_path}")
-                        else:
+                        nl_chart_path = generate_nl_curve_chart(log_path)
+                        polar_chart_path = generate_polar_quality_chart(log_path)
+                        if nl_chart_path is not None:
+                            self.log(f"AUTO PLOT NL: {nl_chart_path}")
+                        if polar_chart_path is not None:
+                            self.log(f"AUTO PLOT POLAR: {polar_chart_path}")
+                        if nl_chart_path is None and polar_chart_path is None:
                             self.log("AUTO PLOT: bỏ qua (log chưa đủ điểm DATA để vẽ).")
                     except Exception as chart_exc:  # noqa: BLE001 -- chart failure must not block save/analysis
                         self.log(f"AUTO PLOT THẤT BẠI: {chart_exc}")

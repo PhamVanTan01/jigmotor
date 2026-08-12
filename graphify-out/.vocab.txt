@@ -49,6 +49,7 @@ angle
 angles
 answer
 any
+apart
 apb
 api
 app
@@ -109,6 +110,7 @@ bao
 base
 baseline
 basepri
+bat
 batch
 batches
 baud
@@ -177,6 +179,7 @@ can
 cancel
 cancelled
 cancels
+candidate
 canonical
 cao
 cap
@@ -360,12 +363,14 @@ daemon
 damaged
 damping
 danh
+dashed
 data
 dataset
 datasheet
 dbg
 dbgmcu
 dead
+deadband
 debug
 decimated
 decision
@@ -438,6 +443,7 @@ disconnected
 discont
 disinherit
 displacement
+dist
 distance
 distribution
 div
@@ -458,6 +464,7 @@ double
 down
 drag
 drain
+draw
 drift
 drive
 driver
@@ -587,6 +594,7 @@ fine
 fingerprint
 finish
 finished
+fir
 firmware
 first
 fit
@@ -735,6 +743,7 @@ inflate
 info
 inherit
 init
+initial
 initialise
 initialize
 inj
@@ -783,6 +792,7 @@ isolation
 isr
 item
 itm
+its
 iwdgrst
 jaccard
 jar
@@ -896,6 +906,7 @@ map
 mapping
 marginal
 mark
+markers
 mask
 mass
 master
@@ -1003,6 +1014,7 @@ node
 nodes
 noise
 non
+none
 nonlinear
 normal
 normalize
@@ -1109,6 +1121,7 @@ periph
 peripheral
 permanent
 pha
+phan
 phase
 phases
 phi
@@ -1132,11 +1145,13 @@ pllsairdy
 plot
 plots
 plus
+png
 point
 pointer
 pointers
 points
 pointwise
+polar
 polarity
 pole
 policy
@@ -1169,6 +1184,7 @@ prefetch
 prefix
 preflight
 preload
+prerequisite
 prescaler
 preserve
 preserved
@@ -1238,6 +1254,7 @@ query
 question
 queue
 quy
+radial
 raise
 raised
 ram
@@ -1256,6 +1273,7 @@ rdp
 reached
 read
 readable
+readiness
 readme
 reads
 ready
@@ -1279,6 +1297,7 @@ recovered
 recovery
 recross
 recursive
+red
 redraw
 redrawn
 reduction
@@ -1300,6 +1319,7 @@ relationships
 relative
 release
 reload
+rem
 remap
 remember
 remount
@@ -1353,6 +1373,7 @@ revert
 revid
 review
 revision
+revolution
 revsh
 rise
 rising
@@ -1360,6 +1381,7 @@ rms
 rmsd
 rmse
 rng
+roadmap
 robust
 role
 roll
@@ -1480,6 +1502,7 @@ signed
 since
 single
 size
+skeleton
 skill
 slave
 sleep
@@ -1498,6 +1521,7 @@ smlsld
 smlsldx
 smmla
 smoke
+smooth
 smoothstep
 smuadx
 smusdx
@@ -1623,11 +1647,14 @@ target
 targeted
 task
 tasks
+tay
 tcb
 telemetry
 ten
+terminal
 terminate
 termination
+tes
 test
 testing
 tests
@@ -1640,6 +1667,7 @@ their
 then
 theo
 thermal
+theta
 thi
 this
 thread
@@ -1648,7 +1676,9 @@ threshold
 thresholds
 through
 thu
+thuong
 thuy
+tich
 tick
 ticks
 tim
@@ -1702,9 +1732,11 @@ true
 trung
 truy
 tuc
+tune
 tuning
 turn
 tuy
+twice
 two
 txe
 txt

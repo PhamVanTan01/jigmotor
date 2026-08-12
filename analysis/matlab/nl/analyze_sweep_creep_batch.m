@@ -44,6 +44,13 @@ function result = analyze_sweep_creep_batch(filePaths, labels)
 %                       durations and command-to-deadband outcome. Failed
 %                       points contribute stop latency, never a fabricated
 %                       time-to-target.
+%     TerminalByLabel -- V5.9 EXTENDED terminal correction (320-raw
+%                       primary cap vs 400-raw hard cap): attempt/success/
+%                       suppressed counts, entry gap, gap reduction,
+%                       correction raw, iterations, response efficiency
+%                       (signed, not clamped). Primary320OnlySuccessRatePct
+%                       and Terminal400SuccessRatePct are kept as separate
+%                       columns, never blended into one ratio.
 
 arguments
     filePaths (1,:) string
@@ -91,6 +98,7 @@ telemetryCompleteness = build_telemetry_completeness(points, steps, summary);
 holdByLabel = build_hold_by_label(holdResult, labels);
 timingByLabel = build_timing_by_label(timing, timingEnd, labels);
 timingByPoint = build_timing_by_point(timing);
+terminalByLabel = build_terminal_by_label(points, labels);
 
 result = struct(Points = points, Steps = steps, Response = response, SweepSummary = summary, ...
     HoldConfig = holdConfig, HoldSamples = holdSamples, HoldResult = holdResult, ...
@@ -99,7 +107,8 @@ result = struct(Points = points, Steps = steps, Response = response, SweepSummar
     PhaseResponseBySweep = phaseResponseBySweep, ...
     PhaseResponseByLabel = phaseResponseByLabel, ...
     TelemetryCompleteness = telemetryCompleteness, HoldByLabel = holdByLabel, ...
-    TimingByLabel = timingByLabel, TimingByPoint = timingByPoint);
+    TimingByLabel = timingByLabel, TimingByPoint = timingByPoint, ...
+    TerminalByLabel = terminalByLabel);
 
 fprintf("=== Sweep-point-creep pool: %d point-rows, %d step-rows, %d sweeps, %d labels ===\n", ...
     height(points), height(steps), height(summary), numel(unique(labels)));
@@ -126,6 +135,10 @@ if ~isempty(timingByLabel)
     disp(timingByLabel);
     fprintf("-- V5.8 slow/not-reached points by label --\n");
     disp(timingByPoint(1:min(20, height(timingByPoint)), :));
+end
+if ~isempty(terminalByLabel)
+    fprintf("-- V5.9 EXTENDED terminal correction (320-raw primary vs 400-raw terminal, kept separate) --\n");
+    disp(terminalByLabel);
 end
 end
 
@@ -440,6 +453,53 @@ byLabel = cell2table(rows, 'VariableNames', ["Label","NSweeps","NCandidates", ..
     "NComplete","NStatic","NRelaxesTowardTarget","NDriftsAway", ...
     "MeanPreHoldGapReductionRaw","MeanHoldGapReductionRaw", ...
     "MeanTotalGapReductionRaw","MeanAbsHoldObservedDriftRaw","CompleteRatePct"]);
+end
+
+function byLabel = build_terminal_by_label(points, labels)
+%BUILD_TERMINAL_BY_LABEL V5.9 EXTENDED terminal correction (320-raw
+%   primary cap vs 400-raw hard cap). Deliberately reports the 320-only
+%   success rate and the 400-terminal success rate as two SEPARATE
+%   columns (never blended into one ratio, per the V5.9 plan section
+%   11.4) and preserves negative TerminalResponseEfficiencyPermille
+%   values (a point that ended up farther from target after terminal
+%   correction, not clamped to zero).
+if ~any(strcmp("TerminalEligible", points.Properties.VariableNames))
+    byLabel = table();
+    return
+end
+labelNames = unique(labels, "stable");
+rows = cell(0, 15);
+for i = 1:numel(labelNames)
+    subset = points(points.Label == labelNames(i) & points.BudgetClass == "EXTENDED", :);
+    if isempty(subset)
+        continue
+    end
+    eligible = subset.TerminalEligible == 1;
+    attempted = subset.TerminalAttempted == 1;
+    succeeded = attempted & subset.TerminalSucceeded == 1;
+    failed = attempted & subset.TerminalSucceeded ~= 1;
+    suppressed = subset.TerminalSuppressedBySweepGuard == 1;
+    primaryOnlyOk = ~attempted & subset.Result == "OK";
+    gapReduction = abs(subset.TerminalEntryGapRaw(attempted)) - abs(subset.FinalGapRaw(attempted));
+    rows(end + 1, :) = {labelNames(i), height(subset), sum(eligible), sum(attempted), ... %#ok<AGROW>
+        sum(succeeded), sum(failed), sum(suppressed), sum(primaryOnlyOk), ...
+        100.0 * sum(primaryOnlyOk) / height(subset), ...
+        100.0 * sum(succeeded) / max(sum(attempted), 1), ...
+        mean(subset.TerminalEntryGapRaw(attempted), "omitnan"), ...
+        mean(gapReduction, "omitnan"), ...
+        mean(subset.TerminalCorrectionRaw(attempted), "omitnan"), ...
+        mean(subset.TerminalIterations(attempted), "omitnan"), ...
+        mean(subset.TerminalResponseEfficiencyPermille(attempted), "omitnan")};
+end
+if isempty(rows)
+    byLabel = table();
+    return
+end
+byLabel = cell2table(rows, 'VariableNames', ["Label","NExtendedPoints","NEligible", ...
+    "NAttempted","NSucceeded","NFailed","NSuppressedByGuard","NPrimary320OnlyOk", ...
+    "Primary320OnlySuccessRatePct","Terminal400SuccessRatePct", ...
+    "MeanTerminalEntryGapRaw","MeanTerminalGapReductionRaw","MeanTerminalCorrectionRaw", ...
+    "MeanTerminalIterations","MeanTerminalEfficiencyPermille"]);
 end
 
 function byLabel = build_by_label(points, summary, labels)

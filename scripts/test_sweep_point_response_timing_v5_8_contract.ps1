@@ -39,7 +39,16 @@ $checks = [ordered]@{
         ($source -match 'ExpectedPoints=%d') -and
         ($source -match 'EmittedPoints=%lu')
     'V5.8 runs are statistically ineligible' =
-        $source -match 'ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG \\\s*\|\| ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG'
+        # 2026-08-12: eligibility is now profile-gated (open-loop-nl-direction-
+        # correction-handoff-2026-08-12.md section 18.2) instead of an explicit
+        # per-flag "&& false" exclusion. V5.8 nests under
+        # ENABLE_SWEEP_POINT_CREEP_V55_DYNAMIC_BASE_ESCALATION (checked above in
+        # "V5.8 requires frozen V5.5"), which itself nests under
+        # ENABLE_SWEEP_POINT_CREEP -- the open-loop profile's #error guard forces
+        # that off, so V5.8 cannot compile in at all under NL_PROFILE_GREMSY_OPEN_LOOP,
+        # making eligibility architecturally impossible rather than counter-excluded.
+        ($source -match '(?s)nlCaptures\[i\]\.eligibleForStatistics =\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)') -and
+        ($source -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\s*#if ENABLE_SWEEP_POINT_CREEP\b')
     'Automatic UART analyzer exports response CSV' =
         ($pythonTool -match 'def analyze_motor_response_timing') -and
         ($pythonTool -match '\.response\.csv') -and

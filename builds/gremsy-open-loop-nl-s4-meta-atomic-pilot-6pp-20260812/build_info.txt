@@ -1,0 +1,53 @@
+Build: gremsy-open-loop-nl-s4-meta-atomic-pilot-6pp-20260812
+Date: 2026-08-12
+Source branch: codex/motion-control-v2-dma
+Base commit: 11b0c0c (worktree contains the uncommitted S0-S4 implementation)
+Configuration: Release
+MCU: STM32F405RGTx
+
+Purpose
+-------
+Replacement S4 hardware pilot for the 6-pole-pair Gremsy-compatible pure
+open-loop NL path. It supersedes the earlier S0-S3 pilot artifact after the
+first JIG8 log proved its 1900-byte META buffer truncated RunRole and
+EligibleForStatistics and joined the following GRID record to META.
+
+Correction
+----------
+- LogLineLarge buffer: 1900 -> 2600 bytes for all profiles.
+- Large structured records are atomic: overflow emits
+  LOG_ERROR,Reason=LARGE_LINE_TRUNCATED, increments the UART/logging failure
+  counter and never transmits a plausible truncated prefix.
+- Compiler stack report: LogLineLarge=2616 bytes,
+  PrintSweepLog.constprop=4048 bytes, within the dedicated 12288-byte task.
+- Measurement/control algorithm is unchanged from the S0-S3 pilot.
+
+Measurement contract
+--------------------
+- SchemaVersion: 6
+- MeasurementProfile: GREMSY_COMPAT_OPEN_LOOP_NL_V1
+- MeasurementContractVersion: GREMSY_OPEN_LOOP_NL_1DEG360_V1
+- OfficialResultSource: CANONICAL_Q16
+- FeedbackActuationEnabled: 0
+- Primary metric: OpenLoopNL_Deg = max(Error) - min(Error)
+
+Required first-log check
+------------------------
+- META is one complete line ending with all batch fields including
+  RunRole and EligibleForStatistics.
+- GRID starts on its own line.
+- PRECONDITION has EligibleForStatistics=0.
+- Ten OFFICIAL runs have EligibleForStatistics=1.
+- No LOG_ERROR and END.UartTransmitFailures=0.
+
+Build verification
+------------------
+- Release compile: PASS.
+- ARM size: text=84436, data=96, bss=143256 bytes.
+- Relevant schema/profile/analyzer/plot tests: PASS.
+- Two pre-existing unused-symbol warnings remain; no build error.
+
+Flash file
+----------
+jigmotor.hex
+

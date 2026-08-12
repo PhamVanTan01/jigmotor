@@ -1,0 +1,12 @@
+motor_id,jig_id,test_id,sweep_id,run_order,run_role,eligible_for_statistics,eligibility_source,analysis_points,closure_index,shadow_contract_version,officially_valid,problems,rms_ac,raw_p2p,system_inl_deg,robust_p2p,closure_error_deg,tracking_rms_deg,tracking_max_abs_deg,mean_dc,p99_abs_deviation,A1,A2,A3,A6,A9,A12,A18,A27,A36,A45,A72,A108
+UNKNOWN,JIG8,1,1,0,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,2,2,1,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,3,3,2,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,4,4,3,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,5,5,4,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,6,6,5,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,7,7,6,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,8,8,7,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,9,9,8,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,10,10,10,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,
+UNKNOWN,JIG8,11,11,11,,,LEGACY_NO_ROLE,360,360,,False,META.MeasurementValid missing; no usable DATA points (0 of 0..359 present),,,,,,,,,,,,,,,,,,,,,

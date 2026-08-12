@@ -106,9 +106,9 @@ Assert-True ($source -notmatch 'B0BFeedforward\w*.*META,SchemaVersion' -and
 
 # --- APPROACH_RESULT line budget: longest real line (already reflecting
 # soft-start + creep fields) plus the NEW feedforward fields' worst case
-# must stay under the 1900-byte buffer. ---
-Assert-True ($source -match 'char\s+buf\[1900\]') `
-    'Could not confirm the LogLineLarge 1900-byte buffer (source layout changed?).'
+# must stay under the 2600-byte buffer. ---
+Assert-True ($source -match 'char\s+buf\[2600\]') `
+    'Could not confirm the LogLineLarge 2600-byte buffer (source layout changed?).'
 $logFiles = Get-ChildItem -Path $root -Filter '*.txt' -File |
     Where-Object { $_.Length -lt 20MB }
 $maxApproachResultLen = 0
@@ -132,9 +132,9 @@ $newFieldsCost = (
     'ForwardFeedforwardTargetErrorRaw=-9223372036854775808,BackoffFeedforwardTrackingValid=0,' +
     'ForwardFeedforwardTrackingValid=0'
 ).Length
-Assert-True (($maxApproachResultLen + $newFieldsCost) -lt 1900) `
+Assert-True (($maxApproachResultLen + $newFieldsCost) -lt 2600) `
     ("APPROACH_RESULT line budget exceeded: longest observed " + $maxApproachResultLen +
-     ' + new feedforward fields worst case ' + $newFieldsCost + ' must stay < 1900.')
+     ' + new feedforward fields worst case ' + $newFieldsCost + ' must stay < 2600.')
 
 # --- No leakage into the official contract. ---
 Assert-True ($source -match 'out->measurementValid\s*=\s*structuralValid\s*&&\s*out->trackingValid') `

@@ -24,7 +24,7 @@ try {
         'The one-precondition plus ten-official cycle contract is incomplete.'
     Assert-True ($source -match 'officialRunOrder\s*=\s*preconditionRun\s*\?\s*0U[\s\S]*?nlCurrentCycle\s*-\s*NL_PRECONDITION_COUNT') `
         'Precondition RunOrder=0 / official RunOrder=1..10 mapping changed.'
-    Assert-True ($source -match 'eligibleForStatistics\s*=\s*!preconditionRun' -and
+    Assert-True ($source -match '(?s)eligibleForStatistics\s*=\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)\s*&& !preconditionRun\s*&& preconditionValid\s*&& nlCaptures\[i\]\.measurementValid;' -and
             $source -match 'emitLegacyResult\s*=\s*c->eligibleForStatistics') `
         'Precondition can leak into official legacy/statistical output.'
     Assert-True ($source -match 'if\s*\(preconditionRun\)[\s\S]*?PRECONDITION_RESULT[\s\S]*?return true;[\s\S]*?Nonlinear Final Average') `

@@ -1,0 +1,42 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\20260812-165547_UNKNOWN_JIG8_batchNA_valid.txt
+TerminalStatus=VALID
+AnalysisMode=OFFICIAL_MEASUREMENT
+OfficialValid=1/1
+GatedConfigInvalid=0/0,BootSmokeInvalid=0
+CaptureIntegrityValid=0,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=CAPTURE INVALID
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [LEGACY-VALID] Motor=UNKNOWN Jig=JIG8 TestID=6 SweepID=6 RunOrder=5 Role=LEGACY Eligible=None AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\20260812-165547_UNKNOWN_JIG8_batchNA_valid.txt
+      RMS_AC=0.7093 RawP2P=2.9111 System_INL=1.4556 RobustP2P=2.7340 Closure=-0.011587142944335938 TrackRMS=0.7808 TrackMax=1.8622
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=1, statistically eligible=1)
+    rms_ac: mean=0.7093 sd=0.0000 cv=0.00%
+    raw_p2p: mean=2.9111 sd=0.0000 cv=0.00%
+    system_inl_deg: mean=1.4556 sd=0.0000 cv=0.00%
+    robust_p2p: mean=2.7340 sd=0.0000 cv=0.00%
+    closure_error_deg: mean=-0.0116 sd=0.0000 cv=0.00%
+    tracking_rms_deg: mean=0.7808 sd=0.0000 cv=0.00%
+    tracking_max_abs_deg: mean=1.8622 sd=0.0000 cv=0.00%
+    mean_dc: mean=0.3364 sd=0.0000 cv=0.00%
+    p99_abs_deviation: mean=1.3760 sd=0.0000 cv=0.00%
+    A1: mean=0.2017 sd=0.0000 cv=0.00%
+    A2: mean=0.1694 sd=0.0000 cv=0.00%
+    A9: mean=0.1724 sd=0.0000 cv=0.00%
+    A36: mean=0.8974 sd=0.0000 cv=0.00%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

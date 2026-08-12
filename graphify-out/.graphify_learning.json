@@ -1,6 +1,27 @@
 {
-  "generated_at": "2026-08-10T06:50:23.816823+00:00",
+  "generated_at": "2026-08-12T08:21:07.956905+00:00",
   "nodes": {
+    "core_inc_motor_config": {
+      "code_fingerprint": "b9dcbe33264352efea99f2b6f6df7439eb92653ef3a14c7e08b6239551723af2",
+      "label": "motor_config.h",
+      "last": "2026-08-12T07:42:24.087382+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-12T07:42:24.087382+00:00",
+          "outcome": "useful",
+          "q": "dò lại toàn bộ thông số hiện có và đánh giá toàn bộ thuật toán có thể sử dụng chung thuật toán nào để đánh giá cho motor vì hiện tại motor của chúng tôi chỉ khác nhau số cặp cực, và kích thước motor tôi nghĩ không ảnh hưởng đến NL"
+        },
+        {
+          "date": "2026-08-12T07:25:31.339931+00:00",
+          "outcome": "useful",
+          "q": "dùng một mức power, ramp và dwell cố định cho mọi motor; vì tôi có nhiều motor với nhiều cặp cực khác nhau thì dùng chung 1 thuật toán này để đánh giá hay là mỗi motor sẽ có 1 thuật toán riêng biệt ?"
+        }
+      ],
+      "score": 1.998486876,
+      "source_file": "Core/Inc/motor_config.h",
+      "status": "preferred",
+      "uses": 2
+    },
     "core_src_ma600_acquisition_ma600_acquiresample": {
       "code_fingerprint": "62ae6910408fd377ecb4a39d9505772788ce2b9af28c2989061845f4b495251e",
       "label": "MA600_AcquireSample()",
@@ -12,8 +33,24 @@
           "q": "Đọc 64 mẫu MA600 mẫu này là gì ?"
         }
       ],
-      "score": 0.995253183,
+      "score": 0.948926634,
       "source_file": "Core/Src/ma600_acquisition.c",
+      "status": "tentative",
+      "uses": 1
+    },
+    "core_src_motor_motor_getpolepairs": {
+      "code_fingerprint": "adb7cfa48b631db007e2e619bb28ee2501177e66ed291a154cbd62b57d6f5772",
+      "label": "Motor_GetPolePairs()",
+      "last": "2026-08-12T07:25:31.339931+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-12T07:25:31.339931+00:00",
+          "outcome": "useful",
+          "q": "dùng một mức power, ramp và dwell cố định cho mọi motor; vì tôi có nhiều motor với nhiều cặp cực khác nhau thì dùng chung 1 thuật toán này để đánh giá hay là mỗi motor sẽ có 1 thuật toán riêng biệt ?"
+        }
+      ],
+      "score": 0.999108127,
+      "source_file": "Core/Src/motor.c",
       "status": "tentative",
       "uses": 1
     },
@@ -28,16 +65,88 @@
           "q": "Rotor chỉ đáp ứng trung bình khoảng 56.6% command đã phát; tôi muốn biết chính xác thời gian để một điểm đáp ứng command"
         }
       ],
-      "score": 0.998303864,
+      "score": 0.951835314,
       "source_file": "Core/Src/motor.c",
       "status": "tentative",
       "uses": 1
     },
-    "core_src_nonlinear_test_creeptounwrappedtargetprofiled": {
-      "code_fingerprint": "11b3df11d5c732f049a7528ca48a41aa8a1003640aaf3422f45187f168d7c0bf",
-      "label": "CreepToUnwrappedTargetProfiled()",
-      "last": "2026-08-10T06:35:48.528936+00:00",
+    "core_src_motor_pwm_motorpwm_setelectricalpos": {
+      "code_fingerprint": "78ae19b4387078b8cd370ea7a93efecc884918263d802c2b1235a799553858ae",
+      "label": "MotorPwm_SetElectricalPos()",
+      "last": "2026-08-12T07:42:24.087382+00:00",
       "provenance": [
+        {
+          "date": "2026-08-12T07:42:24.087382+00:00",
+          "outcome": "useful",
+          "q": "dò lại toàn bộ thông số hiện có và đánh giá toàn bộ thuật toán có thể sử dụng chung thuật toán nào để đánh giá cho motor vì hiện tại motor của chúng tôi chỉ khác nhau số cặp cực, và kích thước motor tôi nghĩ không ảnh hưởng đến NL"
+        },
+        {
+          "date": "2026-08-12T07:25:31.339931+00:00",
+          "outcome": "useful",
+          "q": "dùng một mức power, ramp và dwell cố định cho mọi motor; vì tôi có nhiều motor với nhiều cặp cực khác nhau thì dùng chung 1 thuật toán này để đánh giá hay là mỗi motor sẽ có 1 thuật toán riêng biệt ?"
+        }
+      ],
+      "score": 1.998486876,
+      "source_file": "Core/Src/motor_pwm.c",
+      "status": "preferred",
+      "uses": 2
+    },
+    "core_src_nonlinear_test": {
+      "code_fingerprint": "37d02a61279a1edde8956fdd1e42adabeb3ae613144449c1f7546d1b80f6c9b2",
+      "label": "nonlinear_test.c",
+      "last": "2026-08-12T08:07:27.696076+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-12T08:07:27.696076+00:00",
+          "outcome": "useful",
+          "q": "đã sửa hãy review lại S0 S1 S2 S3 cho 6pp"
+        },
+        {
+          "date": "2026-08-12T07:53:05.829403+00:00",
+          "outcome": "useful",
+          "q": "back to the project for 6pp review s0 s1 s2 s3 đã làm"
+        },
+        {
+          "date": "2026-08-12T07:42:24.087382+00:00",
+          "outcome": "useful",
+          "q": "dò lại toàn bộ thông số hiện có và đánh giá toàn bộ thuật toán có thể sử dụng chung thuật toán nào để đánh giá cho motor vì hiện tại motor của chúng tôi chỉ khác nhau số cặp cực, và kích thước motor tôi nghĩ không ảnh hưởng đến NL"
+        },
+        {
+          "date": "2026-08-12T07:25:31.339931+00:00",
+          "outcome": "useful",
+          "q": "dùng một mức power, ramp và dwell cố định cho mọi motor; vì tôi có nhiều motor với nhiều cặp cực khác nhau thì dùng chung 1 thuật toán này để đánh giá hay là mỗi motor sẽ có 1 thuật toán riêng biệt ?"
+        },
+        {
+          "date": "2026-08-11T01:37:27.572350+00:00",
+          "outcome": "useful",
+          "q": "thuật toán hiện tại và cách tính NL trong thư mục khác nhau những gì; code hiện tại có đang thực hiện nhiệm vụ là tính giá trị NL như code của gremsy hay không?"
+        }
+      ],
+      "score": 4.968669208,
+      "source_file": "Core/Src/nonlinear_test.c",
+      "status": "preferred",
+      "uses": 5
+    },
+    "core_src_nonlinear_test_creeptounwrappedtargetprofiled": {
+      "code_fingerprint": "37d02a61279a1edde8956fdd1e42adabeb3ae613144449c1f7546d1b80f6c9b2",
+      "label": "CreepToUnwrappedTargetProfiled()",
+      "last": "2026-08-11T05:53:20.294370+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T05:53:20.294370+00:00",
+          "outcome": "useful",
+          "q": "Phan tich bat thuong log S2-P08-JIG8-remount02-test-1-v5-8"
+        },
+        {
+          "date": "2026-08-11T01:51:44.573210+00:00",
+          "outcome": "useful",
+          "q": "so sánh thuật toán điều khiển của gremsy và của dự án; các thông số pid được có trong gremsyProfiles_PM1505.h"
+        },
+        {
+          "date": "2026-08-10T06:53:32.014619+00:00",
+          "outcome": "useful",
+          "q": "S2-P09-JIG8-remount03-test-1-v5-8 remount 3"
+        },
         {
           "date": "2026-08-10T06:35:48.528936+00:00",
           "outcome": "useful",
@@ -47,6 +156,63 @@
           "date": "2026-08-10T06:09:37.283651+00:00",
           "outcome": "useful",
           "q": "S2-P09-JIG8-remount01-test-1-v5-8"
+        }
+      ],
+      "score": 11.459370171,
+      "source_file": "Core/Src/nonlinear_test.c",
+      "status": "preferred",
+      "uses": 12
+    },
+    "core_src_nonlinear_test_hardcapholdclassification": {
+      "code_fingerprint": "37d02a61279a1edde8956fdd1e42adabeb3ae613144449c1f7546d1b80f6c9b2",
+      "label": "HardcapHoldClassification()",
+      "last": "2026-08-10T06:53:32.014619+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-10T06:53:32.014619+00:00",
+          "outcome": "useful",
+          "q": "S2-P09-JIG8-remount03-test-1-v5-8 remount 3"
+        },
+        {
+          "date": "2026-08-10T06:35:48.528936+00:00",
+          "outcome": "useful",
+          "q": "S2-P09-JIG8-remount02-test-1-v5-8 remount 2"
+        },
+        {
+          "date": "2026-08-10T06:09:37.283651+00:00",
+          "outcome": "useful",
+          "q": "S2-P09-JIG8-remount01-test-1-v5-8"
+        },
+        {
+          "date": "2026-08-10T04:53:21.252277+00:00",
+          "outcome": "useful",
+          "q": "S2-P08-JIG8-remount02-test-1-v5-7 remount 2"
+        },
+        {
+          "date": "2026-08-10T04:40:55.289391+00:00",
+          "outcome": "useful",
+          "q": "S2-P08-JIG8-remount01-test-1-v5-7"
+        }
+      ],
+      "score": 4.762696194,
+      "source_file": "Core/Src/nonlinear_test.c",
+      "status": "preferred",
+      "uses": 5
+    },
+    "core_src_nonlinear_test_rampcommandtotarget": {
+      "code_fingerprint": "37d02a61279a1edde8956fdd1e42adabeb3ae613144449c1f7546d1b80f6c9b2",
+      "label": "RampCommandToTarget()",
+      "last": "2026-08-12T07:42:24.087382+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-12T07:42:24.087382+00:00",
+          "outcome": "useful",
+          "q": "dò lại toàn bộ thông số hiện có và đánh giá toàn bộ thuật toán có thể sử dụng chung thuật toán nào để đánh giá cho motor vì hiện tại motor của chúng tôi chỉ khác nhau số cặp cực, và kích thước motor tôi nghĩ không ảnh hưởng đến NL"
+        },
+        {
+          "date": "2026-08-11T01:51:44.573210+00:00",
+          "outcome": "useful",
+          "q": "so sánh thuật toán điều khiển của gremsy và của dự án; các thông số pid được có trong gremsyProfiles_PM1505.h"
         },
         {
           "date": "2026-08-10T05:04:35.788674+00:00",
@@ -54,57 +220,26 @@
           "q": "Rotor chỉ đáp ứng trung bình khoảng 56.6% command đã phát; tôi muốn biết chính xác thời gian để một điểm đáp ứng command"
         },
         {
-          "date": "2026-08-10T04:53:21.252277+00:00",
+          "date": "2026-08-10T01:50:18.733096+00:00",
           "outcome": "useful",
-          "q": "S2-P08-JIG8-remount02-test-1-v5-7 remount 2"
-        },
-        {
-          "date": "2026-08-10T04:40:55.289391+00:00",
-          "outcome": "useful",
-          "q": "S2-P08-JIG8-remount01-test-1-v5-7"
+          "q": "thời gian để một điểm đo được data chính xác mất bao lâu ?"
         }
       ],
-      "score": 8.97784659,
-      "source_file": "Core/Src/nonlinear_test.c",
-      "status": "preferred",
-      "uses": 9
-    },
-    "core_src_nonlinear_test_hardcapholdclassification": {
-      "code_fingerprint": "11b3df11d5c732f049a7528ca48a41aa8a1003640aaf3422f45187f168d7c0bf",
-      "label": "HardcapHoldClassification()",
-      "last": "2026-08-10T06:35:48.528936+00:00",
-      "provenance": [
-        {
-          "date": "2026-08-10T06:35:48.528936+00:00",
-          "outcome": "useful",
-          "q": "S2-P09-JIG8-remount02-test-1-v5-8 remount 2"
-        },
-        {
-          "date": "2026-08-10T06:09:37.283651+00:00",
-          "outcome": "useful",
-          "q": "S2-P09-JIG8-remount01-test-1-v5-8"
-        },
-        {
-          "date": "2026-08-10T04:53:21.252277+00:00",
-          "outcome": "useful",
-          "q": "S2-P08-JIG8-remount02-test-1-v5-7 remount 2"
-        },
-        {
-          "date": "2026-08-10T04:40:55.289391+00:00",
-          "outcome": "useful",
-          "q": "S2-P08-JIG8-remount01-test-1-v5-7"
-        }
-      ],
-      "score": 3.995160443,
+      "score": 3.871160748,
       "source_file": "Core/Src/nonlinear_test.c",
       "status": "preferred",
       "uses": 4
     },
-    "core_src_nonlinear_test_rampcommandtotarget": {
-      "code_fingerprint": "11b3df11d5c732f049a7528ca48a41aa8a1003640aaf3422f45187f168d7c0bf",
-      "label": "RampCommandToTarget()",
-      "last": "2026-08-10T05:04:35.788674+00:00",
+    "core_src_nonlinear_test_waitforpointsettle": {
+      "code_fingerprint": "37d02a61279a1edde8956fdd1e42adabeb3ae613144449c1f7546d1b80f6c9b2",
+      "label": "WaitForPointSettle()",
+      "last": "2026-08-12T07:42:24.087382+00:00",
       "provenance": [
+        {
+          "date": "2026-08-12T07:42:24.087382+00:00",
+          "outcome": "useful",
+          "q": "dò lại toàn bộ thông số hiện có và đánh giá toàn bộ thuật toán có thể sử dụng chung thuật toán nào để đánh giá cho motor vì hiện tại motor của chúng tôi chỉ khác nhau số cặp cực, và kích thước motor tôi nghĩ không ảnh hưởng đến NL"
+        },
         {
           "date": "2026-08-10T05:04:35.788674+00:00",
           "outcome": "useful",
@@ -116,34 +251,103 @@
           "q": "thời gian để một điểm đo được data chính xác mất bao lâu ?"
         }
       ],
-      "score": 1.993500555,
+      "score": 2.900086835,
       "source_file": "Core/Src/nonlinear_test.c",
+      "status": "preferred",
+      "uses": 3
+    },
+    "core_src_position_controller": {
+      "code_fingerprint": "5af2988af241d499f955494231133e2995b033bcc437ad8a990329201bbeba3f",
+      "label": "position_controller.c",
+      "last": "2026-08-11T01:51:44.573210+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T01:51:44.573210+00:00",
+          "outcome": "useful",
+          "q": "so sánh thuật toán điều khiển của gremsy và của dự án; các thông số pid được có trong gremsyProfiles_PM1505.h"
+        }
+      ],
+      "score": 0.971073913,
+      "source_file": "Core/Src/position_controller.c",
+      "status": "tentative",
+      "uses": 1
+    },
+    "core_src_position_controller_positioncontroller_init": {
+      "code_fingerprint": "5af2988af241d499f955494231133e2995b033bcc437ad8a990329201bbeba3f",
+      "label": "PositionController_Init()",
+      "last": "2026-08-11T01:51:44.573210+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T01:51:44.573210+00:00",
+          "outcome": "useful",
+          "q": "so sánh thuật toán điều khiển của gremsy và của dự án; các thông số pid được có trong gremsyProfiles_PM1505.h"
+        }
+      ],
+      "score": 0.971073913,
+      "source_file": "Core/Src/position_controller.c",
+      "status": "tentative",
+      "uses": 1
+    },
+    "data_test_gremsymotor_c_data_test_gremsymotor": {
+      "code_fingerprint": "daff08f42ef331493d9d7e943a703ad787b19f858d1fb495398ab06f6016093a",
+      "label": "gremsyMotor.c",
+      "last": "2026-08-11T01:51:44.573210+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T01:51:44.573210+00:00",
+          "outcome": "useful",
+          "q": "so sánh thuật toán điều khiển của gremsy và của dự án; các thông số pid được có trong gremsyProfiles_PM1505.h"
+        },
+        {
+          "date": "2026-08-11T01:37:27.572350+00:00",
+          "outcome": "useful",
+          "q": "thuật toán hiện tại và cách tính NL trong thư mục khác nhau những gì; code hiện tại có đang thực hiện nhiệm vụ là tính giá trị NL như code của gremsy hay không?"
+        }
+      ],
+      "score": 1.941925304,
+      "source_file": "data test/gremsyMotor.c",
       "status": "preferred",
       "uses": 2
     },
-    "core_src_nonlinear_test_waitforpointsettle": {
-      "code_fingerprint": "11b3df11d5c732f049a7528ca48a41aa8a1003640aaf3422f45187f168d7c0bf",
-      "label": "WaitForPointSettle()",
-      "last": "2026-08-10T05:04:35.788674+00:00",
+    "data_test_gremsymotor_gremsymotormovepos": {
+      "code_fingerprint": "daff08f42ef331493d9d7e943a703ad787b19f858d1fb495398ab06f6016093a",
+      "label": "gremsyMotorMovePos()",
+      "last": "2026-08-12T07:42:24.087382+00:00",
       "provenance": [
         {
-          "date": "2026-08-10T05:04:35.788674+00:00",
+          "date": "2026-08-12T07:42:24.087382+00:00",
           "outcome": "useful",
-          "q": "Rotor chỉ đáp ứng trung bình khoảng 56.6% command đã phát; tôi muốn biết chính xác thời gian để một điểm đáp ứng command"
+          "q": "dò lại toàn bộ thông số hiện có và đánh giá toàn bộ thuật toán có thể sử dụng chung thuật toán nào để đánh giá cho motor vì hiện tại motor của chúng tôi chỉ khác nhau số cặp cực, và kích thước motor tôi nghĩ không ảnh hưởng đến NL"
         },
         {
-          "date": "2026-08-10T01:50:18.733096+00:00",
+          "date": "2026-08-12T07:25:31.339931+00:00",
           "outcome": "useful",
-          "q": "thời gian để một điểm đo được data chính xác mất bao lâu ?"
+          "q": "dùng một mức power, ramp và dwell cố định cho mọi motor; vì tôi có nhiều motor với nhiều cặp cực khác nhau thì dùng chung 1 thuật toán này để đánh giá hay là mỗi motor sẽ có 1 thuật toán riêng biệt ?"
         }
       ],
-      "score": 1.993500555,
-      "source_file": "Core/Src/nonlinear_test.c",
+      "score": 1.998486876,
+      "source_file": "data test/gremsyMotor.c",
       "status": "preferred",
       "uses": 2
+    },
+    "docs_gremsy_legacy_data_quality_review_đánh_giá_cách_đọc_dữ_liệu_ma600a_trong_firmware_gremsy_cũ_gremsyencoder_c_gremsymotor_c_gremsytaskmanager_c_gremsyanalog_c": {
+      "code_fingerprint": "c1cf2ff484e3a72817642b3bb2a17f50c5e04c3d24064df68f7585145dc65ad7",
+      "label": "Đánh giá cách đọc dữ liệu MA600A trong firmware Gremsy cũ (gremsyEncoder.c / gremsyMotor.c / gremsyTaskManager.c / gremsyAnalog.c)",
+      "last": "2026-08-11T01:37:27.572350+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T01:37:27.572350+00:00",
+          "outcome": "useful",
+          "q": "thuật toán hiện tại và cách tính NL trong thư mục khác nhau những gì; code hiện tại có đang thực hiện nhiệm vụ là tính giá trị NL như code của gremsy hay không?"
+        }
+      ],
+      "score": 0.970851391,
+      "source_file": "docs/gremsy-legacy-data-quality-review.md",
+      "status": "tentative",
+      "uses": 1
     },
     "docs_nonlinear_algorithm_audit_nonlinear_algorithm_audit_toàn_bộ_finding_theo_mục_6_1_6_13": {
-      "code_fingerprint": "0d350a85f9b2154aa2878c40706c366f9228bd0934a7c2305a259e24501f6489",
+      "code_fingerprint": "2b44bd9d2cf2feadabf4fed9040552054b75f45bccb699e84096e76ec4bb5942",
       "label": "Nonlinear Algorithm Audit — toàn bộ finding, theo mục 6.1-6.13",
       "last": "2026-08-10T01:23:16.604900+00:00",
       "provenance": [
@@ -153,26 +357,57 @@
           "q": "Cần phân biệt lặp lại trong cùng tổ hợp và không lặp lại giữa các tổ hợp; thuật toán có vấn đề là bất ổn hay chưa đủ hiệu quả?"
         }
       ],
-      "score": 0.994765083,
+      "score": 0.948461254,
       "source_file": "docs/nonlinear_algorithm_audit.md",
       "status": "tentative",
       "uses": 1
     },
+    "docs_nonlinear_log_schema_v6_nonlinear_log_schema_v6_contract": {
+      "code_fingerprint": "e04002861fe0e0fcfab75c9e088ba8052282a4e88a71df98e5a8733ae83c4ad2",
+      "label": "Nonlinear Log Schema v6 Contract",
+      "last": "2026-08-12T08:07:27.696076+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-12T08:07:27.696076+00:00",
+          "outcome": "useful",
+          "q": "đã sửa hãy review lại S0 S1 S2 S3 cho 6pp"
+        },
+        {
+          "date": "2026-08-12T07:53:05.829403+00:00",
+          "outcome": "useful",
+          "q": "back to the project for 6pp review s0 s1 s2 s3 đã làm"
+        },
+        {
+          "date": "2026-08-11T07:39:12.608073+00:00",
+          "outcome": "useful",
+          "q": "V6.0 có nhiệm vụ gì và tiến độ hiện tại để đạt firmware chuẩn đo NL là bao nhiêu phần trăm?"
+        }
+      ],
+      "score": 2.975833845,
+      "source_file": "docs/nonlinear-log-schema-v6.md",
+      "status": "preferred",
+      "uses": 3
+    },
     "docs_preconditioned_10run_checklist_preconditioned_10_run_repeatability_experiment": {
       "code_fingerprint": "27563b10060ff19be2ba71376f0184c3cfe148f146710c77b7771f6f7caddfb4",
       "label": "Preconditioned 10-run repeatability experiment",
-      "last": "2026-08-10T06:35:48.528936+00:00",
+      "last": "2026-08-10T06:53:32.014619+00:00",
       "provenance": [
+        {
+          "date": "2026-08-10T06:53:32.014619+00:00",
+          "outcome": "useful",
+          "q": "S2-P09-JIG8-remount03-test-1-v5-8 remount 3"
+        },
         {
           "date": "2026-08-10T06:35:48.528936+00:00",
           "outcome": "useful",
           "q": "S2-P09-JIG8-remount02-test-1-v5-8 remount 2"
         }
       ],
-      "score": 0.99976596,
+      "score": 1.906729838,
       "source_file": "docs/preconditioned-10run-checklist.md",
-      "status": "tentative",
-      "uses": 1
+      "status": "preferred",
+      "uses": 2
     },
     "docs_sweep_point_creep_v5_4a_first_fine_budget_trace_plan_v5_4a_diag_first_fine_budget_failure_trace": {
       "code_fingerprint": "bcd3f19c6659beb445c8531604bd62bc061c15aeb90bd681bcdd1bc0ae2fc0af",
@@ -185,7 +420,7 @@
           "q": "Có đồng ý giữ nguyên kiến trúc một trace buffer và chỉ sửa tài liệu ở điểm 2 không?"
         }
       ],
-      "score": 0.995327614,
+      "score": 0.948997601,
       "source_file": "docs/sweep-point-creep-v5-4a-first-fine-budget-trace-plan.md",
       "status": "tentative",
       "uses": 1
@@ -206,7 +441,7 @@
           "q": "Bạn có muốn tôi cập nhật lại phần Hardware validation trong plan doc theo đề xuất này không?"
         }
       ],
-      "score": 1.828620962,
+      "score": 1.743503227,
       "source_file": "docs/sweep-point-creep-v5-6-three-stage-response-plan.md",
       "status": "preferred",
       "uses": 2
@@ -222,7 +457,7 @@
           "q": "Có đồng ý giữ nguyên kiến trúc một trace buffer và chỉ sửa tài liệu ở điểm 2 không?"
         }
       ],
-      "score": 0.995327614,
+      "score": 0.948997601,
       "source_file": "docs/sweep-point-creep-v5-6-three-stage-response-plan.md",
       "status": "tentative",
       "uses": 1
@@ -238,7 +473,7 @@
           "q": "đã test remount 02 kết quả báo fail tiếp tuc"
         }
       ],
-      "score": 0.996725236,
+      "score": 0.950330167,
       "source_file": "docs/sweep-point-creep-v5-6-three-stage-response-plan.md",
       "status": "tentative",
       "uses": 1
@@ -246,8 +481,13 @@
     "docs_sweep_point_creep_v5_6_three_stage_response_plan_v5_6_three_stage_16_8_4_response_qualified_landing": {
       "code_fingerprint": "d2b7e336bfa447537ec5e0e030046599d69c825fecf117880c4e9c61cd0b7bd1",
       "label": "V5.6 — three-stage 16→8→4 response-qualified landing",
-      "last": "2026-08-10T03:25:57.854773+00:00",
+      "last": "2026-08-11T05:53:20.294370+00:00",
       "provenance": [
+        {
+          "date": "2026-08-11T05:53:20.294370+00:00",
+          "outcome": "useful",
+          "q": "Phan tich bat thuong log S2-P08-JIG8-remount02-test-1-v5-8"
+        },
         {
           "date": "2026-08-10T03:25:57.854773+00:00",
           "outcome": "useful",
@@ -267,23 +507,23 @@
           "date": "2026-08-10T01:34:06.288096+00:00",
           "outcome": "useful",
           "q": "Review sweep-point-creep-v5-6-three-stage-response-plan.md"
-        },
-        {
-          "date": "2026-08-10T01:23:16.604900+00:00",
-          "outcome": "useful",
-          "q": "Cần phân biệt lặp lại trong cùng tổ hợp và không lặp lại giữa các tổ hợp; thuật toán có vấn đề là bất ổn hay chưa đủ hiệu quả?"
         }
       ],
-      "score": 6.806785518,
+      "score": 7.464792168,
       "source_file": "docs/sweep-point-creep-v5-6-three-stage-response-plan.md",
       "status": "preferred",
-      "uses": 7
+      "uses": 8
     },
     "docs_sweep_point_creep_v5_7_hardcap_hold_diag_plan_v5_7_diag_passive_hold_after_the_first_v5_5_hard_cap_failure": {
       "code_fingerprint": "d9abd0cc34973b25060bc0108928158e1f2825a19979e8d2b8c7b982f9b4d2f2",
       "label": "V5.7-DIAG — Passive hold after the first V5.5 hard-cap failure",
-      "last": "2026-08-10T04:53:21.252277+00:00",
+      "last": "2026-08-11T07:58:04.366617+00:00",
       "provenance": [
+        {
+          "date": "2026-08-11T07:58:04.366617+00:00",
+          "outcome": "useful",
+          "q": "Tạo plan V5.9 để đọc/audit trước khi code"
+        },
         {
           "date": "2026-08-10T04:53:21.252277+00:00",
           "outcome": "useful",
@@ -295,31 +535,112 @@
           "q": "S2-P08-JIG8-remount01-test-1-v5-7"
         }
       ],
-      "score": 1.996048516,
+      "score": 2.879935935,
       "source_file": "docs/sweep-point-creep-v5-7-hardcap-hold-diag-plan.md",
       "status": "preferred",
-      "uses": 2
+      "uses": 3
+    },
+    "docs_sweep_point_response_timing_v5_8_plan_7_gate_hardware_đầu_tiên": {
+      "code_fingerprint": "2ba75c135684577299b5786e89e924f92fed1d4866076b31d7c893fb26d357b8",
+      "label": "7. Gate hardware đầu tiên",
+      "last": "2026-08-11T05:17:59.963920+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T05:17:59.963920+00:00",
+          "outcome": "useful",
+          "q": "v5.8 đã hoàn thành chưa và có thể move qua v5.9 hay v6"
+        }
+      ],
+      "score": 0.97429291,
+      "source_file": "docs/sweep-point-response-timing-v5-8-plan.md",
+      "status": "tentative",
+      "uses": 1
     },
     "docs_sweep_point_response_timing_v5_8_plan_v5_8_time_diag_đo_thời_gian_đáp_ứng_command_theo_từng_điểm": {
       "code_fingerprint": "2ba75c135684577299b5786e89e924f92fed1d4866076b31d7c893fb26d357b8",
       "label": "V5.8-TIME-DIAG — đo thời gian đáp ứng command theo từng điểm",
-      "last": "2026-08-10T06:35:48.528936+00:00",
+      "last": "2026-08-11T07:58:04.366617+00:00",
+      "neg": 1,
       "provenance": [
         {
-          "date": "2026-08-10T06:35:48.528936+00:00",
+          "date": "2026-08-11T07:58:04.366617+00:00",
           "outcome": "useful",
-          "q": "S2-P09-JIG8-remount02-test-1-v5-8 remount 2"
+          "q": "Tạo plan V5.9 để đọc/audit trước khi code"
         },
         {
-          "date": "2026-08-10T06:09:37.283651+00:00",
+          "date": "2026-08-11T07:39:12.608073+00:00",
           "outcome": "useful",
-          "q": "S2-P09-JIG8-remount01-test-1-v5-8"
+          "q": "V6.0 có nhiệm vụ gì và tiến độ hiện tại để đạt firmware chuẩn đo NL là bao nhiêu phần trăm?"
+        },
+        {
+          "date": "2026-08-11T05:32:44.232189+00:00",
+          "outcome": "useful",
+          "q": "phân tích S2-P03-JIG8-remount01-test-2-v5-8 và remount02 trước P08"
+        },
+        {
+          "date": "2026-08-11T05:17:59.963920+00:00",
+          "outcome": "useful",
+          "q": "v5.8 đã hoàn thành chưa và có thể move qua v5.9 hay v6"
+        },
+        {
+          "date": "2026-08-11T05:03:10.469151+00:00",
+          "outcome": "corrected",
+          "q": "Đánh giá đề xuất HOME_PID_DIAG_V1 nên làm ngay hay xếp sau V5.8"
         }
       ],
-      "score": 1.999111927,
+      "score": 5.787615192,
       "source_file": "docs/sweep-point-response-timing-v5-8-plan.md",
-      "status": "preferred",
-      "uses": 2
+      "status": "contested",
+      "uses": 7,
+      "verdict": "useful"
+    },
+    "nlzeroobservation_t": {
+      "code_fingerprint": "",
+      "label": "NlZeroObservation_t",
+      "last": "2026-08-11T04:39:01.742003+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T04:39:01.742003+00:00",
+          "outcome": "useful",
+          "q": "các thông số thời gian home overshoot số update raw command và raw encoder đã có chưa và đo như nào"
+        }
+      ],
+      "score": 0.973683892,
+      "source_file": "",
+      "status": "tentative",
+      "uses": 1
+    },
+    "scripts_test_canonical_sampler_contract": {
+      "code_fingerprint": "51a79889c5a59e4b343e5153fd121b841b666fbf161790ee0f09d7ebe05ba6cb",
+      "label": "test_canonical_sampler_contract.ps1",
+      "last": "2026-08-12T07:53:05.829403+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-12T07:53:05.829403+00:00",
+          "outcome": "useful",
+          "q": "back to the project for 6pp review s0 s1 s2 s3 đã làm"
+        }
+      ],
+      "score": 0.99955027,
+      "source_file": "scripts/test_canonical_sampler_contract.ps1",
+      "status": "tentative",
+      "uses": 1
+    },
+    "tools_analyze_motor_logs_recompute_metrics": {
+      "code_fingerprint": "cf1aae13dbf77ea7d2af9e843bcd4fe8e7ba48d09d2566096ded9e31fef1bf90",
+      "label": "recompute_metrics()",
+      "last": "2026-08-11T01:37:27.572350+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T01:37:27.572350+00:00",
+          "outcome": "useful",
+          "q": "thuật toán hiện tại và cách tính NL trong thư mục khác nhau những gì; code hiện tại có đang thực hiện nhiệm vụ là tính giá trị NL như code của gremsy hay không?"
+        }
+      ],
+      "score": 0.970851391,
+      "source_file": "tools/analyze_motor_logs.py",
+      "status": "tentative",
+      "uses": 1
     },
     "tools_analyze_nl_curve_circular_shift": {
       "code_fingerprint": "c7d7edd4b0d2ad6d772e2c032b290e7e818c858a3f5e7e30cf4ddef5a9f5be0d",
@@ -332,8 +653,40 @@
           "q": "Có đồng ý giữ nguyên kiến trúc một trace buffer và chỉ sửa tài liệu ở điểm 2 không?"
         }
       ],
-      "score": 0.995327614,
+      "score": 0.948997601,
       "source_file": "tools/analyze_nl_curve.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "tools_analyze_nl_stability": {
+      "code_fingerprint": "5da14afe157206a0e3583b70118573d1c209f13d0248d9505dac4bbc8c967b11",
+      "label": "analyze_nl_stability.py",
+      "last": "2026-08-11T05:32:44.232189+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T05:32:44.232189+00:00",
+          "outcome": "useful",
+          "q": "phân tích S2-P03-JIG8-remount01-test-2-v5-8 và remount02 trước P08"
+        }
+      ],
+      "score": 0.974523327,
+      "source_file": "tools/analyze_nl_stability.py",
+      "status": "tentative",
+      "uses": 1
+    },
+    "tools_auto_log_analysis_motorresponsetiminganalysis": {
+      "code_fingerprint": "effd35194f3fb93ac3834084014351cead82d0803437489ba535552b64ccd84f",
+      "label": "MotorResponseTimingAnalysis",
+      "last": "2026-08-11T05:32:44.232189+00:00",
+      "provenance": [
+        {
+          "date": "2026-08-11T05:32:44.232189+00:00",
+          "outcome": "useful",
+          "q": "phân tích S2-P03-JIG8-remount01-test-2-v5-8 và remount02 trước P08"
+        }
+      ],
+      "score": 0.974523327,
+      "source_file": "tools/auto_log_analysis.py",
       "status": "tentative",
       "uses": 1
     }

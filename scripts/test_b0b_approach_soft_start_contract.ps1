@@ -38,7 +38,7 @@ Assert-True ($source -match '(?s)\(long\)NL_B0B_APPROACH_BACKOFF_RAW,\s*\(int\)N
     'The APPROACH_RESULT argument list must supply the resolved delay and the soft-start protocol ID in that order.'
 
 # --- No new META field: META had only ~39 bytes of headroom left (measured
-# against a real log at design time) against LogLineLarge's 1900-byte
+# against a real log at design time) against LogLineLarge's 2600-byte
 # buffer -- this experiment must stay entirely inside APPROACH_RESULT,
 # which had over 1100 bytes free. ---
 Assert-True ($source -notmatch 'B0BSoftStart\w*.*META,SchemaVersion' -and
@@ -46,10 +46,10 @@ Assert-True ($source -notmatch 'B0BSoftStart\w*.*META,SchemaVersion' -and
     'B0-B soft-start must not add a new META field (insufficient buffer headroom); use APPROACH_RESULT instead.'
 
 # --- APPROACH_RESULT line budget: longest real APPROACH_RESULT line plus
-# the new field must stay comfortably under the 1900-byte LogLineLarge
+# the new field must stay comfortably under the 2600-byte LogLineLarge
 # buffer. Measured against real logs, not assumed. ---
-Assert-True ($source -match 'char\s+buf\[1900\]') `
-    'Could not confirm the LogLineLarge 1900-byte buffer (source layout changed?).'
+Assert-True ($source -match 'char\s+buf\[2600\]') `
+    'Could not confirm the LogLineLarge 2600-byte buffer (source layout changed?).'
 $logFiles = Get-ChildItem -Path $root -Filter '*.txt' -File |
     Where-Object { $_.Length -lt 20MB }
 $maxApproachResultLen = 0
@@ -63,9 +63,9 @@ foreach ($lf in $logFiles) {
 Assert-True ($maxApproachResultLen -gt 0) `
     'No real APPROACH_RESULT line found to measure the line budget against.'
 $newFieldCost = (',B0BSoftStartProtocol=SOFT_START_V1').Length
-Assert-True (($maxApproachResultLen + $newFieldCost) -lt 1900) `
+Assert-True (($maxApproachResultLen + $newFieldCost) -lt 2600) `
     ("APPROACH_RESULT line budget exceeded: longest observed " + $maxApproachResultLen +
-     ' + new field ' + $newFieldCost + ' must stay < 1900.')
+     ' + new field ' + $newFieldCost + ' must stay < 2600.')
 
 # --- No leakage into the official contract. ---
 Assert-True ($source -match 'out->measurementValid\s*=\s*structuralValid\s*&&\s*out->trackingValid') `

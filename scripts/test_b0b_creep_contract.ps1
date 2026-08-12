@@ -118,9 +118,9 @@ Assert-True ($source -notmatch 'B0BCreep\w*.*META,SchemaVersion' -and
 
 # --- APPROACH_RESULT line budget: longest real line (already reflecting the
 # soft-start field, since a hardware log with it exists on disk) plus the
-# NEW creep fields' worst case must stay under the 1900-byte buffer. ---
-Assert-True ($source -match 'char\s+buf\[1900\]') `
-    'Could not confirm the LogLineLarge 1900-byte buffer (source layout changed?).'
+# NEW creep fields' worst case must stay under the 2600-byte buffer. ---
+Assert-True ($source -match 'char\s+buf\[2600\]') `
+    'Could not confirm the LogLineLarge 2600-byte buffer (source layout changed?).'
 $logFiles = Get-ChildItem -Path $root -Filter '*.txt' -File |
     Where-Object { $_.Length -lt 20MB }
 $maxApproachResultLen = 0
@@ -141,9 +141,9 @@ $newFieldsCost = (
     'ForwardCreepResult=ACQUISITION_ERROR,ForwardCreepIterations=4294967295,' +
     'ForwardCreepTotalRaw=-9223372036854775808'
 ).Length
-Assert-True (($maxApproachResultLen + $newFieldsCost) -lt 1900) `
+Assert-True (($maxApproachResultLen + $newFieldsCost) -lt 2600) `
     ("APPROACH_RESULT line budget exceeded: longest observed " + $maxApproachResultLen +
-     ' + new creep fields worst case ' + $newFieldsCost + ' must stay < 1900.')
+     ' + new creep fields worst case ' + $newFieldsCost + ' must stay < 2600.')
 
 # --- ENABLE_SWEEP_POINT_CREEP V5 adaptive targeted-budget.  BASE preserves
 # V4; EXTENDED is selected only from the live post-settle gap, never from a
@@ -229,11 +229,11 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($crossingGuard) -and
         $crossingGuard -match 'direction = -direction;') `
     'V5.2 must start one bounded recovery only after a live target sign crossing.'
 
-Assert-True ($source -match 'eligibleForStatistics = !preconditionRun\s*&& preconditionValid\s*&& \(nlCaptures\[i\]\.sweepPointCreepRecoveryFailedCount == 0U\)\s*&& \(nlCaptures\[i\]\.sweepPointCreepStickSlipJumpCount == 0U\)' -and
+Assert-True ($source -match '(?s)eligibleForStatistics\s*=\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)\s*&& !preconditionRun\s*&& preconditionValid\s*&& nlCaptures\[i\]\.measurementValid;' -and
         $source -match 'CreepIntegrityValid=%d,Status=%s' -and
         $source -match 'Motor RESULT INVALID: %s \(SweepPointCreepRecoveryFailed=%lu,StickSlipJump=%lu\)' -and
         $source -match 'nlPreconditionValid =\s*\(nlCaptures\[0\]\.sweepPointCreepRecoveryFailedCount == 0U\)\s*&& \(nlCaptures\[0\]\.sweepPointCreepStickSlipJumpCount == 0U\)') `
-    'V5.2/V5.3 must accept recovered crossings but suppress recovery/jump integrity failures.'
+    'V5.x must retain creep-integrity diagnostics while profile isolation prevents every feedback-corrected run from entering official open-loop statistics.'
 
 # Both V5 records must live in PrintSweepLog, not CaptureSweep: UART in
 # the capture loop would perturb the very motion timing being measured.
@@ -250,10 +250,10 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($captureSweep) -and
 
 # --- No leakage into the official contract. ---
 Assert-True ($source -match 'out->measurementValid\s*=\s*structuralValid\s*&&\s*out->trackingValid') `
-    'The creep experiment must not touch the official measurement-valid gate.'
-Assert-True ($source -match '#define\s+NL_LOG_SCHEMA_VERSION\s+5' -and
-        $source -match 'OfficialResultSource=LEGACY') `
-    'The creep experiment must not change the official schema-v5/legacy result contract.'
+    'The creep experiment must preserve its diagnostic-profile legacy validity calculation.'
+Assert-True ($source -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\s*#define NL_LOG_SCHEMA_VERSION\s+6\s*#else\s*#define NL_LOG_SCHEMA_VERSION\s+5' -and
+        $source -match '(?s)#else\s*LogLineLarge\(\s*"META.*?OfficialResultSource=LEGACY') `
+    'The creep experiment must remain on the profile-isolated schema-v5/legacy diagnostic contract.'
 Assert-True ($source -notmatch 'MotorPwm_SetElectricalPos\([^;]*power\s*[<>!=]') `
     'This change must not touch B0-B power (must remain full power, unchanged).'
 

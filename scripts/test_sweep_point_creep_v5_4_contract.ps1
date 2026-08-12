@@ -56,7 +56,7 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($callBlock) -and
         $callBlock -match 'NL_SWEEP_CREEP_V54_BASE_MAX_ITERATIONS' -and
         $callBlock -match 'NL_SWEEP_CREEP_V54_EXTENDED_MAX_ITERATIONS' -and
         $callBlock -match 'creepV54TracePoint\s*<\s*0' -and
-        $callBlock -match 'NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS,\s*&fineLandingConfig\);') `
+        $callBlock -match 'NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS,\s*&fineLandingConfig,[\s\S]{0,150}?NULL\);') `
     'V5.4 must profile every main-sweep point from live gap, with no point-index policy.'
 
 Assert-True ($capture -match 'creepV54TracePoint\s*=\s*-1;' -and
@@ -88,9 +88,9 @@ Assert-True ($source -match 'SWEEP_CREEP_CONFIG,SchemaVersion=7' -and
     'V5.4 config, point, step, or END telemetry contract is incomplete.'
 
 Assert-True ($source -match 'sweepPointCreepRecoveryFailedCount == 0U\s*&& c->sweepPointCreepStickSlipJumpCount == 0U' -and
-        $source -match '(?s)eligibleForStatistics = !preconditionRun\s*&& preconditionValid.*?sweepPointCreepStickSlipJumpCount == 0U' -and
+        $source -match '(?s)nlCaptures\[i\]\.eligibleForStatistics =\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)' -and
         $source -match '\.stack_size\s*=\s*12288U') `
-    'V5.4 must retain recovery/jump validity gating and the validated test-task stack.'
+    'V5.4 must retain recovery/jump validity gating (2026-08-12: eligibility is profile-gated, see the open-loop handoff §18.2) and the validated test-task stack.'
 
 $parserPath = Join-Path $root 'analysis/matlab/nl/parse_sweep_creep_log.m'
 $parser = Get-Content -LiteralPath $parserPath -Raw

@@ -636,12 +636,23 @@ foreach ($inputPath in $Path) {
             }
             if ($schemaVersion -eq '6') {
                 $requiredMetaValues = @{
+                    MeasurementProfile = 'GREMSY_COMPAT_OPEN_LOOP_NL_V1'
+                    MeasurementDefinition = 'WHOLE_SYSTEM_OPEN_LOOP_TRACKING_V1'
+                    MeasurementContractVersion = 'GREMSY_OPEN_LOOP_NL_1DEG360_V1'
+                    OfficialOpenLoopNL = '1'
+                    FeedbackActuationEnabled = '0'
+                    ApproachProtocol = 'SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1'
+                    MotionProfile = 'SCURVE40_ABSOLUTE_TICK_V2'
+                    GridProtocol = 'UNIFORM_1_DEG_ROUNDED_RAW_V1'
                     MathContractVersion = 'CANONICAL_Q16_V1'
                     SignedRoundingMode = 'NEAREST_AWAY_FROM_ZERO'
+                    ErrorSignConvention = 'COMMAND_MINUS_MEASURED'
                     ReferenceDefinition = 'POINT0_CANONICAL_MEAN'
                     CanonicalMeanSource = 'ALL_TIER1'
                     MadFilteringEnabled = '0'
                     OfficialResultSource = 'CANONICAL_Q16'
+                    SettleContract = 'STABILITY_ONLY_CAPTURE_V1'
+                    SettleTargetRequired = '0'
                 }
                 foreach ($requiredField in $requiredMetaValues.Keys) {
                     if (-not $meta.ContainsKey($requiredField) -or
@@ -658,23 +669,29 @@ foreach ($inputPath in $Path) {
                         throw "Schema-v6 META is missing $requiredField in $file."
                     }
                 }
-                foreach ($requiredField in @(
-                        'Point0MeanRawQ16',
-                        'ClosureErrorRawQ16',
-                        'ClosureErrorDeg',
-                        'ClosureLimitDeg',
-                        'ClosureValid')) {
-                    if (-not $resultFields.ContainsKey($requiredField)) {
-                        throw "Schema-v6 result is missing $requiredField in $file."
-                    }
-                }
-
                 $hasOfficialResult = $officialResultMatch.Success
                 $hasDiagnosticResult = $diagnosticResultMatch.Success
                 $endStatus = if ($end.ContainsKey('Status')) { $end['Status'] } else { "" }
                 if ($officialValid -eq '1') {
                     if (-not $hasOfficialResult -or $hasDiagnosticResult -or $endStatus -ne 'VALID') {
                         throw "Invalid schema-v6 official record contract in $file."
+                    }
+                    foreach ($requiredField in @(
+                            'MeasurementContractVersion',
+                            'OpenLoopNL_Deg',
+                            'RobustP2P_Deg',
+                            'Point0MeanRawQ16',
+                            'ClosureErrorRawQ16',
+                            'ClosureErrorDeg',
+                            'ClosureLimitDeg',
+                            'ClosureValid')) {
+                        if (-not $resultFields.ContainsKey($requiredField)) {
+                            throw "Schema-v6 RESULT is missing $requiredField in $file."
+                        }
+                    }
+                    if ($resultFields['MeasurementContractVersion'] -ne
+                            'GREMSY_OPEN_LOOP_NL_1DEG360_V1') {
+                        throw "Schema-v6 RESULT has the wrong measurement contract in $file."
                     }
                     if ($meta['OfficialInvalidReasonMask'] -notmatch '^(?:0|0x0+)$' -or
                             $meta['SettleValid'] -ne '1' -or
@@ -688,6 +705,21 @@ foreach ($inputPath in $Path) {
                     if ($meta['OfficialInvalidReasonMask'] -match '^(?:0|0x0+)$') {
                         throw "Schema-v6 invalid record requires a non-zero OfficialInvalidReasonMask in $file."
                     }
+                    foreach ($requiredField in @(
+                            'Diagnostic_OpenLoopNL_Deg',
+                            'Diagnostic_RobustP2P_Deg',
+                            'Diagnostic_RMS_AC',
+                            'Diagnostic_ClosureErrorDeg')) {
+                        if (-not $resultFields.ContainsKey($requiredField)) {
+                            throw "Schema-v6 DIAGNOSTIC_RESULT is missing $requiredField in $file."
+                        }
+                    }
+                    foreach ($forbiddenField in @('OpenLoopNL_Deg', 'Motor_Error_P2P_Deg',
+                            'RMS_AC', 'A1', 'A36', 'ClosureErrorDeg')) {
+                        if ($resultFields.ContainsKey($forbiddenField)) {
+                            throw "Schema-v6 DIAGNOSTIC_RESULT leaked official field $forbiddenField in $file."
+                        }
+                    }
                 }
             }
 
@@ -696,8 +728,13 @@ foreach ($inputPath in $Path) {
                 if (-not $motionResultMatch.Success) {
                     throw "Phase-3A continuous sweep record is missing MOTION_RESULT in $file."
                 }
+                $requiredSettleContract = if ($schemaVersion -eq '6') {
+                    'STABILITY_ONLY_CAPTURE_V1'
+                } else {
+                    'STABILITY_AND_TARGET_V1'
+                }
                 $requiredMotionValues = @{
-                    ContractVersion = 'STABILITY_AND_TARGET_V1'
+                    ContractVersion = $requiredSettleContract
                     ContinuousSweepContext = 'SWEEP_CONTEXT_V1'
                     ContextReacquireCount = '0'
                 }
@@ -1153,8 +1190,14 @@ foreach ($inputPath in $Path) {
                 TestID = $testId
                 SweepID = $sweepId
                 MA600Mode = $recordMode
+                MeasurementProfile = if ($meta.ContainsKey('MeasurementProfile')) { $meta['MeasurementProfile'] } else { "" }
+                MeasurementDefinition = if ($meta.ContainsKey('MeasurementDefinition')) { $meta['MeasurementDefinition'] } else { "" }
+                MeasurementContractVersion = if ($meta.ContainsKey('MeasurementContractVersion')) { $meta['MeasurementContractVersion'] } else { "" }
+                OfficialOpenLoopNL = if ($meta.ContainsKey('OfficialOpenLoopNL')) { $meta['OfficialOpenLoopNL'] } else { "" }
+                FeedbackActuationEnabled = if ($meta.ContainsKey('FeedbackActuationEnabled')) { $meta['FeedbackActuationEnabled'] } else { "" }
                 MathContractVersion = if ($meta.ContainsKey('MathContractVersion')) { $meta['MathContractVersion'] } else { "" }
                 SignedRoundingMode = if ($meta.ContainsKey('SignedRoundingMode')) { $meta['SignedRoundingMode'] } else { "" }
+                ErrorSignConvention = if ($meta.ContainsKey('ErrorSignConvention')) { $meta['ErrorSignConvention'] } else { "" }
                 CanonicalMeanSource = if ($meta.ContainsKey('CanonicalMeanSource')) { $meta['CanonicalMeanSource'] } else { "" }
                 OfficialResultSource = if ($meta.ContainsKey('OfficialResultSource')) { $meta['OfficialResultSource'] } else { "" }
                 ShadowCanonicalEnabled = if ($shadowEnabled) { '1' } else { '0' }
@@ -1258,6 +1301,9 @@ foreach ($inputPath in $Path) {
                 MaxAbsSettlePositionErrorDeg = if ($motionResult.ContainsKey('MaxAbsSettlePositionErrorDeg')) { Convert-ToNullableDouble $motionResult['MaxAbsSettlePositionErrorDeg'] } else { $null }
                 ClosureErrorDeg = $closureErrorDeg
                 ClosureLimitDeg = if ($resultFields.ContainsKey('ClosureLimitDeg')) { $resultFields['ClosureLimitDeg'] } else { "" }
+                OpenLoopNL_Deg = if ($resultFields.ContainsKey('OpenLoopNL_Deg')) { Convert-ToNullableDouble $resultFields['OpenLoopNL_Deg'] } else { $null }
+                RobustP2P_Deg = if ($resultFields.ContainsKey('RobustP2P_Deg')) { Convert-ToNullableDouble $resultFields['RobustP2P_Deg'] } else { $null }
+                DiagnosticOpenLoopNL_Deg = if ($resultFields.ContainsKey('Diagnostic_OpenLoopNL_Deg')) { Convert-ToNullableDouble $resultFields['Diagnostic_OpenLoopNL_Deg'] } else { $null }
                 ClosureValid = $closureValid
                 ClosureMeaning = $closureMeaning
                 PostTurnRepeatRMSDeg = $postTurnRepeatRmsDeg

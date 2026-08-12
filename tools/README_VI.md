@@ -76,6 +76,8 @@ BATCH,...,Status=COMPLETE,...
 20260803-101500_p03_JIG1_batch001_complete.metrics.csv
 20260803-101500_p03_JIG1_batch001_complete.analysis.json
 20260803-101500_p03_JIG1_batch001_complete.analysis.txt
+20260803-101500_p03_JIG1_batch001_complete.nl.png
+20260803-101500_p03_JIG1_batch001_complete.polar.png
 ```
 
 Khi batch kết thúc, hộp thoại sẽ đưa sẵn tên trên để sửa. Nếu nhập `P05-JIG1-lan-01`, bộ file kết quả sẽ là `P05-JIG1-lan-01.txt`, `P05-JIG1-lan-01.metrics.csv`, `P05-JIG1-lan-01.analysis.json` và `P05-JIG1-lan-01.analysis.txt`. Tên trùng không bị ghi đè; app tự thêm `_02`, `_03`, ...
@@ -90,7 +92,9 @@ Analyzer không tin trực tiếp dòng `RESULT`; nó tái tính từ `DATA`. M�
 
 - `BATCH Status=COMPLETE`;
 - đủ số OFFICIAL được khai báo trong `BATCH.RunCount`;
-- từng OFFICIAL có `META`, `END Status=VALID`, `MeasurementValid=1`, `RunRole=OFFICIAL` và `EligibleForStatistics=1`;
+- từng OFFICIAL có `META`, `END Status=VALID`, `MeasurementValid=1` (schema v4/v5)
+  hoặc `OfficialMeasurementValid=1` (schema v6), `RunRole=OFFICIAL` và
+  `EligibleForStatistics=1`;
 - không có CONFIG gate thất bại tại `PRECONDITION_PRE_MOTOR` hoặc `BATCH_PRE_MOTOR`.
 
 `BOOT_SMOKE` không hợp lệ được ghi thành cảnh báo, không tự làm batch FAIL vì đây là lần đọc sớm không điều khiển motor. Nếu monitor bị dừng, mất COM hoặc ứng dụng đóng giữa test, phần dữ liệu đã nhận được vẫn được lưu với trạng thái `incomplete` để điều tra nhưng kết quả phân tích là FAIL.
@@ -168,3 +172,19 @@ AUTO ANALYSIS: CAPTURE INVALID | ...
 `CAPTURE INVALID` là lỗi tính toàn vẹn file nhận được, không phải motor FAIL.
 Không dùng batch đó để kết luận NL; giữ nguyên firmware/mounting và chạy lại
 sau khi kiểm tra cáp USB-UART, baudrate và tình trạng COM.
+
+## Thay đổi v1.11 — đồ thị NL và polar cho Schema v6
+
+Schema v6 giữ 12 trường `DATA` tương thích để đọc bằng mắt và nối thêm
+`CommandRawQ16`, `MeanUnwrappedRawQ16`, `ErrorRawQ16`. App v1.11 không còn
+loại dòng vì có thêm trường. Với Schema v6, live plot, analyzer và hai PNG đều
+dùng `ErrorRawQ16` canonical làm nguồn chính thức, không dùng lại ErrorDeg
+legacy nếu hai giá trị mâu thuẫn.
+
+Khi bật **Tự vẽ đồ thị NL + polar**, sau mỗi batch app tạo:
+
+- `<tên-log>.nl.png`: Error theo 0–359°, từng OFFICIAL là đường mảnh, đường
+  trung bình là đường đậm, đánh dấu cực đại/cực tiểu và RawP2P;
+- `<tên-log>.polar.png`: fingerprint polar của cùng đường Error canonical.
+
+Đồ thị live trong app cũng nhận trực tiếp `DATA` Schema v6 trong lúc test.

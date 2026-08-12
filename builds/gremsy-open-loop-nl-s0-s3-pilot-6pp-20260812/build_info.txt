@@ -1,0 +1,59 @@
+Build: gremsy-open-loop-nl-s0-s3-pilot-6pp-20260812
+Date: 2026-08-12
+Source branch: codex/motion-control-v2-dma
+Base commit: 11b0c0c (worktree contains the uncommitted S0-S3 implementation)
+Configuration: Release
+MCU: STM32F405RGTx
+
+Purpose
+-------
+Hardware pilot for the 6-pole-pair Gremsy-compatible pure open-loop NL
+measurement path after closing S0-S3 at software-contract level.
+
+Measurement contract
+--------------------
+- SchemaVersion: 6
+- MeasurementProfile: GREMSY_COMPAT_OPEN_LOOP_NL_V1
+- MeasurementDefinition: WHOLE_SYSTEM_OPEN_LOOP_TRACKING_V1
+- MeasurementContractVersion: GREMSY_OPEN_LOOP_NL_1DEG360_V1
+- OfficialResultSource: CANONICAL_Q16
+- ErrorSignConvention: COMMAND_MINUS_MEASURED
+- ApproachProtocol: SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1
+- MotionProfile: SCURVE40_ABSOLUTE_TICK_V2
+- GridProtocol: UNIFORM_1_DEG_ROUNDED_RAW_V1
+- SettleContract: STABILITY_ONLY_CAPTURE_V1
+- Official primary metric: OpenLoopNL_Deg = max(Error) - min(Error)
+- Supporting metric: RobustP2P_Deg
+- FeedbackActuationEnabled: 0
+
+Scope and limitations
+---------------------
+- Validated for the current 6-pole-pair path only.
+- S0-S3 software implementation is complete.
+- This is a PILOT artifact, not a production-qualified release.
+- S4 runtime log validation and S5 hardware A/B/A/cross-jig validation remain.
+- Do not pool results from V5.x creep-enabled diagnostic firmware with this
+  schema-v6 official open-loop dataset.
+
+Recommended pilot
+-----------------
+1. P03 on JIG8, same mount, 3 consecutive tests.
+2. Verify CONFIG pass, SchemaVersion=6, OfficialMeasurementValid=1,
+   FeedbackActuationEnabled=0, RESULT.OpenLoopNL_Deg and END.Status=VALID.
+3. P03 on JIG7, same controlled mounting procedure, 3 consecutive tests.
+4. Compare full 360-point curves as well as scalar metrics.
+
+Build verification
+------------------
+- Release compile: PASS.
+- ARM size: text=84364, data=96, bss=143256 bytes.
+- PowerShell contract/regression suite: PASS, 38/38.
+- Diagnostic profile compile: PASS.
+- Open-loop profile with creep enabled: compile rejected by the intended
+  static profile-isolation guard.
+- Two pre-existing unused-symbol warnings remain; no build error.
+
+Flash file
+----------
+jigmotor.hex
+

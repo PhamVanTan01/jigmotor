@@ -44,19 +44,20 @@ try {
         'CaptureSweep must create exactly one continuous acquisition context.'
     Assert-True ($source -match 'WaitForPointSettle\s*\(\s*MA600_AcquisitionContext_t\s*\*sweepAcquisition') `
         'Settle does not consume the caller-owned continuous context.'
-    Assert-True ($source -match 'stable\s*&&\s*targetNear') `
-        'Settle validity no longer requires stability and target proximity together.'
+    Assert-True ($source -match 'stable\s*&&\s*\(!targetRequired\s*\|\|\s*targetNear\)' -and
+            $source -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\s*#define NL_SETTLE_CONTRACT_ID\s+"STABILITY_ONLY_CAPTURE_V1".*?#else\s*#define NL_SETTLE_CONTRACT_ID\s+"STABILITY_AND_TARGET_V1"') `
+        'Settle must be stability-only for official open-loop capture and stability+target for legacy diagnostics.'
     Assert-True ($source -match 'NL_SETTLE_WRONG_POSITION') `
         'Stable-at-wrong-position classification is missing.'
     Assert-True ($source -match 'SetEngineState\(NL_ENGINE_RAMP\)[\s\S]*?MA600_AcquireSample\s*\(\s*&sweepAcquisition') `
         'Encoder feedback is not sampled during the ramp.'
     Assert-True ($source -match 'const\s+int64_t\s+pointAnchorUnwrapped\s*=\s*settleObservation\.finalSample\.unwrappedRaw') `
         'Canonical point anchor is not frozen from the post-settle observation.'
-    Assert-True ($source -match 'MA600_ReadAveragedPoint\s*\(\s*&shadowUnwrap,\s*pointAnchorUnwrapped') `
-        'Canonical sampler is not wired to the post-settle anchor.'
-    Assert-True ($source -match 'OfficialResultSource=LEGACY' -and
-            $source -match '#define\s+NL_LOG_SCHEMA_VERSION\s+5') `
-        'Phase-3A changed the official legacy/schema-v5 contract.'
+    Assert-True ($source -match 'CaptureCanonicalPointFromSweepContext\(\s*&sweepAcquisition, pointAnchorUnwrapped' -and
+            $source -match 'MA600_ReadAveragedPoint\(&shadowUnwrap,\s*pointAnchorUnwrapped') `
+        'Canonical sampling must use the post-settle anchor in both official and diagnostic profiles.'
+    Assert-True ($source -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP.*?OfficialResultSource=CANONICAL_Q16.*?#else.*?OfficialResultSource=LEGACY') `
+        'Official schema-v6 and diagnostic schema-v5 result sources are not isolated.'
     Assert-True ($source -match 'MotorPoleCount=%u,MotorPolePairs=%u' -and
             $source -match 'ElectricalRippleOrder=%u' -and
             $source -match 'AElectrical6=%s') `

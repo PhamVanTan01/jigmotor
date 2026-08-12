@@ -1,0 +1,82 @@
+Build: sweep-point-terminal-correction-v5-9a-fast3-20260812
+Date: 2026-08-12
+Source branch: codex/motion-control-v2-dma
+Base commit: 11b0c0c (worktree contains V5.9 EXTENDED terminal correction changes)
+Configuration: Release
+MCU: STM32F405RGTx
+
+Purpose
+-------
+V5.9a diagnostic pilot per docs/sweep-point-terminal-correction-v5-9-plan.md
+section 12. Extends V5.5 EXTENDED points that are STILL outside deadband
+after the validated 320-raw primary cap with a bounded 80-raw terminal
+allowance (400-raw hard cap total), via the same validated 4-raw fine step.
+BASE points never receive this extension. V5.8 DWT response timing stays ON
+in this artifact for causal motion/timing evidence, per plan section 12.1
+point 4 ("V5.8 response timing được phép ON trong artifact pilot V5.9a").
+
+Motion configuration
+---------------------
+- V5.4 universal live-gap fine landing: ON and unchanged.
+- V5.5 dynamic BASE escalation: ON and unchanged.
+- V5.6 three-stage response experiment: OFF.
+- V5.7 passive hard-cap hold diagnostic: OFF.
+- V5.8 DWT point response timing: ON (diagnostic only, motion-neutral).
+- V5.9 EXTENDED terminal correction: ON.
+  - EXTENDED primary cap: 320 raw (unchanged from V5.5).
+  - Terminal allowance: 80 raw (same validated 4-raw fine step).
+  - Hard cap: 400 raw total.
+  - Max iterations: 101.
+  - Per-sweep guard: max 10 points / max 800 raw terminal correction per
+    sweep, checked against prior-points-only counts (cannot look ahead).
+  - BASE points: never eligible for terminal extension.
+- Protocol: ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_WITH_EXTENDED_TERMINAL_CAP_V1
+- TerminalCorrectionProtocol: EXTENDED_PRIMARY320_TO_HARDCAP400_V1
+- Test schedule: 1 PRECONDITION + 3 OFFICIAL cycles (FAST3).
+
+Statistical status
+-------------------
+V5.9a is NOT official. Every run from this build has
+EligibleForStatistics=0. It is a causal motion/timing diagnostic build for
+gating V5.9a -> V5.9b promotion, not a production NL qualification build.
+
+Mount prerequisite (P08/JIG8 pilot filter ONLY, per plan section 13 -- do
+NOT apply to P02/P03/P09 or compile into a production threshold)
+------------------------------------------------------------------
+- H2AmplitudeDeg <= 0.020 deg
+- RobustP2PDeg <= 0.30 deg
+- Operator confirms no mount removal/shift between A/B legs.
+
+Recommended test order (plan section 12.1 A/B)
+------------------------------------------------
+1. Flash A = V5.5 baseline (frozen motion) on the same P08/JIG8 mount.
+2. Run FAST3.
+3. Flash B = this V5.9a build (timing ON, terminal cap 400).
+4. Run FAST3 on the SAME mount, no remount between A and B.
+5. Repeat once on an independent remount.
+6. P09 non-regression, P03 generalization (>=90% terminal success, <=1
+   failure allowed) before considering V5.9b promotion.
+
+Promotion gate (V5.9a -> V5.9b, plan section 12/17)
+-----------------------------------------------------
+Promote only if ALL of: P08/P09/P03 gates PASS, terminal success >=90%,
+no same-point failure at 400 raw, efficiency not near-zero/negative, no
+crossing/jump/guard-exceeded recurrence on a valid mount. V5.9b then drops
+V5.8 timing (or moves it to a separate instrumentation-neutral A/B) and
+restores source defaults after packaging.
+
+Build verification
+-------------------
+- Release compile: PASS (2 pre-existing unused-function/const warnings
+  only, no new warnings or errors).
+- ARM size: text=94316, data=96, bss=181248 bytes.
+- CCMRAM: 0xD088 = 53,384 / 65,536 bytes used; 12,152 bytes (~11.9 KB)
+  free -- exceeds the plan's required >=8 KB minimum.
+- Sweep-point-creep V5.3-V5.9 PowerShell contract suite: PASS (8/8).
+- Python auto_log_analysis / analyze_creep_difficulty_spatial unit tests:
+  PASS (11/11).
+- MATLAB parser/analyzer/synthetic V5.9 coverage: verified statically via
+  the V5.9 contract script (analysis/matlab/tests/test_nl_stability_analysis.m
+  cannot be executed in this environment -- no MATLAB installation here).
+- Default (all-flags-off) Debug build reconfirmed byte-for-byte unchanged
+  after this artifact was built: text=139444, data=96, bss=140792.

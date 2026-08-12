@@ -1,7 +1,9 @@
 # Nonlinear Log Schema v6 Contract
 
-Status: design contract; firmware must not emit `SchemaVersion=6` until the
-canonical sampler and validity rules below are implemented and verified.
+Status: implemented software candidate for
+`GREMSY_COMPAT_OPEN_LOOP_NL_V1` (2026-08-12). Firmware S0-S3 now emit this
+schema; hardware promotion remains blocked on S4/S5 verification and pilot
+evidence.
 
 Schema v4 and v5 meanings are frozen. A parser must never infer v6 semantics
 from a v5 record.
@@ -61,10 +63,33 @@ only pre-motor record and is emitted while the output is already disabled.
 - `SchemaVersion=6`
 - firmware BuildID, MCU UID, JigID/JigKnown, MotorID, TestID, SweepID
 - `MeasurementPolicy=WHOLE_SYSTEM_REPORT_ONLY_V1`
-- `MeasurementDefinition=WHOLE_SYSTEM_COMMAND_TRACKING`
+- `MeasurementProfile=GREMSY_COMPAT_OPEN_LOOP_NL_V1|POSITION_RESPONSE_DIAGNOSTIC_V5X`
+  (locked names, see `docs/open-loop-nl-direction-correction-handoff-2026-08-12.md`
+  §10.1 and §18; no third profile name may be introduced without amending
+  that handoff first)
+- `MeasurementDefinition=WHOLE_SYSTEM_OPEN_LOOP_TRACKING_V1` for the open-loop
+  profile, `ENCODER_CORRECTED_POSITION_RESPONSE` for the diagnostic profile.
+  **`WHOLE_SYSTEM_COMMAND_TRACKING` (no `_V1`, no profile qualifier) is
+  retired** — it was ambiguous about whether encoder-based command
+  correction occurred before capture, which is exactly the distinction that
+  matters for Open-loop NL. Do not re-introduce the unqualified name.
+- `OfficialOpenLoopNL=0|1` — `1` only when `MeasurementProfile=GREMSY_COMPAT_OPEN_LOOP_NL_V1`
+  AND no feedback-actuation mechanism (creep/recovery/terminal correction)
+  is compiled into the build that produced this record.
+- `FeedbackActuationEnabled=0|1` — `1` whenever any mechanism (creep,
+  recovery, terminal correction, PID/FOC position correction) is compiled
+  in that can modify the motor command based on an encoder reading of the
+  same point before that point's DATA is frozen. `FeedbackActuationEnabled=1`
+  implies `OfficialOpenLoopNL=0` and `EligibleForStatistics=0`, unconditionally,
+  regardless of which specific sub-flag is responsible — see AGENTS.md rule 0.
 - `AcceptanceMode=REPORT_ONLY`
+- `MeasurementContractVersion=GREMSY_OPEN_LOOP_NL_1DEG360_V1`
+- `ApproachProtocol=SCURVE_CW_PREROLL_LOCAL_REVERSAL_CONTROL_V1`
+- `MotionProfile=SCURVE40_ABSOLUTE_TICK_V2`
+- `GridProtocol=UNIFORM_1_DEG_ROUNDED_RAW_V1`
 - `MathContractVersion=CANONICAL_Q16_V1`
 - `SignedRoundingMode=NEAREST_AWAY_FROM_ZERO`
+- `ErrorSignConvention=COMMAND_MINUS_MEASURED`
 - `ReferenceDefinition=POINT0_CANONICAL_MEAN`
 - `MeanDCComparableToLegacy=0`
 - `CanonicalMeanSource=ALL_TIER1`
@@ -75,7 +100,7 @@ only pre-motor record and is emitted while the output is already disabled.
 - sweep direction, step/grid, expected/captured/analysis counts
 - `SampleTimingMode`, `SampleIntervalCycles`, `ScheduleInitialized`
 - `RequiredAcceptedSamples`, point/sweep transaction and accepted counts
-- `Quality=VALID|DEGRADED|INVALID`
+- `Quality=VALID|INVALID`
 - `OfficialMeasurementValid=0|1`
 - `OfficialInvalidReasonMask`
 - tracking, config, settle, acquisition, and context-reacquisition validity
@@ -85,6 +110,8 @@ only pre-motor record and is emitted while the output is already disabled.
 
 - Point 0 canonical accepted mean defines the sweep reference.
 - `Point0MeanRawQ16` records that exact canonical reference.
+- Each DATA record carries `CommandRawQ16`, `MeanUnwrappedRawQ16`, and
+  `ErrorRawQ16` from the same point/window.
 - Mean values and relative error use signed int64 Q16 raw-count units.
 - `Error_0=0` by definition.
 - CW target at 360 degrees is exactly `65536LL * 65536LL`; CCW is exactly its
@@ -102,8 +129,9 @@ only pre-motor record and is emitted while the output is already disabled.
 
 - configuration gate passed;
 - expected point count and complete canonical means;
-- no invalid settle point;
-- settle stability and target-proximity checks both passed;
+- no invalid stability-only settle point;
+- `SettleContract=STABILITY_ONLY_CAPTURE_V1` and
+  `SettleTargetRequired=0`;
 - acquisition budgets not exceeded;
 - zero context reacquisitions;
 - gross tracking-integrity guard passed;
@@ -111,11 +139,24 @@ only pre-motor record and is emitted while the output is already disabled.
 - no motor fault was recorded;
 - model-independent capture validity.
 
+Target proximity remains logged as a gross tracking diagnostic/guard. It is
+not a capture-readiness condition and never causes a command correction.
+The independent gross tracking guard may invalidate a sweep under this
+versioned measurement contract; it may not rescue or move any point.
+
 `OfficialInvalidReasonMask` uses the `CANONICAL_Q16_V1` bit assignments for
 configuration, acquisition, settle, tracking, closure, reacquisition, and
 motor-fault failures. More than one bit may be set. `SettleStabilityValid`,
-`SettleTargetProximityValid`, and `SettleValid` must be logged separately; a
-stable off-target point is `SETTLED_WRONG_POSITION`.
+`SettleTargetProximityValid`, and `SettleValid` must be logged separately. In
+schema-v6 open-loop capture, a stable off-target point is capture-ready with
+`SettleValid=1` and `SettleTargetProximityValid=0`; the gross tracking guard
+is evaluated separately after the curve is frozen. The diagnostic schema-v5
+profile retains `SETTLED_WRONG_POSITION` when target proximity is required.
+
+For a valid capture, `RESULT.OpenLoopNL_Deg` is the Gremsy-compatible primary
+metric `max(Error)-min(Error)` across analysis points 0..359.
+`RobustP2P_Deg`, RMS, harmonics, closure, and model fits are supporting
+metrics and cannot replace that primary field.
 
 Model-fit validity is logged separately and does not redefine raw capture
 validity. `DEGRADED` handling remains diagnostic until Phase B selects a policy.

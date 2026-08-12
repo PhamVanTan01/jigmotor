@@ -60,7 +60,7 @@ $callBlock = [regex]::Match($source,
 Assert-True (-not [string]::IsNullOrWhiteSpace($callBlock) -and
         $callBlock -match '\(uint32_t\)pointIndex\s*==\s*NL_SWEEP_CREEP_V53_TARGET_POINT' -and
         $callBlock -match 'creepMaxIterations = NL_SWEEP_CREEP_V53_MAX_ITERATIONS;' -and
-        $callBlock -match 'NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS,\s*&fineLandingConfig\);' -and
+        $callBlock -match 'NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS,\s*&fineLandingConfig,\s*NULL\);' -and
         $callBlock -match 'else\s*\{\s*creepAcqResult = CreepToUnwrappedTarget\(') `
     'Only the explicit point-66 call site may opt into the V5.3 profile.'
 
@@ -85,8 +85,8 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($capture) -and
 Assert-True ($source -match 'SweepPointCreepStickSlipJump=%lu' -and
         $source -match 'SweepPointCreepFineLandingAttempted=%lu' -and
         $source -match 'sweepPointCreepRecoveryFailedCount == 0U\s*&& c->sweepPointCreepStickSlipJumpCount == 0U' -and
-        $source -match '(?s)eligibleForStatistics = !preconditionRun\s*&& preconditionValid.*?sweepPointCreepStickSlipJumpCount == 0U') `
-    'V5.3 jump must be visible in END and suppress integrity/official eligibility.'
+        $source -match '(?s)nlCaptures\[i\]\.eligibleForStatistics =\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)') `
+    'V5.3 jump must be visible in END, and eligibility must stay profile-gated (2026-08-12: any creep/jump state is now architecturally impossible in NL_PROFILE_GREMSY_OPEN_LOOP, per the #error guard, rather than excluded by an explicit counter check).'
 
 Assert-True ($source -match '\.stack_size\s*=\s*12288U' -and
         $source -match 'RUNTIME_CHECKPOINT,Stage=COOLDOWN_START,TestStackHighWaterWords=%lu,FreeHeap=%lu' -and

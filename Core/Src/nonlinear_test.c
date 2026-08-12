@@ -30,6 +30,7 @@
 #include "cmsis_os.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -37,6 +38,27 @@
 #include <string.h>
 
 extern UART_HandleTypeDef huart3;
+
+/* Measurement profile identity -- see AGENTS.md RULE 0 and
+ * docs/open-loop-nl-direction-correction-handoff-2026-08-12.md. This is the
+ * single source of truth for "is any encoder-based command correction
+ * allowed before a point's DATA is frozen": NL_PROFILE_GREMSY_OPEN_LOOP
+ * forbids it entirely (enforced below, after every feedback-actuation flag
+ * has its final value); NL_PROFILE_POSITION_DIAGNOSTIC permits creep/
+ * recovery/terminal correction but must never publish OfficialOpenLoopNL=1
+ * or EligibleForStatistics=1 for open-loop NL. Defaults to the open-loop
+ * profile -- the repository's primary and authoritative objective -- so a
+ * build silently gains a feedback-actuation flag only if a developer also
+ * explicitly opts into the diagnostic profile. */
+#define NL_PROFILE_GREMSY_OPEN_LOOP       1
+#define NL_PROFILE_POSITION_DIAGNOSTIC    2
+#ifndef NL_MEASUREMENT_PROFILE
+#define NL_MEASUREMENT_PROFILE NL_PROFILE_GREMSY_OPEN_LOOP
+#endif
+#if (NL_MEASUREMENT_PROFILE != NL_PROFILE_GREMSY_OPEN_LOOP) \
+        && (NL_MEASUREMENT_PROFILE != NL_PROFILE_POSITION_DIAGNOSTIC)
+#error "NL_MEASUREMENT_PROFILE must be NL_PROFILE_GREMSY_OPEN_LOOP or NL_PROFILE_POSITION_DIAGNOSTIC"
+#endif
 
 #define NL_ENGINE_COMMAND_START 1U
 
@@ -136,7 +158,18 @@ static const uint32_t kNlB0BPreRollCheckpoints[NL_B0B_PREROLL_CHECKPOINT_COUNT] 
  * are trying to measure. Point 0 defines the sweep reference and therefore
  * requires stability but has zero target error by definition. */
 #define NL_SETTLE_TARGET_TOLERANCE_RAW  910LL /* 4.99878 deg. */
+/* Open-loop capture readiness must never wait for the rotor to become
+ * "close enough" to the command: that would make the data window depend on
+ * the very command-tracking error being measured.  Target proximity remains
+ * an independently logged gross-integrity observation.  Diagnostic V5.x
+ * keeps its historical combined settle contract byte-for-byte. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+#define NL_SETTLE_CONTRACT_ID           "STABILITY_ONLY_CAPTURE_V1"
+#define NL_POINT_SETTLE_TARGET_REQUIRED 0
+#else
 #define NL_SETTLE_CONTRACT_ID           "STABILITY_AND_TARGET_V1"
+#define NL_POINT_SETTLE_TARGET_REQUIRED 1
+#endif
 #define NL_CONTINUOUS_CONTEXT_ID        "SWEEP_CONTEXT_V1"
 /* Was loosened to 0.15/10s at one point to work around a since-fixed PID
  * bug (pidCurrentPos truncating small outputs to 0 and stalling -- see
@@ -166,16 +199,23 @@ static const uint32_t kNlB0BPreRollCheckpoints[NL_B0B_PREROLL_CHECKPOINT_COUNT] 
 #define NL_ACQ_MAX_ATTEMPTS         3U
 #define NL_SETTLE_MAX_JUMP_RAW      1821
 #define NL_SWEEP_MAX_JUMP_RAW       1821
-/* Phase-2B shadow sampler. Legacy schema-v5 DATA/ACQ/RESULT remain official;
- * these limits apply only to the non-official canonical Q16 capture made
- * at the same settled point. The point sampler aborts when consecutive
- * failures exceed maxConsecutiveFailures, so 2 means the third consecutive
- * failure aborts, matching the legacy three-attempt failure boundary. */
+/* Canonical sampler identity.  CANONICAL_Q16_V1 is the arithmetic/rounding
+ * contract; GREMSY_OPEN_LOOP_NL_1DEG360_V1 is the measurand/grid contract.
+ * Keeping these as separate fields prevents the old failure mode where one
+ * ID silently described both 256-point and 360-point captures. */
 #define NL_SHADOW_POINT_MAX_TRANSACTIONS          96U
 #define NL_SHADOW_POINT_MAX_CONSECUTIVE_FAILURES  2U
 #define NL_SHADOW_POINT_MAX_ELAPSED_US             20000U
+#define NL_MATH_CONTRACT_ID                        "CANONICAL_Q16_V1"
+#define NL_MEASUREMENT_CONTRACT_ID                 "GREMSY_OPEN_LOOP_NL_1DEG360_V1"
+#define NL_SIGNED_ROUNDING_MODE                    "NEAREST_AWAY_FROM_ZERO"
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+#define NL_SHADOW_CONTRACT_ID                      NL_MEASUREMENT_CONTRACT_ID
+#define NL_SHADOW_SIGN_CONVENTION                  "COMMAND_MINUS_MEASURED"
+#else
 #define NL_SHADOW_CONTRACT_ID                      "CANONICAL_Q16_1DEG360_V2"
 #define NL_SHADOW_SIGN_CONVENTION                  "MEASURED_MINUS_TARGET"
+#endif
 #define NL_SHADOW_REFERENCE_DEFINITION             "POINT0_CANONICAL_MEAN"
 #define NL_SHADOW_CANONICAL_MEAN_SOURCE            "ALL_TIER1"
 #define NL_SHADOW_CLOSURE_LIMIT_DEG                 0.20f
@@ -305,7 +345,11 @@ static bool NlOneDegreeGridSelfTest(void)
  * NL_LEGACY_HARMONIC_ORDERS) -- no v3 log is known to exist outside this development session,
  * so v3 is simply retired rather than migrated. */
 #ifndef NL_LOG_SCHEMA_VERSION
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+#define NL_LOG_SCHEMA_VERSION       6
+#else
 #define NL_LOG_SCHEMA_VERSION       5
+#endif
 #endif
 #ifndef NL_FIT_EVAL_POINTS
 /* Grid used only to reconstruct Fitted_P2P/Fitted_P2P_Extended (see
@@ -347,7 +391,18 @@ static bool NlOneDegreeGridSelfTest(void)
  * Keep this policy version in every META line so offline datasets cannot
  * silently mix results produced under different acceptance semantics. */
 #define NL_MEASUREMENT_POLICY_ID    "WHOLE_SYSTEM_REPORT_ONLY_V1"
-#define NL_MEASUREMENT_DEFINITION   "WHOLE_SYSTEM_COMMAND_TRACKING"
+/* WHOLE_SYSTEM_COMMAND_TRACKING (unqualified, no profile) is retired -- see
+ * docs/nonlinear-log-schema-v6.md and AGENTS.md RULE 0. It was ambiguous
+ * about whether encoder-based command correction occurred before capture,
+ * which is exactly the distinction that matters for Open-loop NL. Do not
+ * reintroduce the unqualified name. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+#define NL_MEASUREMENT_PROFILE_ID   "GREMSY_COMPAT_OPEN_LOOP_NL_V1"
+#define NL_MEASUREMENT_DEFINITION   "WHOLE_SYSTEM_OPEN_LOOP_TRACKING_V1"
+#else
+#define NL_MEASUREMENT_PROFILE_ID   "POSITION_RESPONSE_DIAGNOSTIC_V5X"
+#define NL_MEASUREMENT_DEFINITION   "ENCODER_CORRECTED_POSITION_RESPONSE"
+#endif
 #define NL_ACCEPTANCE_MODE          "REPORT_ONLY"
 
 /* STM32F405's 96-bit factory-programmed Unique Device ID. Combined with TestID/SweepID (both
@@ -894,7 +949,6 @@ static bool NlSectorCalibrationSelfTest(void)
  *
  * v4 (P08/JIG7, three remount logs) confirmed power=1.0 with step=16 and
  * budget=220 is stable, but 56-68 points/sweep still exhausted the fixed
- * budget. Offline replay showed initial post-settle gap predicts creep
  * correction demand with Pearson r=0.979-0.991, and 56-59 points/sweep had
  * |gap|>200 raw. V5 therefore keeps the validated BASE behavior and grants
  * an EXTENDED budget only to that live physical condition. */
@@ -1026,6 +1080,39 @@ static bool NlSectorCalibrationSelfTest(void)
 #define NL_POINT_TIMING_FLAG_SHADOW_ATTEMPTED  0x04U
 #define NL_POINT_TIMING_FLAG_REACHED_DEADBAND  0x08U
 #endif
+/* V5.9 keeps the frozen V5.5 EXTENDED behavior byte-for-byte up to the
+ * validated 320-raw primary cap. Only a point that is still outside
+ * deadband at that boundary is allowed to continue, with its own separate
+ * 80-raw terminal allowance (400-raw hard cap total), latched from the
+ * live gap/iteration state V5.5 would already be stopping at -- no new
+ * MA600 read is added. BASE points never receive the terminal extension;
+ * see docs/sweep-point-terminal-correction-v5-9-plan.md. */
+#ifndef ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+#define ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION 0
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION \
+        && !ENABLE_SWEEP_POINT_CREEP_V55_DYNAMIC_BASE_ESCALATION
+#error "V5.9 terminal correction requires frozen V5.5 motion"
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION \
+        && !ENABLE_SWEEP_POINT_CREEP_V54_UNIVERSAL_FINE_LANDING
+#error "V5.9 terminal correction requires V5.4 universal fine landing"
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION \
+        && ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
+#error "V5.9 extends V5.5 motion; V5.6 three-stage MID landing must remain disabled"
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION \
+        && ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG
+#error "V5.9 changes motion; V5.7 passive-hold diagnostic assumes frozen V5.5 motion"
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION \
+        && ENABLE_SWEEP_POINT_CREEP_V54A_FINE_FAILURE_TRACE
+#error "V5.9 and V5.4a are separate diagnostic/motion identities"
+#endif
+/* V5.8 DWT timing is explicitly allowed ON at the same time as V5.9 (the
+ * V5.9a pilot artifact keeps both enabled); no exclusion check here. */
+
 #if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING \
         && ENABLE_SWEEP_POINT_CREEP_V54_UNIVERSAL_FINE_LANDING
 #error "V5.3 and V5.4 fine-landing experiments are mutually exclusive"
@@ -1062,7 +1149,14 @@ static bool NlSectorCalibrationSelfTest(void)
  * condition without baking one mounting's angle list into firmware. */
 #if ENABLE_SWEEP_POINT_CREEP_V54_UNIVERSAL_FINE_LANDING
 #if ENABLE_SWEEP_POINT_CREEP_V55_DYNAMIC_BASE_ESCALATION
-#if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+#define NL_SWEEP_CREEP_PROTOCOL_ID              "ADAPTIVE_BASE_TO_EXTENDED_ESCALATION_WITH_EXTENDED_TERMINAL_CAP_V1"
+#define NL_SWEEP_CREEP_LANDING_PROTOCOL_ID      "UNIVERSAL_LIVE_GAP_FINE_STEP4_JUMP_GUARD_V1"
+#define NL_SWEEP_CREEP_STEP_SELECTION_RULE_ID   "COARSE_TO_FINE_LIVE_GAP_V1"
+#define NL_SWEEP_CREEP_RESPONSE_POLICY_ID       "NONE"
+#define NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID     "UNIVERSAL_FINE_SINGLE_REVERSAL_V1"
+#define NL_SWEEP_CREEP_TERMINAL_PROTOCOL_ID     "EXTENDED_PRIMARY320_TO_HARDCAP400_V1"
+#elif ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
 #define NL_SWEEP_CREEP_PROTOCOL_ID              "ADAPTIVE_BASE_TO_EXTENDED_THREE_STAGE_LANDING_V3"
 #define NL_SWEEP_CREEP_LANDING_PROTOCOL_ID      "LIVE_GAP_MONOTONIC_16_8_4_DIAG_V1"
 #define NL_SWEEP_CREEP_STEP_SELECTION_RULE_ID   "COARSE_GT96_MID_GT64_FINE_LE64"
@@ -1127,7 +1221,15 @@ static bool NlSectorCalibrationSelfTest(void)
 #define NL_SWEEP_CREEP_V54_EXTENDED_MAX_ITERATIONS    81U
 #define NL_SWEEP_CREEP_V54_RECOVERY_MAX_TOTAL_RAW     64LL
 #define NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS    17U
+/* The shared V5.4 scratch trace buffer (creepV54Trace[]) is reused by every
+ * later experiment on this branch (V5.4a/V5.5/V5.6/V5.7/V5.8/V5.9); it must
+ * be sized for whichever active one needs the most capacity. Only V5.9's
+ * 400-raw hard cap at a 4-raw fine step needs more than the validated 100. */
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+#define NL_SWEEP_CREEP_V54_TRACE_CAPACITY             120U
+#else
 #define NL_SWEEP_CREEP_V54_TRACE_CAPACITY             100U
+#endif
 #if ENABLE_SWEEP_POINT_CREEP_V55_DYNAMIC_BASE_ESCALATION
 #define NL_SWEEP_CREEP_V55_BASE_HARD_MAX_TOTAL_RAW    NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW
 #define NL_SWEEP_CREEP_V55_BASE_MAX_ITERATIONS        NL_SWEEP_CREEP_V54_EXTENDED_MAX_ITERATIONS
@@ -1152,6 +1254,36 @@ static bool NlSectorCalibrationSelfTest(void)
 #if NL_SWEEP_CREEP_V56_STICK_SLIP_JUMP_DELTA_RAW \
         != NL_SWEEP_CREEP_V54_JUMP_THRESHOLD_RAW
 #error "V5.6 pilot keeps the validated 96-raw jump threshold"
+#endif
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+/* V5.9 keeps the validated 320-raw EXTENDED primary cap untouched and grants
+ * a separate, bounded terminal allowance only after that boundary. BASE
+ * never receives this extension (see NL_SWEEP_CREEP_V55_BASE_HARD_MAX_TOTAL_RAW
+ * above, which stays pinned to the 320-raw EXTENDED cap). */
+#define NL_SWEEP_CREEP_V59_EXTENDED_TERMINAL_ALLOWANCE_RAW   80LL
+#define NL_SWEEP_CREEP_V59_EXTENDED_HARD_CAP_RAW \
+    (NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW \
+        + NL_SWEEP_CREEP_V59_EXTENDED_TERMINAL_ALLOWANCE_RAW)
+#define NL_SWEEP_CREEP_V59_EXTENDED_MAX_ITERATIONS           101U
+#define NL_SWEEP_CREEP_V59_MAX_TERMINAL_POINTS_PER_SWEEP     10U
+#define NL_SWEEP_CREEP_V59_MAX_TERMINAL_TOTAL_RAW_PER_SWEEP  800LL
+#if NL_SWEEP_CREEP_V59_EXTENDED_HARD_CAP_RAW != 400LL
+#error "V5.9 plan locks the EXTENDED hard cap at exactly 400 raw"
+#endif
+#if NL_SWEEP_CREEP_V59_EXTENDED_MAX_ITERATIONS <= \
+        ((NL_SWEEP_CREEP_V59_EXTENDED_HARD_CAP_RAW \
+            + NL_SWEEP_CREEP_V54_FINE_STEP_RAW - 1LL) \
+            / NL_SWEEP_CREEP_V54_FINE_STEP_RAW)
+#error "V5.9 EXTENDED iterations must exceed ceil(400-raw hard cap/fine step)"
+#endif
+/* NL_SWEEP_CREEP_V54_TRACE_CAPACITY is the real shared buffer size (already
+ * widened to 120 above when this flag is on) -- checked here, not via a
+ * separate constant, so the assert can never drift from the actual array. */
+#if NL_SWEEP_CREEP_V54_TRACE_CAPACITY < \
+        (NL_SWEEP_CREEP_V59_EXTENDED_MAX_ITERATIONS \
+            + NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS)
+#error "V5.9 trace capacity must cover ordinary plus recovery iteration guards"
 #endif
 #endif
 #if NL_SWEEP_CREEP_V55_BASE_MAX_ITERATIONS <= \
@@ -1324,6 +1456,41 @@ static bool NlSectorCalibrationSelfTest(void)
      || ENABLE_B0B_APPROACH_SOFT_START)
 #error "NL_APPROACH_MODE_NO_REVERSAL_V3/SHIFTED_REVERSAL_A0 must not combine with ENABLE_B0B_APPROACH_FEEDFORWARD/CREEP/SOFT_START"
 #endif
+
+/* Profile-isolation enforcement (AGENTS.md RULE 0). Placed here, after every
+ * flag it checks has its final value (including ENABLE_B0B_APPROACH_FEEDFORWARD,
+ * defined just above) -- not right after the V5.x cascade, where
+ * ENABLE_B0B_APPROACH_FEEDFORWARD would still be undefined (undefined in #if
+ * is 0 per the standard, so that placement would not have caused a build
+ * error, but would have silently stopped protecting once someone reordered
+ * the flag definitions). Every flag checked here modifies the motor command
+ * based on an encoder reading of the same point (ENABLE_SWEEP_POINT_CREEP,
+ * ENABLE_B0B_APPROACH_CREEP) or applies a bias constant that was itself
+ * derived from a prior encoder-response measurement
+ * (ENABLE_B0B_APPROACH_FEEDFORWARD -- see NL_B0B_FEEDFORWARD_PROTOCOL_ID
+ * "CREEP_DERIVED_BIAS_V2" above: "learned from the same encoder response",
+ * exactly the category AGENTS.md RULE 0 names as forbidden, even though the
+ * blind extension itself never reads MA600 while it runs). Real observation-
+ * only mechanisms (ramp telemetry, ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG)
+ * are deliberately NOT listed -- they do not touch the command, so they do
+ * not violate open-loop actuation by themselves. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+#if ENABLE_SWEEP_POINT_CREEP \
+        || ENABLE_B0B_APPROACH_CREEP \
+        || ENABLE_B0B_APPROACH_FEEDFORWARD \
+        || ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+#error "Feedback actuation (or encoder-derived feedforward) is forbidden in NL_PROFILE_GREMSY_OPEN_LOOP -- switch to NL_PROFILE_POSITION_DIAGNOSTIC"
+#endif
+#endif
+
+/* One aggregate runtime/schema field, derived from the complete set of
+ * mechanisms rather than maintained separately.  The open-loop guard above
+ * makes the value a compile-time zero for the official profile. */
+#define NL_FEEDBACK_ACTUATION_ENABLED \
+    ((ENABLE_SWEEP_POINT_CREEP \
+        || ENABLE_B0B_APPROACH_CREEP \
+        || ENABLE_B0B_APPROACH_FEEDFORWARD \
+        || ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION) ? 1 : 0)
 
 #ifndef ENABLE_NL_MATH_SELF_TEST
 /* When 1, NonlinearTest_Run() skips the motor entirely and instead runs synthetic curves
@@ -1527,7 +1694,19 @@ static void LogLine(const char *fmt, ...)
     {
         if ((size_t)len >= sizeof(buf))
         {
-            len = (int)sizeof(buf) - 1;
+            /* Never transmit a syntactically plausible but truncated schema
+             * record. Count the formatting overflow as a logging failure and
+             * emit one bounded explicit marker; END will then be INVALID via
+             * nlUartTransmitFailureCount. */
+            static const char overflowRecord[] =
+                "LOG_ERROR,Reason=LINE_TRUNCATED\r\n";
+            nlUartTransmitFailureCount++;
+            if (HAL_UART_Transmit(&huart3, (uint8_t *)overflowRecord,
+                    (uint16_t)(sizeof(overflowRecord) - 1U), 200) != HAL_OK)
+            {
+                nlUartTransmitFailureCount++;
+            }
+            return;
         }
         if (HAL_UART_Transmit(&huart3, (uint8_t *)buf, (uint16_t)len, 100) != HAL_OK)
         {
@@ -1545,14 +1724,13 @@ static void LogLine(const char *fmt, ...)
  * the dedicated test task is sized from compiler stack-usage reports with explicit margin. */
 static void LogLineLarge(const char *fmt, ...)
 {
-#if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
-    /* Schema-9 point/response records need more room than legacy records.
-     * Phase response has its own bounded record so 2600 bytes preserves both
-     * RAM capacity and the nonlinear task's validated stack margin. */
+    /* Schema-v6 open-loop META is about 2.1 KiB once the versioned approach,
+     * motion, grid, canonical and batch-role contracts are all present. The
+     * previous 1900-byte branch silently cut the line before RunRole and
+     * EligibleForStatistics, then the following GRID record attached to it.
+     * 2600 bytes was already stack-validated by the V5.6 diagnostic profile
+     * and fits the nonlinear task's dedicated 12 KiB stack. */
     char buf[2600];
-#else
-    char buf[1900];
-#endif
     va_list args;
     va_start(args, fmt);
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
@@ -1561,7 +1739,19 @@ static void LogLineLarge(const char *fmt, ...)
     {
         if ((size_t)len >= sizeof(buf))
         {
-            len = (int)sizeof(buf) - 1;
+            /* Structured records are atomic. A truncated line can make a
+             * PRECONDITION look like an eligible legacy sweep, so never put
+             * a plausible prefix on UART. END will be invalidated by the
+             * failure counter if this guard ever fires. */
+            static const char overflowRecord[] =
+                "LOG_ERROR,Reason=LARGE_LINE_TRUNCATED\r\n";
+            nlUartTransmitFailureCount++;
+            if (HAL_UART_Transmit(&huart3, (uint8_t *)overflowRecord,
+                    (uint16_t)(sizeof(overflowRecord) - 1U), 200) != HAL_OK)
+            {
+                nlUartTransmitFailureCount++;
+            }
+            return;
         }
         if (HAL_UART_Transmit(&huart3, (uint8_t *)buf, (uint16_t)len, 200) != HAL_OK)
         {
@@ -1688,6 +1878,35 @@ static float ShadowRawQ16ToDegrees(int64_t rawQ16)
     return (float)((double)rawQ16 * 360.0 / (65536.0 * 65536.0));
 }
 
+/* MA600_ComputeCanonicalErrorAtTargetQ16 intentionally exposes the original
+ * Phase-2B MEASURED_MINUS_TARGET convention.  Gremsy's NL curve is
+ * COMMAND_MINUS_MEASURED, so the official profile flips the signed Q16 value
+ * exactly once here.  Diagnostic V5.x retains its historical sign. */
+static bool NlComputeProfileErrorRawQ16(int64_t pointMeanRawQ16,
+                                         int64_t point0MeanRawQ16,
+                                         int64_t signedTargetRaw,
+                                         int64_t *outErrorRawQ16)
+{
+    int64_t measuredMinusTargetRawQ16 = 0;
+    if (outErrorRawQ16 == NULL
+            || !MA600_ComputeCanonicalErrorAtTargetQ16(pointMeanRawQ16,
+                point0MeanRawQ16, signedTargetRaw,
+                &measuredMinusTargetRawQ16))
+    {
+        return false;
+    }
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+    if (measuredMinusTargetRawQ16 == INT64_MIN)
+    {
+        return false;
+    }
+    *outErrorRawQ16 = -measuredMinusTargetRawQ16;
+#else
+    *outErrorRawQ16 = measuredMinusTargetRawQ16;
+#endif
+    return true;
+}
+
 static uint8_t SaturateU8(uint32_t value)
 {
     return (uint8_t)((value > 255U) ? 255U : value);
@@ -1698,7 +1917,8 @@ static uint16_t SaturateU16(uint32_t value)
     return (uint16_t)((value > 65535U) ? 65535U : value);
 }
 
-#if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
+#if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING \
+        || ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
 static int16_t SaturateI16(int64_t value)
 {
     if (value > INT16_MAX)
@@ -2435,10 +2655,43 @@ typedef struct
     NlCreepPhaseResponse_t recoveryResponse;
     NlCreepPhaseResponse_t coarseTailResponse;
 #endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    /* Latched once, the first time totalCorrectionRaw reaches the frozen
+     * V5.5 primary cap (terminal->primaryCapRaw) on an EXTENDED point. The
+     * entry snapshot is exactly the state V5.5 alone would have stopped at.
+     * terminalCorrectionRaw is its own running accumulator (not derived by
+     * subtracting from totalCorrectionRaw), because the primary phase's own
+     * last command may itself land on or past the cap by up to one active
+     * step -- subtraction would misattribute part of that command. */
+    bool terminalEligible;
+    bool terminalAttempted;
+    int64_t terminalEntryGapRaw;
+    uint32_t terminalEntryIteration;
+    uint32_t terminalIterations;
+    int64_t terminalCorrectionRaw;
+    bool terminalSucceeded;
+    /* Set by the caller after this call returns (this function has no
+     * visibility into the per-sweep guard); true only when the caller
+     * withheld a real terminal config from an EXTENDED point specifically
+     * because the per-sweep terminal guard was already exhausted. */
+    bool terminalSuppressedBySweepGuard;
+#endif
     bool stickSlipJumpDetected;
     int64_t maxObservedStepDeltaRaw;
     uint32_t traceCount;
 } NlCreepDiagnostics_t;
+
+/* Optional, NULL-disabled config for CreepToUnwrappedTargetProfiled(),
+ * matching the existing fineLanding pointer-config pattern. Always declared
+ * (so the function signature does not need an #if) even though only the
+ * ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION main-sweep call
+ * site ever constructs a real one and only for an EXTENDED point that the
+ * per-sweep terminal guard still has budget for; B0-B and the V5.3-only
+ * call path always pass NULL. */
+typedef struct
+{
+    int64_t primaryCapRaw;
+} NlCreepTerminalConfig_t;
 
 typedef struct
 {
@@ -2894,10 +3147,11 @@ static void FormatI64PipeList(const int64_t *values, uint8_t count,
 }
 #endif
 
-/* Uses the caller-owned sweep context. Stability and target proximity must
- * hold together for one complete consecutive window. No context is created
- * or reacquired here, so wrap history remains continuous through ramp,
- * settle, and point capture. */
+/* Uses the caller-owned sweep context.  targetRequired selects whether
+ * target proximity participates in capture readiness; proximity is always
+ * measured and reported.  The official open-loop profile passes false so a
+ * stable command-tracking error is preserved as data instead of changing
+ * when the capture begins.  No context is created or reacquired here. */
 static NlSettleResult_t WaitForPointSettle(
     MA600_AcquisitionContext_t *sweepAcquisition,
     int64_t expectedTargetUnwrapped,
@@ -2944,9 +3198,8 @@ static NlSettleResult_t WaitForPointSettle(
         lastUnwrapped = sample.unwrappedRaw;
         out->positionErrorRaw = sample.unwrappedRaw - expectedTargetUnwrapped;
         bool stable = deltaRaw <= (uint64_t)NL_POINT_SETTLE_ERROR_RAW;
-        bool targetNear = !targetRequired
-            || AbsI64ToU64(out->positionErrorRaw)
-                <= (uint64_t)NL_SETTLE_TARGET_TOLERANCE_RAW;
+        bool targetNear = AbsI64ToU64(out->positionErrorRaw)
+            <= (uint64_t)NL_SETTLE_TARGET_TOLERANCE_RAW;
 
         if (stable)
         {
@@ -2956,7 +3209,7 @@ static NlSettleResult_t WaitForPointSettle(
         {
             stableConsecutive = 0U;
         }
-        if (stable && targetNear)
+        if (stable && (!targetRequired || targetNear))
         {
             combinedConsecutive++;
         }
@@ -3023,9 +3276,13 @@ static MA600_Result_t CreepToUnwrappedTargetProfiled(
     uint32_t stepRaw, uint32_t deadbandRaw, int64_t maxTotalRaw,
     uint32_t maxIterations, float power, bool stopOnTargetCrossing,
     int64_t recoveryMaxTotalRaw, uint32_t recoveryMaxIterations,
-    const NlCreepFineLandingConfig_t *fineLanding)
+    const NlCreepFineLandingConfig_t *fineLanding,
+    const NlCreepTerminalConfig_t *terminal)
 {
     memset(diag, 0, sizeof(*diag));
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    diag->terminalEligible = (terminal != NULL);
+#endif
     int64_t anchor = anchorSample->unwrappedRaw;
     int64_t gap = targetUnwrapped - anchor;
     int direction = (gap > 0) ? 1 : -1;
@@ -3094,6 +3351,19 @@ static MA600_Result_t CreepToUnwrappedTargetProfiled(
             landingPhase = NL_CREEP_LANDING_PHASE_FINE;
             diag->fineLandingAttempted = true;
         }
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        /* Fires at most once: the moment totalCorrectionRaw (from prior
+         * iterations only) has reached the frozen V5.5 primary cap. This is
+         * exactly the state V5.5 alone would already be stopping at, so it
+         * is latched before this iteration's own command is chosen. */
+        if (terminal != NULL && !recoveryPhase && !diag->terminalAttempted
+                && diag->totalCorrectionRaw >= terminal->primaryCapRaw)
+        {
+            diag->terminalAttempted = true;
+            diag->terminalEntryGapRaw = gap;
+            diag->terminalEntryIteration = diag->iterations;
+        }
+#endif
         if (recoveryPhase && diag->recoveryIterations >= recoveryMaxIterations)
         {
             diag->result = NL_CREEP_RECOVERY_TIMEOUT;
@@ -3147,6 +3417,16 @@ static MA600_Result_t CreepToUnwrappedTargetProfiled(
             diag->recoveryIterations++;
             diag->recoveryCorrectionRaw += stepMagnitude;
         }
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        /* Excludes recovery commands: those already have their own separate
+         * accounting/budget, and a crossing during terminal is a mechanism
+         * failure, not terminal progress (see terminalSucceeded below). */
+        if (diag->terminalAttempted && !recoveryPhase)
+        {
+            diag->terminalIterations++;
+            diag->terminalCorrectionRaw += stepMagnitude;
+        }
+#endif
 #if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
         if (landingPhase == NL_CREEP_LANDING_PHASE_MID)
         {
@@ -3271,6 +3551,13 @@ static MA600_Result_t CreepToUnwrappedTargetProfiled(
         }
     }
 
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    /* Strictly NL_CREEP_OK, not NL_CREEP_OK_RECOVERED: any crossing/recovery
+     * during or after the terminal phase is a mechanism failure per the
+     * locked plan, even if the point ultimately lands inside deadband. */
+    diag->terminalSucceeded = diag->terminalAttempted
+        && diag->result == NL_CREEP_OK;
+#endif
     diag->finalGapRaw = gap;
     return MA600_RESULT_OK;
 }
@@ -3289,7 +3576,7 @@ static MA600_Result_t CreepToUnwrappedTarget(
     return CreepToUnwrappedTargetProfiled(sweepAcquisition, commandPos,
         targetUnwrapped, anchorSample, diag, stepRaw, deadbandRaw,
         maxTotalRaw, maxIterations, power, stopOnTargetCrossing,
-        recoveryMaxTotalRaw, recoveryMaxIterations, NULL);
+        recoveryMaxTotalRaw, recoveryMaxIterations, NULL, NULL);
 }
 #endif /* ENABLE_B0B_APPROACH_CREEP || ENABLE_SWEEP_POINT_CREEP */
 
@@ -3370,6 +3657,7 @@ typedef enum
 typedef struct
 {
     int64_t  pointMeanRawQ16[NL_MAX_SWEEP_POINTS];
+    int64_t  errorRawQ16[NL_MAX_SWEEP_POINTS];
     int64_t  settlePositionErrorRaw[NL_MAX_SWEEP_POINTS];
     uint32_t firstAttemptCycle[NL_MAX_SWEEP_POINTS];
     uint32_t elapsedCycle[NL_MAX_SWEEP_POINTS];
@@ -3427,6 +3715,15 @@ typedef struct
      * creepCoarseTailFlags because COARSE commands are <=16 raw and count<=3. */
     int16_t  creepCoarseTailDirectedRaw[NL_MAX_SWEEP_POINTS];
     uint8_t  creepCoarseTailFlags[NL_MAX_SWEEP_POINTS];
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    int16_t  creepTerminalEntryGapRaw[NL_MAX_SWEEP_POINTS];
+    uint16_t creepTerminalCorrectionRaw[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepTerminalEntryIteration[NL_MAX_SWEEP_POINTS];
+    uint8_t  creepTerminalIterations[NL_MAX_SWEEP_POINTS];
+    /* bit0 eligible, bit1 attempted, bit2 succeeded, bit3 suppressed by
+     * the per-sweep terminal guard */
+    uint8_t  creepTerminalFlags[NL_MAX_SWEEP_POINTS];
 #endif
 #if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
     uint8_t  creepV53TraceCount;
@@ -3555,6 +3852,8 @@ typedef struct
     bool     measurementValid; /* protocol validity: acquisition succeeded, point count and
                                  * settling are complete, and gross tracking integrity passed.
                                  * Independent of nonlinear magnitude and model validity. */
+    bool     officialMeasurementValid;
+    uint32_t officialInvalidReasonMask;
 
     uint16_t rawAtOffset;
     uint16_t motorOffset;
@@ -3856,6 +4155,20 @@ typedef struct
     int64_t  sweepPointCreepBaseEscalationCorrectionRaw;
     uint32_t sweepPointCreepStickSlipJumpCount;
     int64_t  sweepPointCreepMaxObservedStepDeltaRaw;
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    /* AttemptedCount and TotalCorrectionRaw double as the live per-sweep
+     * guard counters (checked before offering terminal to the next point)
+     * and the final END-record aggregates -- both readings are the same
+     * cumulative value, just read at different times. */
+    uint32_t sweepPointCreepTerminalEligibleCount;
+    uint32_t sweepPointCreepTerminalAttemptedCount;
+    uint32_t sweepPointCreepTerminalSucceededCount;
+    uint32_t sweepPointCreepTerminalFailedCount;
+    uint32_t sweepPointCreepTerminalSuppressedCount;
+    uint32_t sweepPointCreepTerminalTotalIterations;
+    int64_t  sweepPointCreepTerminalTotalCorrectionRaw;
+    bool     sweepPointCreepTerminalSweepGuardExceeded;
+#endif
 #if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
     uint32_t sweepPointCreepMidLandingAttemptedCount;
     NlCreepPhaseResponse_t sweepPointCreepCoarseResponse;
@@ -3916,7 +4229,9 @@ static float nlSortScratch[NL_MAX_SWEEP_POINTS];
 /* MAD-filter sample scratch, point-0 and point-360 only: reused
  * sequentially (single-threaded test task, never concurrent) rather than
  * stored per-point/per-sweep, matching nlSortScratch's precedent. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
 static int64_t nlMadSampleScratch[MA600_MAD_MAX_SAMPLES];
+#endif
 static uint32_t nlTestIdCounter = 0;
 static uint32_t nlSweepIdCounter = 0;
 
@@ -3925,6 +4240,17 @@ enum
     NL_SETTLE_FLAG_STABILITY_VALID = (1U << 0),
     NL_SETTLE_FLAG_TARGET_VALID    = (1U << 1),
     NL_SETTLE_FLAG_COMBINED_VALID  = (1U << 2),
+};
+
+enum
+{
+    NL_INVALID_CONFIG        = (1U << 0),
+    NL_INVALID_ACQUISITION   = (1U << 1),
+    NL_INVALID_SETTLE        = (1U << 2),
+    NL_INVALID_TRACKING      = (1U << 3),
+    NL_INVALID_CLOSURE       = (1U << 4),
+    NL_INVALID_REACQUISITION = (1U << 5),
+    NL_INVALID_MOTOR_FAULT   = (1U << 6),
 };
 
 static void RecordSettleObservation(NlSweepCapture_t *out, int pointIndex,
@@ -3977,6 +4303,92 @@ static void RecordSettleObservation(NlSweepCapture_t *out, int pointIndex,
         out->shadowPoints->settleFlags[pointIndex] = flags;
         out->shadowPoints->rampAcceptedSamples[pointIndex] = SaturateU8(rampAcceptedSamples);
     }
+}
+
+/* Official schema-v6 point capture. It reuses the sweep's continuous
+ * acquisition/unwrap context and returns one Q16 mean from the same 64
+ * accepted samples that populate DATA and every derived metric. There is no
+ * second shadow transaction window in the open-loop profile. */
+static MA600_Result_t CaptureCanonicalPointFromSweepContext(
+    MA600_AcquisitionContext_t *acquisition,
+    int64_t pointAnchorUnwrapped,
+    MA600_PointSample_t *outPoint,
+    MA600_Sample_t *outLastSample)
+{
+    if (acquisition == NULL || outPoint == NULL || outLastSample == NULL)
+    {
+        return MA600_RESULT_INVALID_ARG;
+    }
+
+    memset(outPoint, 0, sizeof(*outPoint));
+    memset(outLastSample, 0, sizeof(*outLastSample));
+    outPoint->pointAnchorUnwrapped = pointAnchorUnwrapped;
+    outPoint->requiredAcceptedSamples = NL_SAMPLES_PER_POINT;
+    outPoint->minRelRaw = INT64_MAX;
+    outPoint->maxRelRaw = INT64_MIN;
+    outPoint->firstAttemptCycle = DWT->CYCCNT;
+
+    NlAcquisitionCounters_t before = SnapshotAcquisitionCounters(acquisition);
+    uint32_t maxConsecutiveFailures = 0U;
+    for (uint32_t i = 0U; i < (uint32_t)NL_SAMPLES_PER_POINT; i++)
+    {
+        MA600_Sample_t sample;
+        MA600_Result_t result = MA600_AcquireSample(acquisition,
+            NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
+        uint32_t failuresBeforeAccepted = (sample.attempts > 0U)
+            ? (uint32_t)(sample.attempts - 1U) : 0U;
+        if (failuresBeforeAccepted > maxConsecutiveFailures)
+        {
+            maxConsecutiveFailures = failuresBeforeAccepted;
+        }
+        if (result != MA600_RESULT_OK)
+        {
+            outPoint->result = result;
+            outPoint->lastFailureResult = result;
+            outPoint->transactionCount = acquisition->readAttempts - before.readAttempts;
+            outPoint->acceptedSampleCount = acquisition->acceptedSamples - before.acceptedSamples;
+            outPoint->spiFailureCount = acquisition->transportErrorCount
+                - before.transportErrorCount;
+            outPoint->jumpRejectedCount = acquisition->jumpRejectCount
+                - before.jumpRejectCount;
+            outPoint->maxConsecutiveFailures = (sample.attempts > maxConsecutiveFailures)
+                ? sample.attempts : maxConsecutiveFailures;
+            outPoint->elapsedCycles = DWT->CYCCNT - outPoint->firstAttemptCycle;
+            return result;
+        }
+
+        int64_t relRaw = sample.unwrappedRaw - pointAnchorUnwrapped;
+        outPoint->sumRelRaw += relRaw;
+        if (relRaw < outPoint->minRelRaw) outPoint->minRelRaw = relRaw;
+        if (relRaw > outPoint->maxRelRaw) outPoint->maxRelRaw = relRaw;
+        if (i == 0U)
+        {
+            outPoint->firstAcceptedUnwrapped = sample.unwrappedRaw;
+        }
+        outPoint->lastAcceptedUnwrapped = sample.unwrappedRaw;
+        *outLastSample = sample;
+    }
+
+    outPoint->transactionCount = acquisition->readAttempts - before.readAttempts;
+    outPoint->acceptedSampleCount = acquisition->acceptedSamples - before.acceptedSamples;
+    outPoint->spiFailureCount = acquisition->transportErrorCount
+        - before.transportErrorCount;
+    outPoint->jumpRejectedCount = acquisition->jumpRejectCount
+        - before.jumpRejectCount;
+    outPoint->maxConsecutiveFailures = maxConsecutiveFailures;
+    outPoint->lastAttemptCycle = outLastSample->meta.csAssertCycle;
+    outPoint->elapsedCycles = DWT->CYCCNT - outPoint->firstAttemptCycle;
+    if (!MA600_ComputeCanonicalPointMeanQ16(pointAnchorUnwrapped,
+            outPoint->sumRelRaw, outPoint->acceptedSampleCount,
+            &outPoint->meanRelRawQ16, &outPoint->pointMeanRawQ16))
+    {
+        outPoint->result = MA600_RESULT_MATH_OVERFLOW;
+        return outPoint->result;
+    }
+
+    outPoint->valid = true;
+    outPoint->result = MA600_RESULT_OK;
+    return MA600_RESULT_OK;
 }
 
 static void RecordShadowPoint(NlSweepCapture_t *out, int pointIndex,
@@ -4290,7 +4702,7 @@ static void ComputeShadowMetrics(NlSweepCapture_t *out, NlSweepDirection_t direc
         int64_t errorRawQ16 = 0;
         int64_t signedTargetRaw = (int64_t)NlTargetRawForPoint((uint32_t)i,
             directionSign);
-        if (!MA600_ComputeCanonicalErrorAtTargetQ16(
+        if (!NlComputeProfileErrorRawQ16(
                 out->shadowPoints->pointMeanRawQ16[i],
                 out->shadowPoint0MeanRawQ16, signedTargetRaw,
                 &errorRawQ16))
@@ -4299,6 +4711,7 @@ static void ComputeShadowMetrics(NlSweepCapture_t *out, NlSweepDirection_t direc
             out->shadowFeatureComputeTimeMs = HAL_GetTick() - startTick;
             return;
         }
+        out->shadowPoints->errorRawQ16[i] = errorRawQ16;
 
         float errorDeg = ShadowRawQ16ToDegrees(errorRawQ16);
         if (i < out->analysisCount)
@@ -5461,13 +5874,14 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
     out->motorOffset = Motor_ElectricalOffset(out->rawAtOffset);
     out->angleOffsetAtStart = MA600_UnwrappedRawToDegrees(sweepOriginUnwrapped);
     out->multiTurnRawAtStart = (int32_t)sweepOriginUnwrapped;
-    float angleOffset = out->angleOffsetAtStart;
-
-    /* Shadow is an independent consumer: seed it from the accepted sweep
-     * origin, then let it advance on its own. Its reads and rejects cannot
-     * mutate legacy unwrap state or schema-v5 Acq* counters. */
+    /* The point-sampler configuration remains available for passive closure
+     * probes.  Under the official profile the primary point window itself is
+     * captured through sweepAcquisition and no independent shadow unwrap is
+     * created. Diagnostic V5.x keeps the historical second consumer. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
     MA600_UnwrapContext_t shadowUnwrap = sweepAcquisition.unwrap;
     bool shadowActive = out->shadowCanonicalEnabled;
+#endif
     const MA600_PointSamplerConfig_t shadowPointConfig = {
         .timingMode = MA600_POINT_TIMING_BACK_TO_BACK,
         .sampleIntervalCycles = 0U,
@@ -5503,9 +5917,10 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             rampAcceptedForPoint);
         const int64_t pointAnchorUnwrapped = settleObservation.finalSample.unwrappedRaw;
 
-        /* Bring the independent shadow unwrap up to the same settled raw
-         * observation. Its anchor is the immutable post-settle sample, not
-         * whichever sample happened to be last after the legacy window. */
+        /* Diagnostic profile only: bring its independent shadow unwrap to
+         * the same settled observation. Official open-loop has no second
+         * consumer/window. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
         if (shadowActive && pointIndex > 0)
         {
             int64_t shadowAnchorUnwrapped = 0;
@@ -5522,12 +5937,77 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
                 shadowActive = false;
             }
         }
+#endif
 
         SetEngineState(NL_ENGINE_ACQUIRE);
 #if ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG
         uint32_t legacyCaptureStartCycle = DWT->CYCCNT;
 #endif
+        float error = 0.0f;
+        uint16_t rawAtPoint = 0U;
+        float absoluteAngleDeg = 0.0f;
+        MA600_PointSample_t canonicalPoint;
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+        /* S2/S3 cutover: this is the one and only official 64-sample window.
+         * Its Q16 mean drives ErrorRawQ16, DATA.AngleRaw, extrema, RawP2P,
+         * RMS and harmonics. */
+        acquisitionResult = CaptureCanonicalPointFromSweepContext(
+            &sweepAcquisition, pointAnchorUnwrapped, &canonicalPoint, &sample);
+        RecordShadowPoint(out, pointIndex, &canonicalPoint, acquisitionResult);
+        if (acquisitionResult != MA600_RESULT_OK)
+        {
+            out->shadowAcquisitionResult = acquisitionResult;
+            goto capture_complete;
+        }
+
+        /* Freeze the canonical reference before computing point 0 itself and
+         * before any later point can consume it. ComputeShadowMetrics() runs
+         * only after the entire sweep, which is too late for the per-point
+         * ErrorRawQ16 path below. */
+        if (pointIndex == 0)
+        {
+            out->shadowPoint0MeanRawQ16 = canonicalPoint.pointMeanRawQ16;
+        }
+
+        int64_t signedTargetRaw = (int64_t)pos;
+        int64_t errorRawQ16 = 0;
+        if (!NlComputeProfileErrorRawQ16(canonicalPoint.pointMeanRawQ16,
+                out->shadowPoint0MeanRawQ16, signedTargetRaw,
+                &errorRawQ16))
+        {
+            acquisitionResult = MA600_RESULT_MATH_OVERFLOW;
+            out->shadowAcquisitionResult = acquisitionResult;
+            goto capture_complete;
+        }
+        out->shadowPoints->errorRawQ16[pointIndex] = errorRawQ16;
+        error = ShadowRawQ16ToDegrees(errorRawQ16);
+
+        int64_t meanUnwrappedRaw = 0;
+        if (!MA600_DivRoundNearestAwayFromZero(canonicalPoint.pointMeanRawQ16,
+                65536LL, &meanUnwrappedRaw))
+        {
+            acquisitionResult = MA600_RESULT_MATH_OVERFLOW;
+            out->shadowAcquisitionResult = acquisitionResult;
+            goto capture_complete;
+        }
+        rawAtPoint = (uint16_t)(((meanUnwrappedRaw % 65536LL)
+            + 65536LL) % 65536LL);
+        absoluteAngleDeg = MA600_RawToDegrees(rawAtPoint);
+#else
+        /* ALG-001 fix (2026-08-12, see docs/open-loop-nl-direction-
+         * correction-handoff-2026-08-12.md sections 7.2/18): a single
+         * canonical mean over these same 64 accepted samples is the ONLY
+         * source for both Error and this point's raw/absolute-angle
+         * association. There used to be a separate 65th SPI transaction
+         * read after this loop purely to get "the raw at this point" --
+         * that sample could reflect real drift/settle motion between the
+         * 64th accepted sample and that extra read, so DATA.AngleRaw and
+         * the extrema location no longer matched the same measurement that
+         * produced Error. Deriving the raw association from this loop's own
+         * accumulated unwrapped sum removes that second source entirely
+         * (and removes an SPI transaction per point as a side effect). */
         float angleSampleSum = 0.0f;
+        int64_t unwrappedRawSum = 0;
         for (int sampleCount = 0; sampleCount < NL_SAMPLES_PER_POINT; sampleCount++)
         {
             acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
@@ -5537,6 +6017,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
                 goto capture_complete;
             }
             angleSampleSum += MA600_UnwrappedRawToDegrees(sample.unwrappedRaw);
+            unwrappedRawSum += sample.unwrappedRaw;
             /* No inter-sample delay here (there used to be one, as a test
              * for whether residual mechanical ringing was corrupting the
              * average) -- a real "NL curve" log came back nearly identical
@@ -5553,22 +6034,22 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
          * analysis coordinate remains the nominal integer-degree index; the
          * command quantization is bounded to half a raw count (~0.00275 deg). */
         float signedTargetDeg = MA600_UnwrappedRawToDegrees((int64_t)pos);
-        float error = signedTargetDeg - (encAngle - angleOffset);
+        error = signedTargetDeg
+            - (encAngle - out->angleOffsetAtStart);
 
-        /* Absolute reference for this point, independent of this run's
-         * LockStartPosition/per-capture unwrap origin: the MA600A's raw
-         * reading itself, which this driver never re-zeros (MA600_Init()
-         * writes no registers, ZERO0/ZERO1 are never touched), so it stays
-         * tied to the sensor's own fixed factory-zero orientation across
-         * every run and every jig. */
-        acquisitionResult = MA600_AcquireSample(&sweepAcquisition,
-            NL_SWEEP_MAX_JUMP_RAW, NL_ACQ_MAX_ATTEMPTS, &sample);
-        if (acquisitionResult != MA600_RESULT_OK)
-        {
-            goto capture_complete;
-        }
-        uint16_t rawAtPoint = sample.raw;
-        float absoluteAngleDeg = MA600_RawToDegrees(rawAtPoint);
+        /* Round-to-nearest, away-from-zero on ties (matches
+         * SignedRoundingMode=NEAREST_AWAY_FROM_ZERO used elsewhere in the
+         * canonical contract), then wrap to a single-turn 16-bit code. This
+         * is the same 64-sample window that produced Error above -- not an
+         * independent read -- so DATA.AngleRaw/absoluteAngleAtMax/Min are
+         * always traceable to the same measurement as the Error that
+         * selected them as an extremum. */
+        int64_t meanUnwrappedRaw = (unwrappedRawSum >= 0)
+            ? (unwrappedRawSum + (NL_SAMPLES_PER_POINT / 2)) / NL_SAMPLES_PER_POINT
+            : -((-unwrappedRawSum + (NL_SAMPLES_PER_POINT / 2)) / NL_SAMPLES_PER_POINT);
+        rawAtPoint = (uint16_t)(((meanUnwrappedRaw % 65536) + 65536) % 65536);
+        absoluteAngleDeg = MA600_RawToDegrees(rawAtPoint);
+#endif
 #if ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG
         uint32_t legacyCaptureEndCycle = DWT->CYCCNT;
         if (out->shadowPoints != NULL && pointIndex < NL_MAX_SWEEP_POINTS)
@@ -5609,10 +6090,11 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             out->acquisitionFlagSamples[pointIndex] = sample.flags;
         }
 
-        /* Phase-2B only: take a second, canonical window after the official
+        /* Diagnostic V5.x only: take a second, canonical window after the
          * legacy point is already frozen. A shadow failure is recorded and
          * disables later shadow points, but never aborts or invalidates the
          * legacy sweep. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
         if (shadowActive)
         {
             MA600_PointSample_t shadowPoint;
@@ -5669,7 +6151,25 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
                 shadowActive = false;
             }
         }
+#else
+        if (out->closureProbeEnabled
+                && pointIndex == (int)NL_CLOSURE_POINT_INDEX)
+        {
+            /* INITIAL is the exact official Point-360 canonical window;
+             * passive hold probes continue from the same unwrap context but
+             * never change command/power or the already-frozen DATA. */
+            MA600_Result_t probeResult = CaptureClosureHoldProbe(out,
+                &sweepAcquisition.unwrap, pointAnchorUnwrapped,
+                &shadowPointConfig, &canonicalPoint, pos, direction);
+            if (probeResult != MA600_RESULT_OK)
+            {
+                acquisitionResult = probeResult;
+                goto capture_complete;
+            }
+        }
+#endif
 #if ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
         else if (out->shadowPoints != NULL && pointIndex < NL_MAX_SWEEP_POINTS)
         {
             /* No shadow transaction occurred. Command-to-all therefore ends
@@ -5680,6 +6180,15 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
                 ? (legacyCaptureEndCycle - pendingPointCommandStartCycle)
                 : (legacyCaptureEndCycle - legacyCaptureStartCycle);
         }
+#else
+        if (out->shadowPoints != NULL && pointIndex < NL_MAX_SWEEP_POINTS)
+        {
+            out->shadowPoints->timingCommandToAllCaptureDoneCycles[pointIndex] =
+                pendingPointCommandValid
+                ? (legacyCaptureEndCycle - pendingPointCommandStartCycle)
+                : (legacyCaptureEndCycle - legacyCaptureStartCycle);
+        }
+#endif
 #endif
 #if ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG
         if (out->hardcapHoldDiag.candidateLatched
@@ -5776,9 +6285,11 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         }
         rampAcceptedForPoint = sweepAcquisition.acceptedSamples - rampBefore.acceptedSamples;
 
-        /* Stability alone is insufficient: a stalled rotor can be perfectly
-         * stable at the wrong angle. Require stability and target proximity
-         * together while preserving the same continuous unwrap context. */
+        /* Open-loop profile freezes DATA after stability only; target
+         * proximity is still observed and the later gross tracking guard can
+         * invalidate a stalled/lost rotor without changing this command or
+         * the instant at which its response is sampled. Diagnostic V5.x
+         * retains the historical combined gate. */
         SetEngineState(NL_ENGINE_SETTLE);
         settleBefore = SnapshotAcquisitionCounters(&sweepAcquisition);
         int64_t expectedTargetUnwrapped = sweepOriginUnwrapped + (int64_t)pos;
@@ -5786,7 +6297,8 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         uint32_t settleTimingStartCycle = DWT->CYCCNT;
 #endif
         settleResult = WaitForPointSettle(&sweepAcquisition,
-            expectedTargetUnwrapped, true, &settleObservation);
+            expectedTargetUnwrapped,
+            NL_POINT_SETTLE_TARGET_REQUIRED != 0, &settleObservation);
 #if ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG
         uint32_t settleTimingEndCycle = DWT->CYCCNT;
         if (out->shadowPoints != NULL && pointIndex < NL_MAX_SWEEP_POINTS)
@@ -5880,6 +6392,33 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             .traceCapacity = v54TraceAvailable
                 ? NL_SWEEP_CREEP_V54_TRACE_CAPACITY : 0U,
         };
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        /* BASE never reaches this: the per-sweep guard and the 400-raw hard
+         * cap apply only to EXTENDED. The guard is checked against counts
+         * accumulated from prior points THIS sweep only -- it cannot know in
+         * advance how much a not-yet-run point will need. */
+        NlCreepTerminalConfig_t terminalConfig = {
+            .primaryCapRaw = NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW,
+        };
+        const NlCreepTerminalConfig_t *terminalConfigPtr = NULL;
+        bool terminalSuppressedByGuard = false;
+        if (creepBudgetClass == NL_SWEEP_CREEP_BUDGET_EXTENDED)
+        {
+            if (out->sweepPointCreepTerminalAttemptedCount
+                        < NL_SWEEP_CREEP_V59_MAX_TERMINAL_POINTS_PER_SWEEP
+                    && out->sweepPointCreepTerminalTotalCorrectionRaw
+                        < NL_SWEEP_CREEP_V59_MAX_TERMINAL_TOTAL_RAW_PER_SWEEP)
+            {
+                terminalConfigPtr = &terminalConfig;
+                creepMaxTotalRaw = NL_SWEEP_CREEP_V59_EXTENDED_HARD_CAP_RAW;
+                creepMaxIterations = NL_SWEEP_CREEP_V59_EXTENDED_MAX_ITERATIONS;
+            }
+            else
+            {
+                terminalSuppressedByGuard = true;
+            }
+        }
+#endif
         MA600_Result_t creepAcqResult = CreepToUnwrappedTargetProfiled(
             &sweepAcquisition, &pos, expectedTargetUnwrapped,
             &settleObservation.finalSample, &pointCreepDiag,
@@ -5888,7 +6427,15 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
             NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING,
             NL_SWEEP_CREEP_V54_RECOVERY_MAX_TOTAL_RAW,
             NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS,
-            &fineLandingConfig);
+            &fineLandingConfig,
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+            terminalConfigPtr);
+#else
+            NULL);
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        pointCreepDiag.terminalSuppressedBySweepGuard = terminalSuppressedByGuard;
+#endif
 #elif ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
         bool useV53FineLanding = ((uint32_t)pointIndex
             == NL_SWEEP_CREEP_V53_TARGET_POINT);
@@ -5918,7 +6465,7 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
                 NL_SWEEP_CREEP_STOP_ON_TARGET_CROSSING,
                 NL_SWEEP_CREEP_V53_RECOVERY_MAX_TOTAL_RAW,
                 NL_SWEEP_CREEP_V53_RECOVERY_MAX_ITERATIONS,
-                &fineLandingConfig);
+                &fineLandingConfig, NULL);
         }
         else
         {
@@ -6014,6 +6561,21 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
                 (uint8_t)(coarseTailCount & 0x03U)
                 | (uint8_t)((coarseTailOpposite & 0x03U) << 2U);
 #endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+            out->shadowPoints->creepTerminalEntryGapRaw[pointIndex] =
+                SaturateI16(pointCreepDiag.terminalEntryGapRaw);
+            out->shadowPoints->creepTerminalCorrectionRaw[pointIndex] =
+                SaturateU16((uint32_t)pointCreepDiag.terminalCorrectionRaw);
+            out->shadowPoints->creepTerminalEntryIteration[pointIndex] =
+                SaturateU8(pointCreepDiag.terminalEntryIteration);
+            out->shadowPoints->creepTerminalIterations[pointIndex] =
+                SaturateU8(pointCreepDiag.terminalIterations);
+            out->shadowPoints->creepTerminalFlags[pointIndex] =
+                (pointCreepDiag.terminalEligible ? 0x01U : 0U)
+                | (pointCreepDiag.terminalAttempted ? 0x02U : 0U)
+                | (pointCreepDiag.terminalSucceeded ? 0x04U : 0U)
+                | (pointCreepDiag.terminalSuppressedBySweepGuard ? 0x08U : 0U);
+#endif
 #if ENABLE_SWEEP_POINT_CREEP_V53_POINT66_FINE_LANDING
             if ((uint32_t)pointIndex == NL_SWEEP_CREEP_V53_TARGET_POINT)
             {
@@ -6064,6 +6626,33 @@ static MA600_Result_t CaptureSweep(int runIndex, NlSweepDirection_t direction,
         {
             out->sweepPointCreepPointsCorrected++;
         }
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        if (pointCreepDiag.terminalSuppressedBySweepGuard)
+        {
+            out->sweepPointCreepTerminalSuppressedCount++;
+            out->sweepPointCreepTerminalSweepGuardExceeded = true;
+        }
+        if (pointCreepDiag.terminalEligible)
+        {
+            out->sweepPointCreepTerminalEligibleCount++;
+        }
+        if (pointCreepDiag.terminalAttempted)
+        {
+            out->sweepPointCreepTerminalAttemptedCount++;
+            out->sweepPointCreepTerminalTotalIterations +=
+                pointCreepDiag.terminalIterations;
+            out->sweepPointCreepTerminalTotalCorrectionRaw +=
+                pointCreepDiag.terminalCorrectionRaw;
+            if (pointCreepDiag.terminalSucceeded)
+            {
+                out->sweepPointCreepTerminalSucceededCount++;
+            }
+            else
+            {
+                out->sweepPointCreepTerminalFailedCount++;
+            }
+        }
+#endif
         if (pointCreepDiag.result == NL_CREEP_TIMEOUT)
         {
             out->sweepPointCreepTimeoutCount++;
@@ -6465,10 +7054,43 @@ capture_complete:
     out->trackingValid = (capturedCount > 0)
         && (out->trackingErrorRmsDeg <= NL_TRACKING_RMS_VALID_DEG)
         && (out->trackingErrorMaxAbsDeg <= NL_TRACKING_MAX_VALID_DEG);
-    out->measurementValid = structuralValid && out->trackingValid;
-
     out->featureComputeTimeMs = HAL_GetTick() - featureStartTick;
     ComputeShadowMetrics(out, direction);
+
+    uint32_t invalidMask = 0U;
+    if (out->acquisitionResult != MA600_RESULT_OK
+            || !out->shadowCanonicalValid
+            || out->shadowCapturedCount != capturedCount)
+    {
+        invalidMask |= NL_INVALID_ACQUISITION;
+    }
+    if (!structuralValid
+            || out->settleStabilityValidCount != capturedCount
+            || out->settleValidCount != capturedCount)
+    {
+        invalidMask |= NL_INVALID_SETTLE;
+    }
+    if (!out->trackingValid)
+    {
+        invalidMask |= NL_INVALID_TRACKING;
+    }
+    if (!out->shadowClosureValid)
+    {
+        invalidMask |= NL_INVALID_CLOSURE;
+    }
+    if (out->contextReacquireCount != 0U)
+    {
+        invalidMask |= NL_INVALID_REACQUISITION;
+    }
+    out->officialInvalidReasonMask = invalidMask;
+    out->officialMeasurementValid = (invalidMask == 0U);
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+    out->measurementValid = out->officialMeasurementValid;
+#else
+    /* Diagnostic V5.x preserves the legacy validity meaning and is kept out
+     * of official statistics by the profile gate. */
+    out->measurementValid = structuralValid && out->trackingValid;
+#endif
     return MA600_RESULT_OK;
 }
 
@@ -6491,6 +7113,7 @@ capture_complete:
  * effect of MAD filtering be recomputed offline from the log (Delta =
  * MadFilteredMeanRawQ16 - PointMeanRawQ16 at each point) without this
  * change having touched the official result at all. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
 static void PrintShadowMadLog(const NlSweepCapture_t *c, const char *jigId,
                               const char *direction)
 {
@@ -6542,6 +7165,7 @@ static void PrintShadowMadLog(const NlSweepCapture_t *c, const char *jigId,
             pointMeanBuf, madMeanBuf, deltaBuf);
     }
 }
+#endif
 
 static void PrintClosureProbeLog(const NlSweepCapture_t *c, const char *jigId,
                                  const char *direction)
@@ -6889,7 +7513,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         homeInitialErrorBuf, sizeof(homeInitialErrorBuf));
     FormatDegN(c->homeObservation.finalErrorDeg, 5,
         homeFinalErrorBuf, sizeof(homeFinalErrorBuf));
-    /* B0-B summary pair -- ALWAYS printed in META and SHADOW_RESULT so a
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
+    /* B0-B summary pair -- printed in diagnostic META and SHADOW_RESULT so a
      * truncated log still identifies which approach protocol produced it.
      * Protocol A prints its own ID plus "NA" (concept not applicable), not
      * an absent field. Detailed Approach* diagnostics live in the separate
@@ -6908,6 +7533,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (unsigned)NL_SWEEP_RAMP_SOFT_START_DELAY_MS);
 #else
     const char *rampSoftStartDelayText = "NA";
+#endif
 #endif
 #if ENABLE_AUTO_BATCH_TEST
     /* Run 1 has no firmware-controlled cooldown before it -- log "NA", not a fabricated 0,
@@ -6942,12 +7568,95 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     const char *preconditionValid = c->preconditionRun ? "NA"
         : (c->preconditionValid ? "1" : "0");
 #endif
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+    const char *quality = c->officialMeasurementValid ? "VALID" : "INVALID";
+    LogLineLarge(
+        "META,SchemaVersion=%d,Firmware=%s,BuildID=%s,MCU_UID=%08lX%08lX%08lX,CounterScope=BOOT,"
+        "JigID=%s,JigKnown=%d,MotorID=%s,MotorIDSource=%s,MotorIDValid=%d,"
+        "MotorPoleCount=%u,MotorPolePairs=%u,ElectricalRippleOrder=%u,"
+        "TestID=%lu,SweepID=%lu,Direction=%s,"
+        "MeasurementPolicy=%s,MeasurementProfile=%s,MeasurementDefinition=%s,"
+        "MeasurementContractVersion=%s,OfficialOpenLoopNL=1,FeedbackActuationEnabled=%d,"
+        "ApproachProtocol=%s,MotionProfile=%s,GridProtocol=%s,"
+        "AcceptanceMode=%s,OfficialResultSource=CANONICAL_Q16,"
+        "OfficialMeasurementValid=%d,OfficialInvalidReasonMask=0x%08lX,Quality=%s,"
+        "MathContractVersion=%s,SignedRoundingMode=%s,ErrorSignConvention=%s,"
+        "ReferenceDefinition=%s,MeanDCComparableToLegacy=0,CanonicalMeanSource=%s,"
+        "MadFilteringEnabled=0,SampleTimingMode=BACK_TO_BACK,SampleIntervalCycles=0,"
+        "ScheduleInitialized=0,RequiredAcceptedSamples=%u,TransactionCount=%lu,"
+        "AcceptedSampleCount=%lu,ExpectedAnalysisPoints=%d,CapturedPoints=%d,AnalysisPoints=%d,"
+        "StepRaw=0,TrackingValid=%d,TrackingRmsLimitDeg=" NL_TRACKING_RMS_LIMIT_TEXT ","
+        "TrackingMaxLimitDeg=" NL_TRACKING_MAX_LIMIT_TEXT ",AcquisitionResult=%s,"
+        "AcqReadAttempts=%lu,AcqRetries=%lu,AcqTransportErrors=%lu,"
+        "AcqJumpRejects=%lu,AcqFailedSamples=%lu,ContinuousSweepContext=%s,"
+        "ContextReacquireCount=%lu,RampEncoderObservationEnabled=1,"
+        "RampFeedbackActuationEnabled=0,SettleContract=%s,SettleTargetRequired=%d,"
+        "SettleStabilityLimitRaw=%ld,SettleTargetToleranceRaw=%ld,SettlePoints=%d,"
+        "SettleStabilityValid=%d,SettleTargetProximityValid=%d,SettleValid=%d,"
+        "StartRaw=%u,StartAngleDeg=%s,AnalysisStartRaw=%u"
+#if ENABLE_AUTO_BATCH_TEST
+        ",BatchID=%lu,CycleOrder=%lu,RunOrder=%lu,BatchRunCount=%lu,"
+        "PreconditionProtocol=%s,RunRole=%s,EligibleForStatistics=%d,PreconditionValid=%s,"
+        "ThermalProtocol=%s,FirstRunInBatch=%d,MotorActiveDurationMs=%lu,"
+        "CooldownTargetMs=%s,CooldownActualMs=%s,CooldownValid=%s,"
+        "TimeSincePreviousRunMs=%s"
+#endif
+        "\r\n",
+        NL_LOG_SCHEMA_VERSION, FIRMWARE_VERSION, FIRMWARE_BUILD_ID,
+        (unsigned long)MCU_UID_WORD0, (unsigned long)MCU_UID_WORD1,
+        (unsigned long)MCU_UID_WORD2, jigId, jigKnown ? 1 : 0, MOTOR_ID,
+        NL_MOTOR_ID_SOURCE, IsMotorIdConfigured() ? 1 : 0,
+        (unsigned)c->motorPoleCount, (unsigned)c->motorPolePairs,
+        (unsigned)c->electricalRippleOrder,
+        (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
+        NL_MEASUREMENT_POLICY_ID, NL_MEASUREMENT_PROFILE_ID,
+        NL_MEASUREMENT_DEFINITION, NL_MEASUREMENT_CONTRACT_ID,
+        NL_FEEDBACK_ACTUATION_ENABLED, NL_B0B_APPROACH_PROTOCOL_ID,
+        NL_MOTION_PROFILE_ID, NL_GRID_PROTOCOL_ID, NL_ACCEPTANCE_MODE,
+        c->officialMeasurementValid ? 1 : 0,
+        (unsigned long)c->officialInvalidReasonMask, quality,
+        NL_MATH_CONTRACT_ID, NL_SIGNED_ROUNDING_MODE,
+        NL_SHADOW_SIGN_CONVENTION, NL_SHADOW_REFERENCE_DEFINITION,
+        NL_SHADOW_CANONICAL_MEAN_SOURCE, (unsigned)NL_SAMPLES_PER_POINT,
+        (unsigned long)c->shadowTransactionCount,
+        (unsigned long)c->shadowAcceptedSampleCount,
+        (int)NL_POINTS_PER_REV, c->capturedCount, c->analysisCount,
+        c->trackingValid ? 1 : 0, MA600_ResultName(c->acquisitionResult),
+        (unsigned long)c->acquisitionReadAttempts,
+        (unsigned long)c->acquisitionRetries,
+        (unsigned long)c->acquisitionTransportErrors,
+        (unsigned long)c->acquisitionJumpRejects,
+        (unsigned long)c->acquisitionFailedSamples,
+        NL_CONTINUOUS_CONTEXT_ID, (unsigned long)c->contextReacquireCount,
+        NL_SETTLE_CONTRACT_ID, NL_POINT_SETTLE_TARGET_REQUIRED,
+        (long)NL_POINT_SETTLE_ERROR_RAW, (long)NL_SETTLE_TARGET_TOLERANCE_RAW,
+        c->settlePointCount,
+        (c->capturedCount > 0
+            && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0
+            && c->settleTargetProximityValidCount == c->capturedCount) ? 1 : 0,
+        (c->capturedCount > 0
+            && c->settleValidCount == c->capturedCount) ? 1 : 0,
+        (unsigned)c->rawAtOffset, startAngleBuf,
+        (unsigned)(c->capturedCount > 0 ? c->rawAngleSamples[0] : c->rawAtOffset)
+#if ENABLE_AUTO_BATCH_TEST
+        , (unsigned long)c->batchId, (unsigned long)c->cycleOrder,
+        (unsigned long)c->runOrder, (unsigned long)c->batchRunCount,
+        NL_PRECONDITION_PROTOCOL_ID, runRole, c->eligibleForStatistics ? 1 : 0,
+        preconditionValid, NL_THERMAL_PROTOCOL_ID, c->firstRunInBatch ? 1 : 0,
+        (unsigned long)c->motorActiveDurationMs,
+        cooldownTargetBuf, cooldownActualBuf, cooldownValidBuf,
+        timeSincePreviousRunBuf
+#endif
+        );
+#else
     LogLineLarge(
         "META,SchemaVersion=%d,Firmware=%s,BuildID=%s,MCU_UID=%08lX%08lX%08lX,CounterScope=BOOT,"
         "JigID=%s,JigKnown=%d,MotorID=%s,MotorIDSource=%s,MotorIDValid=%d,"
         "MotorPoleCount=%u,MotorPolePairs=%u,ElectricalRippleMultiple=%u,ElectricalRippleOrder=%u,"
         "TestID=%lu,SweepID=%lu,Direction=%s,"
-        "MeasurementPolicy=%s,MeasurementDefinition=%s,AcceptanceMode=%s,"
+        "MeasurementPolicy=%s,MeasurementProfile=%s,MeasurementDefinition=%s,"
+        "OfficialOpenLoopNL=%d,AcceptanceMode=%s,"
         "OfficialResultSource=LEGACY,ShadowCanonicalEnabled=%d,"
         "ShadowContractVersion=%s,ShadowOfficial=0,"
         "ClosureProbeEnabled=%d,ClosureProbeProtocol=%s,ClosureProbeOfficial=0,"
@@ -6959,7 +7668,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         "TrackingMaxLimitDeg=" NL_TRACKING_MAX_LIMIT_TEXT ","
         "AcquisitionResult=%s,AcqReadAttempts=%lu,"
         "AcqRetries=%lu,AcqTransportErrors=%lu,AcqJumpRejects=%lu,AcqFailedSamples=%lu,"
-        "ContinuousSweepContext=%s,ContextReacquireCount=%lu,RampFeedbackEnabled=1,"
+        "ContinuousSweepContext=%s,ContextReacquireCount=%lu,"
+        "RampEncoderObservationEnabled=1,RampFeedbackActuationEnabled=0,"
         "SettleContract=%s,SettleStabilityLimitRaw=%ld,SettleTargetToleranceRaw=%ld,"
         "SettlePoints=%d,SettleStabilityValid=%d,SettleTargetProximityValid=%d,SettleValid=%d,"
         "StartRaw=%u,StartAngleDeg=%s,AnalysisStartRaw=%u,"
@@ -6981,7 +7691,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (unsigned)MOTOR_ELECTRICAL_RIPPLE_MULTIPLE,
         (unsigned)c->electricalRippleOrder,
         (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
-        NL_MEASUREMENT_POLICY_ID, NL_MEASUREMENT_DEFINITION, NL_ACCEPTANCE_MODE,
+        NL_MEASUREMENT_POLICY_ID, NL_MEASUREMENT_PROFILE_ID, NL_MEASUREMENT_DEFINITION,
+        (NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP) ? 1 : 0, NL_ACCEPTANCE_MODE,
         c->shadowCanonicalEnabled ? 1 : 0, NL_SHADOW_CONTRACT_ID,
         c->closureProbeEnabled ? 1 : 0, NL_CLOSURE_PROBE_PROTOCOL_ID,
         NL_B0B_APPROACH_PROTOCOL_ID, approachStructuralValidText,
@@ -7016,6 +7727,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         cooldownTargetBuf, cooldownActualBuf, cooldownValidBuf, timeSincePreviousRunBuf
 #endif
         );
+#endif
 
     LogLineLarge(
         "GRID,SchemaVersion=%d,TestID=%lu,SweepID=%lu,Protocol=%s,"
@@ -7049,7 +7761,59 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
 #if ENABLE_SWEEP_POINT_CREEP
 #if ENABLE_SWEEP_POINT_CREEP_V54_UNIVERSAL_FINE_LANDING
 #if ENABLE_SWEEP_POINT_CREEP_V55_DYNAMIC_BASE_ESCALATION
-#if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    LogLineLarge(
+        "SWEEP_CREEP_CONFIG,SchemaVersion=10,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
+        "Direction=%s,Official=0,Enabled=1,Protocol=%s,"
+        "SelectionRule=ABS_INITIAL_GAP_GT_TRIGGER,TriggerRaw=%ld,"
+        "BudgetEscalationProtocol=%s,BaseBudgetRaw=%ld,BasePrimaryBudgetRaw=%ld,"
+        "BaseHardBudgetRaw=%ld,BaseMaxIterations=%lu,BaseEscalatedMaxIterations=%lu,"
+        "ExtendedBudgetRaw=%ld,ExtendedPrimaryBudgetRaw=%ld,ExtendedHardBudgetRaw=%ld,"
+        "ExtendedTerminalAllowanceRaw=%ld,ExtendedMaxIterations=%lu,"
+        "TerminalCorrectionProtocol=%s,TerminalMaxPointsPerSweep=%u,"
+        "TerminalMaxTotalRawPerSweep=%ld,"
+        "StepRaw=%u,DeadbandRaw=%u,Power=1.000,TargetCrossingGuard=%s,"
+        "RecoveryProtocol=%s,RecoveryBudgetRaw=%ld,RecoveryMaxIterations=%lu,"
+        "FineLandingProtocol=%s,FineSelectionRule=%s,FineTargetPoint=-1,"
+        "FineEntryRaw=%u,FineStepRaw=%u,FineBaseMaxIterations=%lu,"
+        "FineExtendedMaxIterations=%lu,JumpThresholdRaw=%u,"
+        "FineRecoveryBudgetRaw=%ld,FineRecoveryMaxIterations=%lu,"
+        "TracePolicy=%s,TraceCapacity=%u\r\n",
+        (unsigned long)c->testId, (unsigned long)c->sweepId, jigId, MOTOR_ID,
+        dirStr, NL_SWEEP_CREEP_PROTOCOL_ID,
+        (long)NL_SWEEP_CREEP_EXTENDED_TRIGGER_RAW,
+        NL_SWEEP_CREEP_BUDGET_ESCALATION_ID,
+        (long)NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW,
+        (long)NL_SWEEP_CREEP_BASE_MAX_TOTAL_RAW,
+        (long)NL_SWEEP_CREEP_V55_BASE_HARD_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V54_BASE_MAX_ITERATIONS,
+        (unsigned long)NL_SWEEP_CREEP_V55_BASE_MAX_ITERATIONS,
+        (long)NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW,
+        (long)NL_SWEEP_CREEP_EXTENDED_MAX_TOTAL_RAW,
+        (long)NL_SWEEP_CREEP_V59_EXTENDED_HARD_CAP_RAW,
+        (long)NL_SWEEP_CREEP_V59_EXTENDED_TERMINAL_ALLOWANCE_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V59_EXTENDED_MAX_ITERATIONS,
+        NL_SWEEP_CREEP_TERMINAL_PROTOCOL_ID,
+        (unsigned)NL_SWEEP_CREEP_V59_MAX_TERMINAL_POINTS_PER_SWEEP,
+        (long)NL_SWEEP_CREEP_V59_MAX_TERMINAL_TOTAL_RAW_PER_SWEEP,
+        (unsigned)NL_SWEEP_CREEP_STEP_RAW,
+        (unsigned)NL_SWEEP_CREEP_DEADBAND_RAW,
+        NL_SWEEP_CREEP_TARGET_CROSSING_GUARD_ID,
+        NL_SWEEP_CREEP_RECOVERY_PROTOCOL_ID,
+        (long)NL_SWEEP_CREEP_V54_RECOVERY_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS,
+        NL_SWEEP_CREEP_FINE_LANDING_PROTOCOL_ID,
+        NL_SWEEP_CREEP_FINE_SELECTION_RULE_ID,
+        (unsigned)NL_SWEEP_CREEP_V54_FINE_ENTRY_RAW,
+        (unsigned)NL_SWEEP_CREEP_V54_FINE_STEP_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V55_BASE_MAX_ITERATIONS,
+        (unsigned long)NL_SWEEP_CREEP_V59_EXTENDED_MAX_ITERATIONS,
+        (unsigned)NL_SWEEP_CREEP_V54_JUMP_THRESHOLD_RAW,
+        (long)NL_SWEEP_CREEP_V54_RECOVERY_MAX_TOTAL_RAW,
+        (unsigned long)NL_SWEEP_CREEP_V54_RECOVERY_MAX_ITERATIONS,
+        NL_SWEEP_CREEP_TRACE_POLICY_ID,
+        (unsigned)NL_SWEEP_CREEP_V54_TRACE_CAPACITY);
+#elif ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
     LogLineLarge(
         "SWEEP_CREEP_CONFIG,SchemaVersion=9,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
         "Direction=%s,Official=0,Enabled=1,Protocol=%s,"
@@ -7274,6 +8038,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (long)c->homeObservation.initialCommandedPositionRaw,
         (long)c->homeObservation.finalCommandedPositionRaw);
 
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
     LogLineLarge(
         "SHADOW_META,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
         "Official=0,ContractVersion=%s,SignedConvention=%s,ReferenceDefinition=%s,"
@@ -7286,6 +8051,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (unsigned)NL_SAMPLES_PER_POINT, (unsigned)NL_SHADOW_POINT_MAX_TRANSACTIONS,
         (unsigned)NL_SHADOW_POINT_MAX_CONSECUTIVE_FAILURES,
         (unsigned long)NL_SHADOW_POINT_MAX_ELAPSED_US, (long)NL_SWEEP_MAX_JUMP_RAW);
+#endif
 
     for (int i = 0; i < c->capturedCount; i++)
     {
@@ -7299,15 +8065,53 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
          * without separately re-deriving rawAtOffset from META first. See the tracking-error
          * comment above for the bug this exact relative/absolute mismatch caused. */
         uint16_t targetRawAbs = (uint16_t)((int32_t)c->rawAtOffset + c->targetRawSamples[i]);
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+        char commandQ16Buf[24], meanQ16Buf[24], errorQ16Buf[24];
+        FormatI64((int64_t)c->targetRawSamples[i] * 65536LL,
+            commandQ16Buf, sizeof(commandQ16Buf));
+        FormatI64(c->shadowPoints->pointMeanRawQ16[i], meanQ16Buf,
+            sizeof(meanQ16Buf));
+        FormatI64(c->shadowPoints->errorRawQ16[i], errorQ16Buf,
+            sizeof(errorQ16Buf));
+        LogLineLarge(
+            "DATA,%d,%lu,%lu,%s,%s,%s,%d,%u,%u,%s,%s,"
+            "CommandRawQ16=%s,MeanUnwrappedRawQ16=%s,ErrorRawQ16=%s\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+            (unsigned long)c->sweepId, jigId, MOTOR_ID, dirStr, i,
+            (unsigned)targetRawAbs, (unsigned)c->rawAngleSamples[i],
+            angleDegBuf, nlValBuf, commandQ16Buf, meanQ16Buf, errorQ16Buf);
+#else
         LogLine("DATA,%d,%lu,%lu,%s,%s,%s,%d,%u,%u,%s,%s\r\n",
             NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
             jigId, MOTOR_ID, dirStr, i, (unsigned)targetRawAbs,
             (unsigned)c->rawAngleSamples[i], angleDegBuf, nlValBuf);
+#endif
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+        LogLineLarge(
+            "ACQ,%d,%lu,%lu,%s,%d,%lu,%u,%u,0x%02X,"
+            "TransactionCount=%u,AcceptedSampleCount=%u,SpiFailureCount=%u,"
+            "JumpRejectedCount=%u,MetadataInvalidCount=%u,ElapsedCycles=%lu,"
+            "Result=%s\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+            (unsigned long)c->sweepId, dirStr, i,
+            (unsigned long)c->csAssertCycleSamples[i],
+            (unsigned)c->pwmCounterSamples[i],
+            (unsigned)c->acquisitionAttemptSamples[i],
+            (unsigned)c->acquisitionFlagSamples[i],
+            (unsigned)c->shadowPoints->transactions[i],
+            (unsigned)c->shadowPoints->accepted[i],
+            (unsigned)c->shadowPoints->spiFailures[i],
+            (unsigned)c->shadowPoints->jumpRejects[i],
+            (unsigned)c->shadowPoints->metadataInvalid[i],
+            (unsigned long)c->shadowPoints->elapsedCycle[i],
+            MA600_ResultName((MA600_Result_t)c->shadowPoints->results[i]));
+#else
         LogLine("ACQ,%d,%lu,%lu,%s,%d,%lu,%u,%u,0x%02X\r\n",
             NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
             dirStr, i, (unsigned long)c->csAssertCycleSamples[i],
             (unsigned)c->pwmCounterSamples[i], (unsigned)c->acquisitionAttemptSamples[i],
             (unsigned)c->acquisitionFlagSamples[i]);
+#endif
 
         if (c->shadowPoints != NULL && i < c->settlePointCount)
         {
@@ -7333,13 +8137,14 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
                 (unsigned)c->shadowPoints->settlePollCount[i]);
         }
 
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
         if (c->shadowPoints != NULL && i < c->shadowCapturedCount)
         {
             int64_t shadowErrorRawQ16 = 0;
             int32_t directionSign = (c->direction == NL_SWEEP_CW) ? 1 : -1;
             int64_t signedTargetRaw = (int64_t)NlTargetRawForPoint((uint32_t)i,
                 directionSign);
-            if (MA600_ComputeCanonicalErrorAtTargetQ16(
+            if (NlComputeProfileErrorRawQ16(
                     c->shadowPoints->pointMeanRawQ16[i],
                     c->shadowPoints->pointMeanRawQ16[0], signedTargetRaw,
                     &shadowErrorRawQ16))
@@ -7370,6 +8175,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
                 (unsigned)c->shadowPoints->metadataInvalid[i],
                 MA600_ResultName((MA600_Result_t)c->shadowPoints->results[i]));
         }
+#endif
     }
 
 #if ENABLE_SWEEP_POINT_CREEP
@@ -7483,7 +8289,82 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
             FormatI64(hardBudgetRaw, hardBudgetBuf, sizeof(hardBudgetBuf));
             FormatI64(escalationCorrectionRaw, escalationCorrectionBuf,
                 sizeof(escalationCorrectionBuf));
-#if ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+            uint8_t terminalFlags = c->shadowPoints->creepTerminalFlags[i];
+            bool terminalEligible = (terminalFlags & 0x01U) != 0U;
+            bool terminalAttempted = (terminalFlags & 0x02U) != 0U;
+            bool terminalSucceeded = (terminalFlags & 0x04U) != 0U;
+            bool terminalSuppressed = (terminalFlags & 0x08U) != 0U;
+            int64_t terminalEntryGapRaw =
+                (int64_t)c->shadowPoints->creepTerminalEntryGapRaw[i];
+            int64_t terminalCorrectionRaw =
+                (int64_t)c->shadowPoints->creepTerminalCorrectionRaw[i];
+            /* Signed on purpose: a point that ends up farther from target
+             * than the terminal-entry snapshot must show as negative, not
+             * wrap around like an unsigned subtraction would. */
+            int64_t terminalObservedTowardTargetRaw =
+                (int64_t)AbsI64ToU64(terminalEntryGapRaw)
+                - (int64_t)AbsI64ToU64(c->shadowPoints->creepFinalGapRaw[i]);
+            char terminalEntryGapBuf[24], terminalCorrectionRawBuf[24];
+            char terminalObservedBuf[24];
+            char terminalEfficiencyBuf[16] = "NA";
+            FormatI64(terminalEntryGapRaw, terminalEntryGapBuf,
+                sizeof(terminalEntryGapBuf));
+            FormatI64(terminalCorrectionRaw, terminalCorrectionRawBuf,
+                sizeof(terminalCorrectionRawBuf));
+            FormatI64(terminalAttempted ? terminalObservedTowardTargetRaw : 0,
+                terminalObservedBuf, sizeof(terminalObservedBuf));
+            if (terminalAttempted && terminalCorrectionRaw > 0)
+            {
+                FormatI64(1000 * terminalObservedTowardTargetRaw
+                        / terminalCorrectionRaw,
+                    terminalEfficiencyBuf, sizeof(terminalEfficiencyBuf));
+            }
+            LogLineLarge(
+                "SWEEP_CREEP_POINT,SchemaVersion=10,TestID=%lu,SweepID=%lu,JigID=%s,"
+                "MotorID=%s,Direction=%s,Point=%d,Official=0,"
+                "InitialGapRaw=%s,InitialAbsGapRaw=%s,BudgetClass=%s,"
+                "SelectedBudgetRaw=%s,PrimaryBudgetRaw=%s,HardBudgetRaw=%s,"
+                "BudgetEscalated=%d,EscalationCorrectionRaw=%s,"
+                "SelectedMaxIterations=%lu,Iterations=%u,"
+                "TotalCorrectionRaw=%s,PreCrossGapRaw=%s,CrossingGapRaw=%s,"
+                "RecoveryAttempted=%d,RecoverySucceeded=%d,RecoveryIterations=%u,"
+                "RecoveryCorrectionRaw=%s,FineLandingAttempted=%d,"
+                "FineLandingSucceeded=%d,FineIterations=%u,FineCorrectionRaw=%s,"
+                "StickSlipJumpDetected=%d,MaxObservedStepDeltaRaw=%s,"
+                "TraceCaptured=%d,TraceCount=%u,"
+                "TerminalEligible=%d,TerminalAttempted=%d,TerminalEntryGapRaw=%s,"
+                "TerminalEntryIteration=%u,TerminalIterations=%u,"
+                "TerminalCorrectionRaw=%s,TerminalObservedTowardTargetRaw=%s,"
+                "TerminalResponseEfficiencyPermille=%s,TerminalSucceeded=%d,"
+                "TerminalSuppressedBySweepGuard=%d,"
+                "FinalGapRaw=%s,Result=%s\r\n",
+                (unsigned long)c->testId, (unsigned long)c->sweepId, jigId,
+                MOTOR_ID, dirStr, i, initialGapBuf, initialAbsGapBuf,
+                NlSweepCreepBudgetClassName(creepBudgetClass), selectedBudgetBuf,
+                selectedBudgetBuf, hardBudgetBuf,
+                escalationCorrectionRaw > 0 ? 1 : 0, escalationCorrectionBuf,
+                (unsigned long)selectedMaxIterations,
+                (unsigned)c->shadowPoints->creepIterations[i], totalCorrectionBuf,
+                preCrossGapBuf, crossingGapBuf,
+                recoveryAttempted ? 1 : 0, recoverySucceeded ? 1 : 0,
+                (unsigned)c->shadowPoints->creepRecoveryIterations[i],
+                recoveryCorrectionBuf, (fineFlags & 0x01U) != 0U ? 1 : 0,
+                (fineFlags & 0x02U) != 0U ? 1 : 0,
+                (unsigned)c->shadowPoints->creepFineIterations[i],
+                fineCorrectionBuf, (fineFlags & 0x04U) != 0U ? 1 : 0,
+                maxObservedDeltaBuf, isV54TracePoint ? 1 : 0,
+                isV54TracePoint
+                    ? (unsigned)c->shadowPoints->creepV54TraceCount : 0U,
+                terminalEligible ? 1 : 0, terminalAttempted ? 1 : 0,
+                terminalEntryGapBuf,
+                (unsigned)c->shadowPoints->creepTerminalEntryIteration[i],
+                (unsigned)c->shadowPoints->creepTerminalIterations[i],
+                terminalCorrectionRawBuf, terminalObservedBuf,
+                terminalEfficiencyBuf, terminalSucceeded ? 1 : 0,
+                terminalSuppressed ? 1 : 0,
+                finalGapBuf, NlCreepResultName(creepResult));
+#elif ENABLE_SWEEP_POINT_CREEP_V56_THREE_STAGE_LANDING
             uint8_t midFlags = c->shadowPoints->creepMidFlags[i];
             uint8_t coarseTailFlags = c->shadowPoints->creepCoarseTailFlags[i];
             uint32_t coarseTailCommandCount = coarseTailFlags & 0x03U;
@@ -7944,15 +8825,36 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
      * INL spec without an independent reference encoder, which this jig does not have. */
     FormatDegN(c->legacyStats.rawPP, 4, motorP2PBuf, sizeof(motorP2PBuf));
     FormatDegN(c->legacyStats.rawPP / 2.0f, 4, motorInlBuf, sizeof(motorInlBuf));
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+    char robustP2PBuf[20], point0MeanQ16Buf[24], closureErrorQ16Buf[24];
+    char closureErrorDegBuf[20];
+    FormatDegN(c->legacyStats.robustPP, 5, robustP2PBuf, sizeof(robustP2PBuf));
+    FormatI64(c->shadowPoint0MeanRawQ16, point0MeanQ16Buf,
+        sizeof(point0MeanQ16Buf));
+    FormatI64(c->shadowClosureErrorRawQ16, closureErrorQ16Buf,
+        sizeof(closureErrorQ16Buf));
+    FormatDegN(c->shadowClosureErrorDeg, 5, closureErrorDegBuf,
+        sizeof(closureErrorDegBuf));
+#endif
 
     /* Field order matches NL_HARMONIC_ORDERS = {1,2,3,6,9,12,18,27,36,45,72,108} exactly --
      * ampBuf[k]/phaseBuf[k] is harmonic order NL_HARMONIC_ORDERS[k]. PhaseValidMask bit k
      * mirrors that same order (bit 0 = H1's phase valid, ... bit 11 = H108's). Bits 12/13 are
      * the standalone datasheet-aligned H4/H8 (bit 12 = H4, bit 13 = H8) -- appended, not part
      * of the order-1..108 sequence above. */
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+    if (c->officialMeasurementValid)
+    {
+#endif
     LogLineLarge(
         "RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,Direction=%s,"
         "CapturedPoints=%d,AnalysisPoints=%d,MeanDC=%s,RMS_AC=%s,"
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+        "MeasurementContractVersion=%s,ErrorSignConvention=%s,"
+        "OpenLoopNL_Deg=%s,RobustP2P_Deg=%s,Point0MeanRawQ16=%s,"
+        "ClosureErrorRawQ16=%s,ClosureErrorDeg=%s,"
+        "ClosureLimitDeg=0.20000,ClosureValid=%d,"
+#endif
         "A1=%s,A2=%s,A3=%s,A6=%s,A9=%s,A12=%s,A18=%s,A27=%s,A36=%s,A45=%s,A72=%s,A108=%s,"
         "H1_PhaseSweepDeg=%s,H2_PhaseSweepDeg=%s,H3_PhaseSweepDeg=%s,H6_PhaseSweepDeg=%s,"
         "H9_PhaseSweepDeg=%s,H12_PhaseSweepDeg=%s,H18_PhaseSweepDeg=%s,H27_PhaseSweepDeg=%s,"
@@ -7971,6 +8873,12 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         "TrackingError_MaxAbs_Deg=%s,FeatureComputeTimeMs=%lu\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId,
         jigId, MOTOR_ID, dirStr, c->capturedCount, c->analysisCount, meanBuf, rmsAcBuf,
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+        NL_MEASUREMENT_CONTRACT_ID, NL_SHADOW_SIGN_CONVENTION,
+        motorP2PBuf, robustP2PBuf, point0MeanQ16Buf,
+        closureErrorQ16Buf, closureErrorDegBuf,
+        c->shadowClosureValid ? 1 : 0,
+#endif
         ampBuf[0], ampBuf[1], ampBuf[2], ampBuf[3], ampBuf[4], ampBuf[5],
         ampBuf[6], ampBuf[7], ampBuf[8], ampBuf[9], ampBuf[10], ampBuf[11],
         phaseBuf[0], phaseBuf[1], phaseBuf[2], phaseBuf[3], phaseBuf[4], phaseBuf[5],
@@ -7989,7 +8897,32 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         motorP2PBuf, motorInlBuf,
         crestBuf, p99Buf, c->trackingValid ? 1 : 0, trkRmsBuf, trkMaxBuf,
         (unsigned long)c->featureComputeTimeMs);
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+    }
+    else
+    {
+        /* Invalid schema-v6 captures remain useful for diagnosis, but no
+         * official metric name is emitted: every numerical value is
+         * explicitly Diagnostic_* so it cannot be pooled with OpenLoopNL. */
+        LogLineLarge(
+            "DIAGNOSTIC_RESULT,SchemaVersion=%d,TestID=%lu,SweepID=%lu,"
+            "JigID=%s,MotorID=%s,Direction=%s,MeasurementContractVersion=%s,"
+            "OfficialMeasurementValid=0,OfficialInvalidReasonMask=0x%08lX,"
+            "CapturedPoints=%d,AnalysisPoints=%d,"
+            "Diagnostic_OpenLoopNL_Deg=%s,Diagnostic_RobustP2P_Deg=%s,"
+            "Diagnostic_RMS_AC=%s,Diagnostic_ClosureErrorDeg=%s,"
+            "Diagnostic_TrackingError_RMS_Deg=%s,"
+            "Diagnostic_TrackingError_MaxAbs_Deg=%s\r\n",
+            NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId,
+            (unsigned long)c->sweepId, jigId, MOTOR_ID, dirStr,
+            NL_MEASUREMENT_CONTRACT_ID,
+            (unsigned long)c->officialInvalidReasonMask,
+            c->capturedCount, c->analysisCount, motorP2PBuf, robustP2PBuf,
+            rmsAcBuf, closureErrorDegBuf, trkRmsBuf, trkMaxBuf);
+    }
+#endif
 
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
     char shadowMeanBuf[20], shadowRmsBuf[20], shadowA36Buf[20], shadowP2PBuf[20];
     char shadowClosureBuf[20], shadowRmsDeltaBuf[20], shadowA36DeltaBuf[20];
     char shadowPoint0Q16Buf[24], shadowClosureQ16Buf[24], shadowError0Q16Buf[24];
@@ -8054,6 +8987,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         NL_B0B_APPROACH_PROTOCOL_ID, approachStructuralValidText);
 
     PrintShadowMadLog(c, jigId, dirStr);
+#endif
     PrintClosureProbeLog(c, jigId, dirStr);
 #if ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG
     PrintHardcapHoldLog(c, jigId, dirStr);
@@ -8436,6 +9370,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     }
 #endif
 
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC
     LogLineLarge(
         "SHADOW_END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,JigID=%s,MotorID=%s,"
         "Official=0,Started=%d,"
@@ -8445,6 +9380,7 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         c->shadowAttemptedPointCount,
         c->shadowCapturedCount, MA600_ResultName(c->shadowAcquisitionResult),
         c->shadowCanonicalValid ? "VALID" : "INVALID");
+#endif
 
     bool emitLegacyResult = true;
 #if ENABLE_AUTO_BATCH_TEST
@@ -8523,10 +9459,15 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         LogLine("NL TC rms %d: %s degree\r\n", runIndex + 1, rmsBuf);
 
         char errBuf[16];
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+        /* Gremsy-compatible primary measurand: max(Error)-min(Error). */
+        FormatDeg2(c->legacyStats.rawPP, errBuf, sizeof(errBuf));
+#else
         FormatDeg2(c->legacyStats.robustPP, errBuf, sizeof(errBuf));
+#endif
         LogLine("Nonlinear %d Angle: %s degree\r\n", runIndex + 1, errBuf);
-        /* Same value as above (see the original filterRawDiffMax note) -- kept so the
-         * existing log parser's "raw" columns are populated too. */
+        /* Same primary value as above; the separate RESULT.RobustP2P_Deg is
+         * supporting evidence and never silently replaces this measurand. */
         LogLine("MA600 Raw Nonlinear %d Angle: %s degree\r\n", runIndex + 1, errBuf);
 
         char diffBuf[16];
@@ -8619,6 +9560,11 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
     FormatI64(c->sweepPointCreepMaxObservedStepDeltaRaw,
         sweepPointCreepMaxObservedDeltaBuf,
         sizeof(sweepPointCreepMaxObservedDeltaBuf));
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+    char sweepPointCreepTerminalCorrBuf[24];
+    FormatI64(c->sweepPointCreepTerminalTotalCorrectionRaw,
+        sweepPointCreepTerminalCorrBuf, sizeof(sweepPointCreepTerminalCorrBuf));
+#endif
     int32_t sweepPointCreepTracePoint = -1;
 #if ENABLE_SWEEP_POINT_CREEP_V54_UNIVERSAL_FINE_LANDING
     if (c->shadowPoints != NULL)
@@ -8628,7 +9574,8 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
 #endif
     LogLineLarge(
         "END,SchemaVersion=%d,TestID=%lu,SweepID=%lu,Direction=%s,CapturedPoints=%d,"
-        "AnalysisPoints=%d,TrackingValid=%d,SettleStabilityValid=%d,"
+        "AnalysisPoints=%d,MeasurementProfile=%s,OfficialMeasurementValid=%d,"
+        "OfficialInvalidReasonMask=0x%08lX,TrackingValid=%d,SettleStabilityValid=%d,"
         "SettleTargetProximityValid=%d,SettleValid=%d,AcquisitionResult=%s,"
         "UartTransmitFailures=%lu,"
         /* See ENABLE_SWEEP_POINT_CREEP -- all aggregates stay 0 when the flag is
@@ -8667,10 +9614,20 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         "SweepPointCreepExpectedStepTelemetry=%lu,"
         "SweepPointCreepEmittedStepTelemetry=%lu,"
 #endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        "SweepPointTerminalEligible=%lu,SweepPointTerminalAttempted=%lu,"
+        "SweepPointTerminalSucceeded=%lu,SweepPointTerminalFailed=%lu,"
+        "SweepPointTerminalSuppressed=%lu,SweepPointTerminalTotalIterations=%lu,"
+        "SweepPointTerminalTotalCorrectionRaw=%s,"
+        "SweepPointTerminalSweepGuardExceeded=%d,"
+#endif
         "SweepPointCreepIntegrityValid=%d,"
         "Status=%s\r\n",
         NL_LOG_SCHEMA_VERSION, (unsigned long)c->testId, (unsigned long)c->sweepId, dirStr,
-        c->capturedCount, c->analysisCount, c->trackingValid ? 1 : 0,
+        c->capturedCount, c->analysisCount, NL_MEASUREMENT_PROFILE_ID,
+        c->officialMeasurementValid ? 1 : 0,
+        (unsigned long)c->officialInvalidReasonMask,
+        c->trackingValid ? 1 : 0,
         (c->capturedCount > 0 && c->settleStabilityValidCount == c->capturedCount) ? 1 : 0,
         (c->capturedCount > 0
             && c->settleTargetProximityValidCount == c->capturedCount) ? 1 : 0,
@@ -8716,6 +9673,16 @@ static void PrintSweepLog(const NlSweepCapture_t *c)
         (unsigned long)emittedCreepPointTelemetryCount,
         (unsigned long)c->sweepPointCreepExpectedStepTelemetryCount,
         (unsigned long)emittedCreepStepTelemetryCount,
+#endif
+#if ENABLE_SWEEP_POINT_CREEP_V59_EXTENDED_TERMINAL_CORRECTION
+        (unsigned long)c->sweepPointCreepTerminalEligibleCount,
+        (unsigned long)c->sweepPointCreepTerminalAttemptedCount,
+        (unsigned long)c->sweepPointCreepTerminalSucceededCount,
+        (unsigned long)c->sweepPointCreepTerminalFailedCount,
+        (unsigned long)c->sweepPointCreepTerminalSuppressedCount,
+        (unsigned long)c->sweepPointCreepTerminalTotalIterations,
+        sweepPointCreepTerminalCorrBuf,
+        c->sweepPointCreepTerminalSweepGuardExceeded ? 1 : 0,
 #endif
         (c->sweepPointCreepRecoveryFailedCount == 0U
             && c->sweepPointCreepStickSlipJumpCount == 0U) ? 1 : 0,
@@ -9035,7 +10002,11 @@ static bool NonlinearTest_Run(void)
         if (captureResult == MA600_RESULT_OK && nlCaptures[captureCount].measurementValid
                 && run >= NL_SKIP_FIRST_COUNT)
         {
+#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP
+            errorSum += nlCaptures[captureCount].legacyStats.rawPP;
+#else
             errorSum += nlCaptures[captureCount].legacyStats.robustPP;
+#endif
         }
         captureCount++;
         if (captureResult != MA600_RESULT_OK)
@@ -9084,18 +10055,22 @@ static bool NonlinearTest_Run(void)
          * diagnostic curve after a failed recovery. Successfully recovered
          * crossings are eligible; a failed recovery (or failed
          * precondition) is never promoted into official statistics. */
-        nlCaptures[i].eligibleForStatistics = !preconditionRun
+        /* Profile-gated (AGENTS.md RULE 0), not flag-by-flag: the old form of
+         * this check forced `false` only for the specific flags someone
+         * remembered to list (V5.7/V5.8), which is exactly how the V5.9
+         * eligibility-leak in docs/open-loop-nl-direction-correction-
+         * handoff-2026-08-12.md section 18.2 happened -- a new feedback-
+         * actuation flag (V5.9 terminal correction) was added without also
+         * being added to this exclusion list. NL_PROFILE_GREMSY_OPEN_LOOP
+         * cannot coexist with any feedback-actuation flag at all (enforced
+         * by the #error guard near ENABLE_SWEEP_POINT_CREEP above), so
+         * gating on the profile itself is both simpler and cannot regress
+         * the same way again when a future diagnostic flag is added. */
+        nlCaptures[i].eligibleForStatistics =
+            (NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP)
+            && !preconditionRun
             && preconditionValid
-            && (nlCaptures[i].sweepPointCreepRecoveryFailedCount == 0U)
-            && (nlCaptures[i].sweepPointCreepStickSlipJumpCount == 0U)
-#if ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG \
-        || ENABLE_SWEEP_POINT_RESPONSE_TIMING_DIAG
-            /* V5.7 changes later-point cadence; V5.8 is a first-pass timing
-             * instrument whose measurement neutrality is not yet hardware-
-             * validated. Neither may publish official statistics. */
-            && false
-#endif
-            ;
+            && nlCaptures[i].measurementValid;
         nlCaptures[i].preconditionValid = preconditionValid;
         nlCaptures[i].firstRunInBatch = firstRunInBatch;
         nlCaptures[i].cooldownTargetMs = cooldownTargetMs;

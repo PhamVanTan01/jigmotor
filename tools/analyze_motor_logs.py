@@ -8,7 +8,7 @@ Core/Src/nonlinear_test.c's ComputeHarmonicFull/ComputeSweepStats exactly
 cannot be trusted: it is printed unconditionally regardless of sweep
 validity and carries no self-contained MeasurementValid flag).
 
-Log line shapes handled (schema v4/v5, positional DATA/ACQ, key=value
+Log line shapes handled (schema v4/v5/v6, positional DATA/ACQ, key=value
 META/RESULT/END/CONFIG/BATCH/SHADOW_*):
 
     META,SchemaVersion=...,TestID=...,SweepID=...,JigID=...,...
@@ -47,6 +47,7 @@ from typing import Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 
 FULL_TURN_RAW = 65536.0
+Q16_SCALE = 65536
 LEGACY_ANALYSIS_POINT_COUNT = 256
 LEGACY_STEP_RAW = 256
 CURRENT_ANALYSIS_POINT_COUNT = 360
@@ -65,6 +66,9 @@ class DataPoint:
     angle_raw: int
     angle_deg: float
     error_deg: float
+    command_raw_q16: Optional[int] = None
+    mean_unwrapped_raw_q16: Optional[int] = None
+    error_raw_q16: Optional[int] = None
 
 
 @dataclass
@@ -177,15 +181,16 @@ def _parse_kv_line(line: str) -> Tuple[str, Dict[str, str]]:
     return record, fields
 
 
-def _parse_data_line(line: str) -> Optional[Tuple[int, int, str, str, str, DataPoint]]:
+def parse_data_line(line: str) -> Optional[Tuple[int, int, int, str, str, str, DataPoint]]:
     """DATA,<schema>,<testId>,<sweepId>,<jigId>,<motorId>,<dir>,<index>,<targetRawAbs>,<angleRaw>,<angleDeg>,<errorDeg>
 
     Returns (schema, testId, sweepId, jigId, motorId, direction, DataPoint)
-    or None if the line does not have exactly the expected field count
-    (reported as a warning by the caller, never guessed at).
+    Schema 4/5 has exactly 12 positional fields. Schema 6 retains those
+    fields for readability and appends canonical key=value fields. For
+    schema 6 ErrorRawQ16 is authoritative over positional ErrorDeg.
     """
     parts = line.rstrip("\r\n").split(",")
-    if len(parts) != 12 or parts[0] != "DATA":
+    if len(parts) < 12 or parts[0] != "DATA":
         return None
     try:
         schema = int(parts[1])
@@ -201,8 +206,28 @@ def _parse_data_line(line: str) -> Optional[Tuple[int, int, str, str, str, DataP
         error_deg = float(parts[11])
     except ValueError:
         return None
+    extras: Dict[str, str] = {}
+    for token in parts[12:]:
+        if "=" not in token:
+            return None
+        key, _, value = token.partition("=")
+        extras[key] = value
+    command_raw_q16: Optional[int] = None
+    mean_unwrapped_raw_q16: Optional[int] = None
+    error_raw_q16: Optional[int] = None
+    if schema >= 6:
+        try:
+            command_raw_q16 = int(extras["CommandRawQ16"])
+            mean_unwrapped_raw_q16 = int(extras["MeanUnwrappedRawQ16"])
+            error_raw_q16 = int(extras["ErrorRawQ16"])
+        except (KeyError, ValueError):
+            return None
+        error_deg = error_raw_q16 * 360.0 / (FULL_TURN_RAW * Q16_SCALE)
     point = DataPoint(index=index, target_raw_abs=target_raw_abs, angle_raw=angle_raw,
-                       angle_deg=angle_deg, error_deg=error_deg)
+                       angle_deg=angle_deg, error_deg=error_deg,
+                       command_raw_q16=command_raw_q16,
+                       mean_unwrapped_raw_q16=mean_unwrapped_raw_q16,
+                       error_raw_q16=error_raw_q16)
     return schema, test_id, sweep_id, jig_id, motor_id, direction, point
 
 
@@ -270,13 +295,16 @@ def load_sweeps(path: Path) -> Tuple[List[Sweep], List[str]]:
             if step_raw is not None:
                 sw.step_raw = step_raw
             sw.shadow_contract_version = f.get("ShadowContractVersion")
-            sw.meta_measurement_valid = _to_bool01(f.get("MeasurementValid"))
+            measurement_valid = f.get("OfficialMeasurementValid")
+            if measurement_valid is None:
+                measurement_valid = f.get("MeasurementValid")
+            sw.meta_measurement_valid = _to_bool01(measurement_valid)
             sw.meta_tracking_valid = _to_bool01(f.get("TrackingValid"))
             sw.captured_points = _to_int(f.get("CapturedPoints"))
             sw.analysis_points = _to_int(f.get("AnalysisPoints"))
 
         elif line.startswith("DATA,"):
-            parsed = _parse_data_line(line)
+            parsed = parse_data_line(line)
             if parsed is None:
                 warnings.append(f"{path}:{line_no}: malformed DATA line, skipped: {line[:80]}")
                 continue
@@ -928,6 +956,25 @@ def run_self_test() -> bool:
     print(f"  Case 'RunRole/EligibleForStatistics': "
           f"{'PASS' if role_ok else 'FAIL'}")
 
+    # Schema-v6 extends DATA with canonical Q16 values. Deliberately put a
+    # wrong compatibility ErrorDeg in the positional column and verify the
+    # parser uses ErrorRawQ16 as the official source of truth.
+    one_raw_q16 = Q16_SCALE
+    schema6_line = (
+        "DATA,6,9,10,JIG8,p03,CW,1,182,182,0.99976,99.00000,"
+        f"CommandRawQ16={182 * Q16_SCALE},MeanUnwrappedRawQ16={181 * Q16_SCALE},"
+        f"ErrorRawQ16={one_raw_q16}"
+    )
+    schema6_parsed = parse_data_line(schema6_line)
+    schema6_expected_deg = 360.0 / FULL_TURN_RAW
+    schema6_ok = (
+        schema6_parsed is not None
+        and schema6_parsed[-1].error_raw_q16 == one_raw_q16
+        and abs(schema6_parsed[-1].error_deg - schema6_expected_deg) < 1e-12
+    )
+    print(f"  Case 'Schema-v6 canonical DATA/Q16': "
+          f"{'PASS' if schema6_ok else 'FAIL'}")
+
     # P2P shift-invariance identity used in docs/cross_jig_measurement_analysis.md
     # section 8: P2P(e - c) == P2P(e) for any constant c.
     sample = [-3.0, -2.0, -0.5, 1.0, 2.5]
@@ -938,7 +985,7 @@ def run_self_test() -> bool:
     print(f"  Case 'P2P shift-invariance': {'PASS' if shift_ok else 'FAIL'} "
           f"(P2P(e)={p2p_a:.4f}, P2P(e-c)={p2p_b:.4f})")
 
-    all_ok = case1_ok and case2_ok and dynamic_ok and role_ok and shift_ok
+    all_ok = case1_ok and case2_ok and dynamic_ok and role_ok and schema6_ok and shift_ok
     print(f"\nSelf-test overall: {'PASS' if all_ok else 'FAIL'}")
     return all_ok
 

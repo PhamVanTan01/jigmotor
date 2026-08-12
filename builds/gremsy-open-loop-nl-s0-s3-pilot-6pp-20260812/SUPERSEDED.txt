@@ -1,0 +1,10 @@
+SUPERSEDED — DO NOT USE FOR FURTHER S4/S5 QUALIFICATION
+
+The first JIG8 hardware log from this artifact proved that the schema-v6
+META record exceeded LogLineLarge's 1900-byte buffer. META was truncated
+before RunRole/EligibleForStatistics and the next GRID record joined the
+same physical line. Measurement samples were clean, but role/statistical
+identity was not trustworthy.
+
+Replacement artifact:
+../gremsy-open-loop-nl-s4-meta-atomic-pilot-6pp-20260812/jigmotor.hex

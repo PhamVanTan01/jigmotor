@@ -45,16 +45,23 @@ try {
     $invalidV6 = $rows | Where-Object { $_.SchemaVersion -eq '6' -and $_.OfficialMeasurementValid -eq '0' }
     if (($null -eq $validV6) -or
             ($validV6.EndStatus -ne 'VALID') -or
+            ($validV6.MeasurementProfile -ne 'GREMSY_COMPAT_OPEN_LOOP_NL_V1') -or
+            ($validV6.MeasurementContractVersion -ne 'GREMSY_OPEN_LOOP_NL_1DEG360_V1') -or
+            ($validV6.OfficialOpenLoopNL -ne '1') -or
+            ($validV6.FeedbackActuationEnabled -ne '0') -or
             ($validV6.MathContractVersion -ne 'CANONICAL_Q16_V1') -or
             ($validV6.CanonicalMeanSource -ne 'ALL_TIER1') -or
             ($validV6.OfficialInvalidReasonMask -ne '0x00000000') -or
             ($validV6.SettleTargetProximityValid -ne '1') -or
             ($validV6.ClosureValid -ne '1') -or
+            ([math]::Abs([double]$validV6.OpenLoopNL_Deg - 3.25) -gt 0.000001) -or
             ($null -eq $invalidV6) -or
             ($invalidV6.EndStatus -ne 'INVALID') -or
             ($invalidV6.OfficialInvalidReasonMask -eq '0x00000000') -or
             ($invalidV6.SettleTargetProximityValid -ne '0') -or
-            ($invalidV6.ClosureValid -ne '0')) {
+            ($invalidV6.SettleValid -ne '1') -or
+            ([math]::Abs([double]$invalidV6.DiagnosticOpenLoopNL_Deg - 3.2) -gt 0.000001) -or
+            (-not [string]::IsNullOrWhiteSpace($invalidV6.ClosureValid))) {
         throw 'Schema-v6 valid/diagnostic contract parsing failed.'
     }
 

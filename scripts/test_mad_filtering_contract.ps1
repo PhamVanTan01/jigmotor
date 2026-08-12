@@ -81,16 +81,16 @@ try {
     Assert-True ($nlt -match (
             "out->shadowPoint0MeanRawQ16 = out->shadowPoints->pointMeanRawQ16\[0\];")) `
         'ComputeShadowMetrics no longer re-derives shadowPoint0MeanRawQ16 from the plain array.'
-    Assert-True ($nlt -match (
-            "(?s)MA600_ComputeCanonicalErrorAtTargetQ16\(\s*out->shadowPoints->pointMeanRawQ16\[i\],\s*out->shadowPoint0MeanRawQ16, signedTargetRaw,")) `
+    Assert-True ($nlt -match '(?s)static bool NlComputeProfileErrorRawQ16\(.*?MA600_ComputeCanonicalErrorAtTargetQ16\(pointMeanRawQ16,\s*point0MeanRawQ16, signedTargetRaw,' -and
+            $nlt -match '(?s)NlComputeProfileErrorRawQ16\(\s*out->shadowPoints->pointMeanRawQ16\[i\],\s*out->shadowPoint0MeanRawQ16, signedTargetRaw,') `
         'ClosureErrorRawQ16 no longer computed from the plain pointMeanRawQ16 array.'
     Assert-True ($nlt -notmatch 'ComputeCanonicalErrorAtTargetQ16\([^)]*madFilteredMeanRawQ16') `
         'madFilteredMeanRawQ16 must never feed the official error/closure computation.'
     Assert-True ($nlt -notmatch 'shadowPoint0MeanRawQ16\s*=[^;]*madFilteredMeanRawQ16') `
         'shadowPoint0MeanRawQ16 must never be sourced from the MAD-filtered mean.'
-    Assert-True ($nlt -match '#define\s+NL_LOG_SCHEMA_VERSION\s+5' -and
-            $nlt -match 'OfficialResultSource=LEGACY') `
-        'MAD filtering must not change the official schema-v5/legacy result contract.'
+    Assert-True ($nlt -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\s*#define NL_LOG_SCHEMA_VERSION\s+6\s*#else\s*#define NL_LOG_SCHEMA_VERSION\s+5' -and
+            $nlt -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_POSITION_DIAGNOSTIC.*?SHADOW_META') `
+        'MAD filtering must remain diagnostic-profile-only and must not enter the schema-v6 official mean.'
 
     # --- No leakage into the official measurement-valid gate. ---
     Assert-True ($nlt -match 'out->measurementValid\s*=\s*structuralValid\s*&&\s*out->trackingValid') `

@@ -1,0 +1,70 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-PG07-JIG1-remount01-test-1-v5-8.txt
+TerminalStatus=COMPLETE
+AnalysisMode=RESPONSE_TIMING_DIAGNOSTIC
+OfficialValid=0/2
+GatedConfigInvalid=0/3,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=DIAGNOSTIC PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG5 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-PG07-JIG1-remount01-test-1-v5-8.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.2069 RawP2P=1.4353 System_INL=0.7176 RobustP2P=1.2720 Closure=-0.0163 TrackRMS=0.2121 TrackMax=0.9503
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG5 TestID=2 SweepID=2 RunOrder=1 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-PG07-JIG1-remount01-test-1-v5-8.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.4572 RawP2P=1.8977 System_INL=0.9488 RobustP2P=1.8183 Closure=0.05484 TrackRMS=0.5389 TrackMax=1.8018
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG5 TestID=3 SweepID=3 RunOrder=2 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-PG07-JIG1-remount01-test-1-v5-8.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.5826 RawP2P=2.3265 System_INL=1.1632 RobustP2P=2.2619 Closure=-0.08221 TrackRMS=0.7431 TrackMax=2.2357
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG5  (runs total=3, statistically eligible=0)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=2 SweepID=2 RunOrder=1: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=3 SweepID=3 RunOrder=2: META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================
+
+MOTOR RESPONSE TIMING (V5.8)
+TimingRows=1113,CommandPoints=1110,ReachedDeadband=728,StoppedOutsideDeadband=382,ReachedRate=65.59%,TelemetryComplete=1
+CommandToStop: n=1110,mean=196.679ms,median=206.307ms,p95=286.302ms,max=374.303ms
+TimeToDeadband(reached-only): n=728,mean=187.309ms,median=206.307ms,p95=294.307ms,max=374.303ms
+StopLatency(not-reached): n=382,mean=214.536ms,median=206.307ms,p95=254.308ms,max=302.305ms
+Ramp: n=1110,mean=38.311ms,median=38.310ms,p95=38.312ms,max=38.987ms
+InitialSettle: n=1110,mean=7.991ms,median=7.991ms,p95=7.992ms,max=7.993ms
+Creep: n=1110,mean=150.372ms,median=160.001ms,p95=240.001ms,max=328.001ms
+Legacy64+anchor: n=1113,mean=1.343ms,median=1.343ms,p95=1.344ms,max=1.345ms
+Shadow64: n=1113,mean=1.336ms,median=1.333ms,p95=1.338ms,max=1.860ms
+CommandToDataFrozen: n=1110,mean=198.034ms,median=207.662ms,p95=287.657ms,max=375.658ms
+CreepResponseEfficiencyPermille: mean=784.3,median=760.7,p05=426.5,p95=1188.8
+NominalStepTrackingPermille: mean=999.8,median=1000.0,p05=824.2,p95=1164.8
+SlowestCommandPoints=T1/S1/P94:374.303ms/OK|T1/S1/P189:334.308ms/OK|T3/S3/P227:326.307ms/OK|T2/S2/P228:326.306ms/OK|T2/S2/P318:318.308ms/OK|T3/S3/P310:318.308ms/OK|T2/S2/P178:318.307ms/OK|T3/S3/P179:318.306ms/OK|T1/S1/P228:318.305ms/OK|T1/S1/P37:318.303ms/OK
+NotReachedPoints=T1/S1/P26:254.307ms/BUDGET_EXCEEDED|T1/S1/P27:278.301ms/BUDGET_EXCEEDED|T1/S1/P66:278.307ms/BUDGET_EXCEEDED|T1/S1/P67:206.307ms/BUDGET_EXCEEDED|T1/S1/P68:206.308ms/BUDGET_EXCEEDED|T1/S1/P69:206.306ms/BUDGET_EXCEEDED|T1/S1/P70:206.306ms/BUDGET_EXCEEDED|T1/S1/P143:230.308ms/BUDGET_EXCEEDED|T1/S1/P144:206.303ms/BUDGET_EXCEEDED|T1/S1/P145:206.302ms/BUDGET_EXCEEDED|T1/S1/P146:206.303ms/BUDGET_EXCEEDED|T1/S1/P147:206.302ms/BUDGET_EXCEEDED|T1/S1/P148:206.302ms/BUDGET_EXCEEDED|T1/S1/P149:206.303ms/BUDGET_EXCEEDED|T1/S1/P150:206.308ms/BUDGET_EXCEEDED|T1/S1/P151:206.304ms/BUDGET_EXCEEDED|T1/S1/P152:206.303ms/BUDGET_EXCEEDED|T1/S1/P153:206.302ms/BUDGET_EXCEEDED|T1/S1/P154:206.308ms/BUDGET_EXCEEDED|T1/S1/P155:206.303ms/BUDGET_EXCEEDED

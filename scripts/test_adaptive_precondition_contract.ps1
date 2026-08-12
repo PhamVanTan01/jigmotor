@@ -105,10 +105,10 @@ Assert-True ($source -match '(?s)#if\s+ENABLE_ADAPTIVE_PRECONDITION\s*[\r\n]+sta
     'nlPreconditionStabilityAchieved/nlHasLastPreconditionClosure/nlLastPreconditionClosureDeg must be declared only under the adaptive flag.'
 
 # --- No leakage into the official contract / no change to the schema. ---
-Assert-True ($source -match 'eligibleForStatistics\s*=\s*!preconditionRun') `
-    'Precondition eligibility semantics must be unchanged.'
-Assert-True ($source -match '#define\s+NL_LOG_SCHEMA_VERSION\s+5') `
-    'This feature must not change the official schema-v5 contract.'
+Assert-True ($source -match '(?s)eligibleForStatistics\s*=\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)\s*&& !preconditionRun\s*&& preconditionValid\s*&& nlCaptures\[i\]\.measurementValid;') `
+    'Precondition must remain ineligible, and only a valid open-loop profile may become statistics-eligible.'
+Assert-True ($source -match '(?s)#if NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\s*#define NL_LOG_SCHEMA_VERSION\s+6\s*#else\s*#define NL_LOG_SCHEMA_VERSION\s+5') `
+    'Open-loop schema-v6 and diagnostic schema-v5 must remain profile-isolated.'
 
 # --- BATCH,... lines (where the new fields live) are console-only
 # diagnostics, never parsed by the analyzer -- confirms the new fields

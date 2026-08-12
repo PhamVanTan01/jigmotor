@@ -57,8 +57,9 @@ Assert-True ($source -match 'hardcapHoldAcquisition\.readAttempts' -and
         $source -match 'hardcapHoldAcquisition\.transportErrorCount' -and
         $source -match 'hardcapHoldAcquisition\.jumpRejectCount' -and
         $source -match 'hardcapHoldAcquisition\.failedSampleCount' -and
-        $source -match '(?s)eligibleForStatistics\s*=.*?ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG.*?&& false') `
-    'V5.7 reads leak into official Acq* or diagnostic runs remain eligible.'
+        $source -match '(?s)nlCaptures\[i\]\.eligibleForStatistics =\s*\(NL_MEASUREMENT_PROFILE == NL_PROFILE_GREMSY_OPEN_LOOP\)' -and
+        $source -match '#if ENABLE_SWEEP_POINT_CREEP_V57_HARDCAP_HOLD_DIAG \\\s*&& !ENABLE_SWEEP_POINT_CREEP_V55_DYNAMIC_BASE_ESCALATION') `
+    'V5.7 reads leak into official Acq*, or diagnostic runs could become eligible (2026-08-12: V5.7 nests under ENABLE_SWEEP_POINT_CREEP_V55, which the open-loop #error guard forces off, so eligibility is now architecturally impossible rather than counter-excluded -- both the profile gate and the V5.5 nesting requirement must still be present).'
 
 Assert-True ($source -match 'SWEEP_CREEP_HOLD_CONFIG,SchemaVersion=1' -and
         $source -match 'SWEEP_CREEP_HOLD_SAMPLE,SchemaVersion=1' -and

@@ -1,0 +1,74 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P038-JIG8-remount02-test-1-v5-8.txt
+TerminalStatus=COMPLETE
+AnalysisMode=RESPONSE_TIMING_DIAGNOSTIC
+OfficialValid=0/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=DIAGNOSTIC PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=9 SweepID=9 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P038-JIG8-remount02-test-1-v5-8.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0927 RawP2P=0.6908 System_INL=0.3454 RobustP2P=0.5370 Closure=-0.08368 TrackRMS=0.1002 TrackMax=0.5603
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=10 SweepID=10 RunOrder=1 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P038-JIG8-remount02-test-1-v5-8.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.1001 RawP2P=0.8046 System_INL=0.4023 RobustP2P=0.6285 Closure=-0.07434 TrackRMS=0.1086 TrackMax=0.6647
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=11 SweepID=11 RunOrder=2 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P038-JIG8-remount02-test-1-v5-8.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0960 RawP2P=0.7287 System_INL=0.3643 RobustP2P=0.5779 Closure=-0.07889 TrackRMS=0.1034 TrackMax=0.5988
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=12 SweepID=12 RunOrder=3 Role=OFFICIAL Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S2-P038-JIG8-remount02-test-1-v5-8.txt
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.0951 RawP2P=0.7237 System_INL=0.3619 RobustP2P=0.5723 Closure=-0.08521 TrackRMS=0.1027 TrackMax=0.5933
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=4, statistically eligible=0)
+    Excluded runs:
+      - TestID=9 SweepID=9 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=10 SweepID=10 RunOrder=1: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=11 SweepID=11 RunOrder=2: META.EligibleForStatistics=0 (excluded from official statistics)
+      - TestID=12 SweepID=12 RunOrder=3: META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: no statistically eligible runs
+    raw_p2p: no statistically eligible runs
+    system_inl_deg: no statistically eligible runs
+    robust_p2p: no statistically eligible runs
+    closure_error_deg: no statistically eligible runs
+    tracking_rms_deg: no statistically eligible runs
+    tracking_max_abs_deg: no statistically eligible runs
+    mean_dc: no statistically eligible runs
+    p99_abs_deviation: no statistically eligible runs
+    A1: no statistically eligible runs
+    A2: no statistically eligible runs
+    A9: no statistically eligible runs
+    A36: no statistically eligible runs
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================
+
+MOTOR RESPONSE TIMING (V5.8)
+TimingRows=1484,CommandPoints=1480,ReachedDeadband=1415,StoppedOutsideDeadband=65,ReachedRate=95.61%,TelemetryComplete=1
+CommandToStop: n=1480,mean=185.535ms,median=198.399ms,p95=284.401ms,max=346.403ms
+TimeToDeadband(reached-only): n=1415,mean=183.102ms,median=190.403ms,p95=285.701ms,max=346.403ms
+StopLatency(not-reached): n=65,mean=238.493ms,median=236.403ms,p95=265.401ms,max=291.403ms
+Ramp: n=1480,mean=38.404ms,median=38.405ms,p95=38.408ms,max=38.408ms
+InitialSettle: n=1480,mean=9.537ms,median=7.994ms,p95=17.994ms,max=30.993ms
+Creep: n=1480,mean=137.592ms,median=151.500ms,p95=235.050ms,max=286.000ms
+Legacy64+anchor: n=1484,mean=0.822ms,median=0.822ms,p95=0.822ms,max=0.822ms
+Shadow64: n=1484,mean=0.771ms,median=0.770ms,p95=0.772ms,max=1.003ms
+CommandToDataFrozen: n=1480,mean=186.361ms,median=199.226ms,p95=285.228ms,max=347.230ms
+CreepResponseEfficiencyPermille: mean=906.3,median=770.6,p05=417.5,p95=1783.4
+NominalStepTrackingPermille: mean=999.8,median=1000.0,p05=846.2,p95=1142.9
+SlowestCommandPoints=T11/S11/P348:346.403ms/OK|T11/S11/P188:340.403ms/OK|T9/S9/P188:330.401ms/OK|T12/S12/P289:325.400ms/OK|T9/S9/P348:322.402ms/OK|T9/S9/P189:319.400ms/OK|T12/S12/P251:314.399ms/OK|T9/S9/P358:313.401ms/OK|T9/S9/P28:312.403ms/OK|T12/S12/P188:312.403ms/OK
+NotReachedPoints=T9/S9/P82:264.402ms/BUDGET_EXCEEDED|T9/S9/P91:291.403ms/BUDGET_EXCEEDED|T9/S9/P92:230.401ms/BUDGET_EXCEEDED|T9/S9/P93:217.400ms/BUDGET_EXCEEDED|T9/S9/P122:261.402ms/BUDGET_EXCEEDED|T9/S9/P132:250.401ms/BUDGET_EXCEEDED|T9/S9/P133:265.400ms/BUDGET_EXCEEDED|T9/S9/P252:229.399ms/BUDGET_EXCEEDED|T9/S9/P253:253.402ms/BUDGET_EXCEEDED|T9/S9/P281:258.401ms/BUDGET_EXCEEDED|T9/S9/P282:221.402ms/BUDGET_EXCEEDED|T9/S9/P283:251.402ms/BUDGET_EXCEEDED|T9/S9/P290:257.401ms/BUDGET_EXCEEDED|T9/S9/P291:225.399ms/BUDGET_EXCEEDED|T9/S9/P292:232.399ms/BUDGET_EXCEEDED|T9/S9/P293:219.399ms/BUDGET_EXCEEDED|T10/S10/P82:261.403ms/BUDGET_EXCEEDED|T10/S10/P91:263.401ms/BUDGET_EXCEEDED|T10/S10/P92:213.403ms/BUDGET_EXCEEDED|T10/S10/P93:212.400ms/BUDGET_EXCEEDED

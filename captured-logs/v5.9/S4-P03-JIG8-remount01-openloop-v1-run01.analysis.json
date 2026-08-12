@@ -1,0 +1,312 @@
+{
+  "sweeps": [
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 1,
+      "sweep_id": 1,
+      "run_order": 0,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 2,
+      "sweep_id": 2,
+      "run_order": 1,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 3,
+      "sweep_id": 3,
+      "run_order": 2,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 4,
+      "sweep_id": 4,
+      "run_order": 3,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 5,
+      "sweep_id": 5,
+      "run_order": 4,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 6,
+      "sweep_id": 6,
+      "run_order": 5,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 7,
+      "sweep_id": 7,
+      "run_order": 6,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 8,
+      "sweep_id": 8,
+      "run_order": 7,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 9,
+      "sweep_id": 9,
+      "run_order": 8,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 10,
+      "sweep_id": 10,
+      "run_order": 10,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    },
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "test_id": 11,
+      "sweep_id": 11,
+      "run_order": 11,
+      "run_role": null,
+      "eligible_for_statistics": null,
+      "eligibility_source": "LEGACY_NO_ROLE",
+      "analysis_points": 360,
+      "closure_index": 360,
+      "shadow_contract_version": null,
+      "officially_valid": false,
+      "problems": [
+        "META.MeasurementValid missing",
+        "no usable DATA points (0 of 0..359 present)"
+      ],
+      "metrics": null,
+      "source_file": "D:\\tanpham\\QAtoool\\jigtest\\motor\\jigmotor\\captured-logs\\v5.9\\S4-P03-JIG8-remount01-openloop-v1-run01.txt"
+    }
+  ],
+  "group_summaries": [
+    {
+      "motor_id": "UNKNOWN",
+      "jig_id": "JIG8",
+      "run_count": 11,
+      "conditioned_run_count": 0,
+      "fields": {
+        "rms_ac": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "raw_p2p": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "system_inl_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "robust_p2p": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "closure_error_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "tracking_rms_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "tracking_max_abs_deg": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "mean_dc": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "p99_abs_deviation": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A1": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A2": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A9": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        },
+        "A36": {
+          "mean": null,
+          "sd": null,
+          "cv_pct": null
+        }
+      },
+      "invalid_runs": [
+        "TestID=1 SweepID=1 RunOrder=0: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=2 SweepID=2 RunOrder=1: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=3 SweepID=3 RunOrder=2: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=4 SweepID=4 RunOrder=3: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=5 SweepID=5 RunOrder=4: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=6 SweepID=6 RunOrder=5: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=7 SweepID=7 RunOrder=6: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=8 SweepID=8 RunOrder=7: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=9 SweepID=9 RunOrder=8: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=10 SweepID=10 RunOrder=10: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)",
+        "TestID=11 SweepID=11 RunOrder=11: META.MeasurementValid missing; no usable DATA points (0 of 0..359 present)"
+      ]
+    }
+  ]
+}
