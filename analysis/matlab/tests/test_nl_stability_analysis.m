@@ -79,6 +79,7 @@ test_peak_signature_tools();
 test_sweep_creep_analysis();
 test_offaxis_calibration_risk();
 test_sweep_point_creep_v5_9_terminal();
+test_openloop_nl_batch();
 
 fprintf("[ OK ] NL stability MATLAB analysis regression test passed.\n");
 end
@@ -1337,4 +1338,78 @@ function delete_if_exists(path)
 if isfile(path)
     delete(path);
 end
+end
+
+function test_openloop_nl_batch()
+% Three synthetic sweeps in one schema-v6 file, exercising the RULE-0 gate
+% in analyze_openloop_nl_batch.m end-to-end:
+%   TestID=1: RunRole=PRECONDITION -- must be excluded, not counted.
+%   TestID=2: proper OFFICIAL open-loop sweep, all SweepPointCreep*=0,
+%             IntegrityValid=1 -- must be included with its own
+%             OpenLoopNL_Deg/RobustP2P_Deg/A36 values.
+%   TestID=3: claims OfficialOpenLoopNL=1/RunRole=OFFICIAL but has a
+%             nonzero SweepPointCreepTargetCrossed -- a contract
+%             violation (feedback actuation leaked into a sweep that
+%             claims pure open-loop) -- must be excluded via the purity
+%             check, not silently averaged in.
+lines = strings(0, 1);
+lines(end+1) = openloop_meta_line(1, 1, "PRECONDITION", "0");
+lines(end+1) = "DATA,6,1,1,JIG8,p03,CW,0,0,0,0.00000,0.00000,CommandRawQ16=0,MeanUnwrappedRawQ16=0,ErrorRawQ16=0";
+lines(end+1) = openloop_result_line(1, 1, 9.0, 8.5, 0.85);
+lines(end+1) = openloop_end_line(1, 1, [0 0 0 0 0 0], 1);
+
+lines(end+1) = openloop_meta_line(2, 2, "OFFICIAL", "1");
+lines(end+1) = "DATA,6,2,2,JIG8,p03,CW,0,0,0,0.00000,0.00000,CommandRawQ16=0,MeanUnwrappedRawQ16=0,ErrorRawQ16=0";
+lines(end+1) = openloop_result_line(2, 2, 2.8500, 2.7300, 0.8970);
+lines(end+1) = openloop_end_line(2, 2, [0 0 0 0 0 0], 1);
+
+lines(end+1) = openloop_meta_line(3, 3, "OFFICIAL", "1");
+lines(end+1) = "DATA,6,3,3,JIG8,p03,CW,0,0,0,0.00000,0.00000,CommandRawQ16=0,MeanUnwrappedRawQ16=0,ErrorRawQ16=0";
+lines(end+1) = openloop_result_line(3, 3, 5.0000, 4.5000, 0.9000);
+lines(end+1) = openloop_end_line(3, 3, [0 0 0 1 0 0], 0); % TargetCrossed=1, IntegrityValid=0
+
+file = write_temp_log(lines);
+cleanup = onCleanup(@() delete_if_exists(file)); %#ok<NASGU>
+
+[runs, summary] = analyze_openloop_nl_batch(file, "TEST");
+
+assert(height(runs) == 1);
+assert(runs.TestID(1) == 2);
+assert(abs(runs.OpenLoopNL_Deg(1) - 2.8500) < 1e-9);
+assert(abs(runs.RobustP2P_Deg(1) - 2.7300) < 1e-9);
+assert(abs(runs.A36(1) - 0.8970) < 1e-9);
+
+assert(height(summary) == 1);
+assert(summary.N(1) == 1);
+assert(abs(summary.MeanOpenLoopNL_Deg(1) - 2.8500) < 1e-9);
+end
+
+function line = openloop_meta_line(testId, sweepId, runRole, eligible)
+line = sprintf(strjoin([ ...
+    "META,SchemaVersion=6,Firmware=jigmotor-nl2,BuildID=test,MCU_UID=TESTUID,CounterScope=BOOT", ...
+    "JigID=JIG8,JigKnown=1,MotorID=p03,MotorIDValid=1,TestID=%d,SweepID=%d,Direction=CW", ...
+    "MeasurementProfile=GREMSY_COMPAT_OPEN_LOOP_NL_V1,OfficialOpenLoopNL=1,FeedbackActuationEnabled=0", ...
+    "RampFeedbackActuationEnabled=0,OfficialResultSource=CANONICAL_Q16,OfficialMeasurementValid=1", ...
+    "Quality=VALID,AnalysisPoints=360,CapturedPoints=372,RunRole=%s,EligibleForStatistics=%s"], ","), ...
+    testId, sweepId, runRole, eligible);
+end
+
+function line = openloop_result_line(testId, sweepId, openLoopNlDeg, robustP2pDeg, a36)
+line = sprintf(strjoin([ ...
+    "RESULT,SchemaVersion=6,TestID=%d,SweepID=%d,JigID=JIG8,MotorID=p03,Direction=CW", ...
+    "OpenLoopNL_Deg=%.4f,RobustP2P_Deg=%.4f,MeanDC=0.10,RMS_AC=0.70", ...
+    "ClosureErrorDeg=-0.02,ClosureLimitDeg=0.20,ClosureValid=1", ...
+    "A1=0.20,A2=0.16,A36=%.4f,AElectrical6=%.4f,Motor_System_INL_Deg=1.40,TrackingError_RMS_Deg=0.75"], ","), ...
+    testId, sweepId, openLoopNlDeg, robustP2pDeg, a36, a36);
+end
+
+function line = openloop_end_line(testId, sweepId, creepCounters, integrityValid)
+line = sprintf(strjoin([ ...
+    "END,SchemaVersion=6,TestID=%d,SweepID=%d,Status=VALID,AcquisitionResult=OK", ...
+    "SweepPointCreepPointsCorrected=%d,SweepPointCreepTotalIterations=%d", ...
+    "SweepPointCreepTotalCorrectionRaw=%d,SweepPointCreepTargetCrossed=%d", ...
+    "SweepPointCreepRecoveryAttempted=%d,SweepPointCreepStickSlipJump=%d", ...
+    "SweepPointCreepIntegrityValid=%d"], ","), ...
+    testId, sweepId, creepCounters(1), creepCounters(2), creepCounters(3), ...
+    creepCounters(4), creepCounters(5), creepCounters(6), integrityValid);
 end
