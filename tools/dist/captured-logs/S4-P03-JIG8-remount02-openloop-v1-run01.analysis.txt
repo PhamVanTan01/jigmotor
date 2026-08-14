@@ -1,0 +1,66 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+TerminalStatus=COMPLETE
+AnalysisMode=OFFICIAL_MEASUREMENT
+OfficialValid=10/10
+GatedConfigInvalid=0/11,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.7176 RawP2P=2.9310 System_INL=1.4655 RobustP2P=2.8015 Closure=0.01956939697265625 TrackRMS=0.8158 TrackMax=1.9061
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=2 SweepID=2 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7154 RawP2P=2.9280 System_INL=1.4640 RobustP2P=2.7692 Closure=-0.01682281494140625 TrackRMS=0.7902 TrackMax=1.8677
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=3 SweepID=3 RunOrder=2 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7149 RawP2P=2.9267 System_INL=1.4634 RobustP2P=2.7782 Closure=-0.031757354736328125 TrackRMS=0.7949 TrackMax=1.8677
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=4 SweepID=4 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7119 RawP2P=3.0354 System_INL=1.5177 RobustP2P=2.7928 Closure=0.016565322875976562 TrackRMS=0.7932 TrackMax=1.9281
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=5 SweepID=5 RunOrder=4 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7107 RawP2P=2.8920 System_INL=1.4460 RobustP2P=2.7761 Closure=-0.00720977783203125 TrackRMS=0.7791 TrackMax=1.7798
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=6 SweepID=6 RunOrder=5 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7114 RawP2P=2.9394 System_INL=1.4697 RobustP2P=2.7828 Closure=-0.05862236022949219 TrackRMS=0.7665 TrackMax=1.7908
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=7 SweepID=7 RunOrder=6 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7106 RawP2P=2.9060 System_INL=1.4530 RobustP2P=2.7659 Closure=-0.022487640380859375 TrackRMS=0.7786 TrackMax=1.8512
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=8 SweepID=8 RunOrder=7 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7112 RawP2P=2.9288 System_INL=1.4644 RobustP2P=2.7650 Closure=-0.019998550415039062 TrackRMS=0.7891 TrackMax=1.8622
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=9 SweepID=9 RunOrder=8 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7118 RawP2P=2.8836 System_INL=1.4418 RobustP2P=2.7550 Closure=-0.041713714599609375 TrackRMS=0.7812 TrackMax=1.8127
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=10 SweepID=10 RunOrder=9 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7107 RawP2P=2.9447 System_INL=1.4723 RobustP2P=2.7836 Closure=-0.015192031860351562 TrackRMS=0.7741 TrackMax=1.8292
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=11 SweepID=11 RunOrder=10 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P03-JIG8-remount02-openloop-v1-run01.txt
+      RMS_AC=0.7099 RawP2P=2.9347 System_INL=1.4674 RobustP2P=2.7645 Closure=-0.03613471984863281 TrackRMS=0.7729 TrackMax=1.8237
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=11, statistically eligible=10)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: mean=0.7118 sd=0.0018 cv=0.26%
+    raw_p2p: mean=2.9319 sd=0.0416 cv=1.42%
+    system_inl_deg: mean=1.4660 sd=0.0208 cv=1.42%
+    robust_p2p: mean=2.7733 sd=0.0114 cv=0.41%
+    closure_error_deg: mean=-0.0233 sd=0.0205 cv=87.94%
+    tracking_rms_deg: mean=0.7820 sd=0.0095 cv=1.22%
+    tracking_max_abs_deg: mean=1.8413 sd=0.0435 cv=2.36%
+    mean_dc: mean=0.3353 sd=0.0213 cv=6.36%
+    p99_abs_deviation: mean=1.3998 sd=0.0149 cv=1.07%
+    A1: mean=0.2194 sd=0.0039 cv=1.80%
+    A2: mean=0.1575 sd=0.0024 cv=1.50%
+    A9: mean=0.1754 sd=0.0017 cv=0.97%
+    A36: mean=0.8987 sd=0.0029 cv=0.32%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

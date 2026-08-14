@@ -1,0 +1,19 @@
+RUNTIME,FreeHeap=85544,MinEverFreeHeap=85544,TestStackHighWaterWords=1892
+MA600 noise (last 5s): P2P=299.84deg StdDev=121.20deg Drift=208.13deg MaxStep=90.80deg N=25 valid=0
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=-0.01deg MaxStep=0.03deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.05deg StdDev=0.01deg Drift=-0.01deg MaxStep=0.05deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.04deg StdDev=0.01deg Drift=-0.01deg MaxStep=0.04deg N=25 valid=1
+MA600 noise (last 5s): P2P=0.03deg StdDev=0.01deg Drift=-0.01deg MaxStep=0.03deg N=25 valid=1
+BATCH,BatchID=2,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1,PreconditionCount=1,RunCount=10,TotalCycleCount=11,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug 12 2026 16:45:25,MCU_UID=003E00323235511835383831,JigID=JIG8,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=149.25 deg settled=0/500 cmdPos=13432
+MA600 move-to-zero: error=-144.83 deg settled=0/500 cmdPos=1344
+MA600 move-to-zero: error=160.24 deg settled=0/500 cmdPos=11224
+MA600 move-to-zero: error=-179.13 deg settled=0/500 cmdPos=7456
+MA600 move-to-zero: error=-153.54 deg settled=0/500 cmdPos=2888
+MA600 move-to-zero: error=145.77 deg settled=0/500 cmdPos=13696
+MA600 move-to-zero: error=-167.80 deg settled=0/500 cmdPos=5800
+MA600 move-to-zero: error=-166.62 deg settled=0/500 cmdPos=4656
+MA600 move-to-zero: error=150.90 deg settled=0/500 cmdPos=13064
+MA600 move-to-zero: error=-145.28 deg settled=0/500 cmdPos=1440

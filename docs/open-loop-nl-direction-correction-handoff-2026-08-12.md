@@ -43,6 +43,13 @@ Hướng đúng cho V6.0 là tách thành hai hợp đồng firmware độc lậ
 
 ## 2. Mục tiêu đã được người dùng khóa
 
+> **Cập nhật 2026-08-12 (cùng ngày, sau pilot run02 PASS)**: `AGENTS.md` giờ khóa **hai** mục tiêu
+> theo thứ tự, không chỉ một — (1) đo Open-loop NL thuần túy (mục này), và (2) **đồng bộ NL giữa
+> các jig** (cùng một motor, đo trên các jig khác nhau, phải cho ra NL open-loop tương đương —
+> chính câu hỏi gốc JIG1-vs-JIG4 của dự án, vẫn CHƯA đóng, không tự động đóng chỉ vì đã có phép đo
+> open-loop chạy tốt trên một jig). Cũng khóa rõ: **chưa có ngưỡng pass/fail sản phẩm nào được
+> tính toán/calibrate** — không được suy ra hay hardcode ngưỡng từ một phiên đo bất kỳ.
+
 Mục tiêu không phải FOC, closed-loop positioning hay ép mọi điểm rotor tới đúng command trước khi đo.
 
 Mục tiêu là:

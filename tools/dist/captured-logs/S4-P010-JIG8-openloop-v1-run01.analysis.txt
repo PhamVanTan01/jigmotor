@@ -1,0 +1,66 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+TerminalStatus=COMPLETE
+AnalysisMode=OFFICIAL_MEASUREMENT
+OfficialValid=10/10
+GatedConfigInvalid=0/11,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG8 TestID=1 SweepID=1 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.9071 RawP2P=4.2698 System_INL=2.1349 RobustP2P=4.0269 Closure=-0.009441375732421875 TrackRMS=1.2961 TrackMax=3.2959
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=2 SweepID=2 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.9041 RawP2P=4.2521 System_INL=2.1260 RobustP2P=4.0158 Closure=-0.081024169921875 TrackRMS=1.2511 TrackMax=3.2300
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=3 SweepID=3 RunOrder=2 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8957 RawP2P=4.2123 System_INL=2.1062 RobustP2P=3.9723 Closure=-0.047893524169921875 TrackRMS=1.2309 TrackMax=3.2025
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=4 SweepID=4 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8959 RawP2P=4.2347 System_INL=2.1174 RobustP2P=3.9660 Closure=-0.0130462646484375 TrackRMS=1.2406 TrackMax=3.1915
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=5 SweepID=5 RunOrder=4 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8974 RawP2P=4.1800 System_INL=2.0900 RobustP2P=3.9641 Closure=-0.05802154541015625 TrackRMS=1.2382 TrackMax=3.1970
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=6 SweepID=6 RunOrder=5 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8942 RawP2P=4.1588 System_INL=2.0794 RobustP2P=3.9440 Closure=-0.06720542907714844 TrackRMS=1.2152 TrackMax=3.1476
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=7 SweepID=7 RunOrder=6 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8974 RawP2P=4.1637 System_INL=2.0819 RobustP2P=3.9608 Closure=-0.009784698486328125 TrackRMS=1.2435 TrackMax=3.1970
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=8 SweepID=8 RunOrder=7 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8922 RawP2P=4.1310 System_INL=2.0655 RobustP2P=3.9374 Closure=-0.0528717041015625 TrackRMS=1.2468 TrackMax=3.1805
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=9 SweepID=9 RunOrder=8 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8954 RawP2P=4.1947 System_INL=2.0974 RobustP2P=3.9744 Closure=-0.053043365478515625 TrackRMS=1.2498 TrackMax=3.2245
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=10 SweepID=10 RunOrder=9 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8945 RawP2P=4.1079 System_INL=2.0540 RobustP2P=3.9212 Closure=-0.0830841064453125 TrackRMS=1.2285 TrackMax=3.1421
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG8 TestID=11 SweepID=11 RunOrder=10 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P010-JIG8-openloop-v1-run01.txt
+      RMS_AC=0.8921 RawP2P=4.1374 System_INL=2.0687 RobustP2P=3.9519 Closure=-0.07123947143554688 TrackRMS=1.2362 TrackMax=3.1860
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG8  (runs total=11, statistically eligible=10)
+    Excluded runs:
+      - TestID=1 SweepID=1 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: mean=0.8959 sd=0.0034 cv=0.38%
+    raw_p2p: mean=4.1773 sd=0.0465 cv=1.11%
+    system_inl_deg: mean=2.0886 sd=0.0233 cv=1.11%
+    robust_p2p: mean=3.9608 sd=0.0255 cv=0.64%
+    closure_error_deg: mean=-0.0537 sd=0.0252 cv=46.99%
+    tracking_rms_deg: mean=1.2381 sd=0.0110 cv=0.89%
+    tracking_max_abs_deg: mean=3.1899 sd=0.0284 cv=0.89%
+    mean_dc: mean=0.8730 sd=0.0142 cv=1.62%
+    p99_abs_deviation: mean=2.1375 sd=0.0143 cv=0.67%
+    A1: mean=0.3295 sd=0.0062 cv=1.90%
+    A2: mean=0.6204 sd=0.0080 cv=1.29%
+    A9: mean=0.4302 sd=0.0028 cv=0.66%
+    A36: mean=0.9078 sd=0.0017 cv=0.19%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

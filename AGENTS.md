@@ -13,13 +13,30 @@ Rules:
 
 ## Mandatory project objective: pure open-loop NL
 
-The primary and authoritative objective of this repository is to measure and
-evaluate **pure Gremsy-compatible open-loop nonlinearity (NL)**. Read
-`docs/open-loop-nl-direction-correction-handoff-2026-08-12.md` before planning
-or implementing any firmware, analysis, logging, build, test-procedure, or
-hardware-validation change.
+The primary and authoritative objectives of this repository are, in order:
+
+1. Measure and evaluate **pure Gremsy-compatible open-loop nonlinearity (NL)**.
+2. **Synchronize NL measurement across jigs** — the same motor, measured on
+   different jig units, must be shown to produce comparable open-loop NL
+   (curve shape, extrema, scalar) before any cross-jig result is trusted for
+   production use. This was the project's original governing question
+   (JIG1 vs JIG4) and remains open; it is not satisfied merely by having a
+   working open-loop measurement on one jig.
+
+Read `docs/open-loop-nl-direction-correction-handoff-2026-08-12.md` before
+planning or implementing any firmware, analysis, logging, build,
+test-procedure, or hardware-validation change.
 
 Rules:
+
+- **No product pass/fail NL threshold has been calculated or calibrated yet.**
+  Do not assert, imply, hardcode, or promote any specific NL value (scalar,
+  curve deviation, or harmonic amplitude) as a pass/fail spec limit, "good
+  motor" cutoff, or acceptance criterion. Angular non-uniformity is expected
+  on every real jig/motor; observing it is not evidence of a threshold, and
+  no threshold exists until it is deliberately calibrated against reference
+  units with independently known-good/known-bad status and stated as a
+  versioned decision, not inferred from any single session's data.
 
 - Every proposed change MUST state which part of open-loop NL evaluation it
   improves: measurement accuracy, repeatability, traceability, validity,
@@ -58,3 +75,15 @@ Rules:
   classification and invariants above still hold.
 - If a requested change conflicts with these rules, stop and explain the
   conflict before editing code. Do not silently change the measurement goal.
+
+## Session documentation discipline
+
+After every hardware check, diagnostic, or evaluation (a captured log analyzed,
+a comparison run, a pass/fail read on a pilot step), update that calendar
+day's session doc under `docs/session-summary-<YYYY-MM-DD>.md` with the
+result **before** moving to the next step — do not batch documentation to the
+end of the session. One file per day (per the existing daily-log convention);
+append a new section rather than creating a second file for the same day.
+Each update should record what was tested, the evidence checked (not just the
+verdict), and which step of the day's active plan (e.g. S5.1/S5.2/S5.3) it
+closes or advances.

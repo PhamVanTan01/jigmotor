@@ -398,3 +398,762 @@ flat E(theta) is not realistic on any hardware -- some angular non-uniformity is
 jig, just at a different location each time. This does not by itself mean "defective": no
 calibrated pass/fail threshold exists yet to separate normal angular variation from a real
 problem (same open gap noted throughout this project's H2 investigation).
+
+## AGENTS.md RULE 0 extended: two objectives, explicit no-threshold rule
+
+Added to `AGENTS.md` (not yet committed as of this section): the project's authoritative
+objectives are now stated as two, in order -- (1) pure open-loop NL, (2) **synchronize NL
+measurement across jigs** (the original JIG1-vs-JIG4 governing question; not satisfied just
+because open-loop works on one jig). Also added an explicit rule: **no product pass/fail NL
+threshold has been calculated or calibrated** -- do not assert, imply, hardcode, or promote any
+NL value as a spec limit/acceptance criterion; angular non-uniformity is expected on every real
+jig/motor and is not by itself evidence of a threshold. Mirrored as an update note in the
+handoff doc's section 2.
+
+## S5.1 (A/B/A, same mount, no remount) — legacy vs open-loop, P03/JIG8/remount01
+
+Corrected the plan order from an earlier turn: S5's actual written order is A/B/A **first**, then
+remount, then cross-jig -- not remount before A/B/A as stated earlier in this doc.
+
+Built the "legacy" comparator via an isolated `git worktree` at commit `11b0c0c` (the exact HEAD
+before today's RULE 0/ALG-001/S0-S3 work), Release config, compiled clean
+(`text=85028`, same 2 pre-existing warnings). Packaged as
+`builds/gremsy-legacy-baseline-11b0c0c-aba-pilot-20260812/`. Confirmed via direct source
+inspection this build predates every fix made today: `SchemaVersion=5`,
+`MeasurementDefinition=WHOLE_SYSTEM_COMMAND_TRACKING` (the retired name),
+`RampFeedbackEnabled=1`, `OfficialResultSource=LEGACY` hardcoded, ALG-001's dual-read still
+present.
+
+Flashed on the same P03/JIG8/remount01 mount as run02 (not disturbed), captured
+`S4-P03-JIG8-remount01-openloop-v1-run01-flags-off.txt`. Confirmed same physical setup:
+identical `MCU_UID`, `StartRaw` within 11217-11222 across all four META reads (legacy
+precondition/legacy-run and open-loop precondition/run02), zero acquisition errors either side.
+
+### Scalar comparison
+
+| Metric | Legacy (flags-off) | Open-loop (run02) | Delta |
+|---|---:|---:|---:|
+| RawP2P mean / SD / CV | 2.9677° / 0.0816° / 2.75% | 2.8611° / 0.0350° / 1.22% | -3.6%, SD >2x tighter |
+| RobustP2P mean | 2.7880° | 2.7388° | -1.8% |
+| A1 / A2 / A9 / A36 | 0.2173 / 0.1668 / 0.1732 / 0.9045 | 0.2110 / 0.1633 / 0.1741 / 0.8976 | -2.9% / -2.1% / +0.5% / -0.8% |
+| Closure mean | -0.0368° | -0.0366° | ~identical |
+
+Initial write-up in `build_info.txt` predicted the ALG-001 fix would explain the scalar gap --
+**that prediction was wrong and corrected in this session**: ALG-001 only ever affected
+`DATA.AngleRaw`/extrema *location* metadata (the stray 65th SPI transaction), never
+`error`/`errorSamples[]` itself, which both the pre- and post-fix code compute identically from
+the 64-sample mean. So ALG-001 cannot be the mechanism behind a `RawP2P`/`RobustP2P`/`A36` scalar
+difference.
+
+### Direct 360-point curve correlation (this turn's actual diagnostic)
+
+Wrote a standalone script (`scratchpad/curve_correlation.py`) parsing `DATA` records directly
+from both raw logs (schema-aware: recomputes `ErrorDeg` from `ErrorRawQ16` for the schema-6 file,
+matching `parse_openloop_nl_log.m`'s convention; uses the legacy `ErrorDeg` field as-is for the
+schema-5 file), averaging the 10 official sweeps into one 360-point curve per file, then
+comparing:
+
+- **Pearson r = 0.9993 at zero shift** (searched shifts -10..+10, zero remained best) --
+  essentially the same physical curve, no clocking/sector offset, consistent with "not
+  remounted."
+- **RMSE after mean-centering = 0.027°** -- tiny relative to the curve's ~2.9° peak-to-peak span.
+- **Top-5 (max-error) indices: 5/5 identical** between legacy and open-loop (244, 254, 274, 294,
+  334). **Bottom-5 (min-error): 4/5 identical** (106, 107, 346, 347 common; legacy's 5th is 187,
+  open-loop's is 27 -- both near the tightly-clustered bottom of the curve).
+- Per-point delta (open-loop minus legacy): mean ~ -0.0006° (no systematic DC shift across the
+  curve), SD 0.027°.
+
+**Reconciles the scalar gap**: `RawP2P` is a 2-point (max/min) statistic, inherently higher-
+variance than a full-curve correlation or a K-point-averaged statistic like `RobustP2P` --
+exactly why `RawP2P`'s relative gap (3.6%) was larger than `RobustP2P`'s (1.8%) even though the
+underlying curves are near-identical. The two extreme points shrank slightly in both directions
+under open-loop (max 1.818°->1.779°, min -1.141°->-1.071°), consistent with (not proof of) the
+canonical-vs-legacy acquisition-window-timing hypothesis noted earlier, but the dominant, robust
+finding is that this is the same physical defect curve, not a different one.
+
+**S5.1 verdict: PASS.** Same physical curve (r=0.9993), scalar differences fall within known
+single-point-statistic noise, not evidence of a broken pipeline. Proceeding to S5.2 (remount with
+controlled torque).
+
+## S5.2 (remount, controlled torque) — P03/JIG8/remount02, PASS
+
+Same open-loop build as S5.1's "B" leg (`BuildID=Aug 12 2026 16:45:25`, unchanged, isolating
+remount as the only variable). Log: `S4-P03-JIG8-remount02-openloop-v1-run01.txt`.
+
+Physical-remount evidence checked directly (not trusted from filename, per this project's
+standing verification discipline): `MCU_UID` matches (same JIG8), `StartRaw` shifted 11218/11219
+-> 11410/11410 (~192 raw, clearly larger than the 1-5 raw same-mount noise seen elsewhere this
+session), mount fingerprint moved (`RobustP2P` 2.703 deg -> 2.802 deg, `H2` amplitude 0.163 ->
+0.157 deg, phase -167.5 -> -171.4 deg). `OfficialValid=10/10`, `AutoVerdict=PASS`,
+`CaptureIntegrityValid=1`.
+
+360-point curve correlation (remount01/run02 vs remount02/run01, same script as S5.1, first
+attempt had a sed-substitution bug that pointed both variables at the same file -- caught via the
+suspicious r=1.0000 exact match, fixed, rerun):
+
+- **r = 0.9993 at zero shift** -- identical to the S5.1 same-mount value; remounting did not
+  measurably reduce curve correlation for this unit.
+- RMSE after centering = 0.026 deg, same order as S5.1.
+- Bottom-5 (min-error) indices: **5/5 identical** across the remount (27, 106, 107, 346, 347).
+  Top-5 (max-error): 4/5 identical (244, 254, 294, 334 common; 274 vs 253 differ by one nearby
+  index).
+- Notable: the single largest per-point delta in *both* independent comparisons (S5.1's
+  same-mount A/B/A and this remount comparison) lands at the same index, 56 (-0.130 deg in S5.1,
+  +0.117 deg here) -- flagged as a location to keep watching, not yet interpreted as a defect.
+
+**S5.2 verdict: PASS**, stronger than expected -- the physical NL curve for this P03/JIG8
+combination is essentially unchanged by a real remount (same r as pure same-mount noise).
+Proceeding to S5.3 (cross-jig, same motor) next, which per `AGENTS.md`'s newly-added objective 2
+(cross-jig synchronization) is no longer just an S5 checklist item but the direct test of the
+project's second authoritative objective.
+
+## S5.3 (cross-jig, same motor) — P03 moved JIG8 -> JIG7, objective 2 NOT YET met
+
+Same open-loop build (`BuildID=Aug 12 2026 16:45:25`), motor P03 physically moved to JIG7.
+Log: `S4-P03-JIG7-openloop-v1-run01.txt`.
+
+Identity confirmed directly: `MCU_UID=0046...` (JIG7, distinct from JIG8's `003E...`),
+`JigID=JIG7,JigKnown=1`. `OfficialValid=10/10`, `AutoVerdict=PASS`, `CaptureIntegrityValid=1`,
+zero acquisition errors.
+
+### Scalar/harmonic comparison (JIG8 remount02 vs JIG7)
+
+| Metric | JIG8 | JIG7 | Delta |
+|---|---:|---:|---:|
+| RawP2P | 2.932 deg | 2.843 deg | -3.0% |
+| RobustP2P | 2.773 deg | 2.656 deg | -4.2% |
+| A1 | 0.219 deg | 0.193 deg | -12.2% |
+| A2 | 0.158 deg | 0.065 deg | **-58.7%** |
+| A9 | 0.175 deg | 0.157 deg | -10.5% |
+| A36 | 0.899 deg | 0.903 deg | **+0.5%** |
+
+`A36` (36th-order, tied to the motor's own 6 pole pairs -- the "motor family" harmonic per this
+project's long-standing framework) stayed essentially unchanged across jigs. `A1`/`A2` (the
+"geometric/mounting family") shifted heavily -- consistent with, and now reproduced at
+cross-jig scale, the same motor-vs-geometric harmonic split this project established from
+cross-mount data back on 2026-08-10 (A36 cv~1.88%, A1/H1 cv~46%, A2/H2 cv~26%).
+
+### 360-point curve correlation, full +/-180 shift search (not assuming 0 this time)
+
+Ran the same correlation script, widened the shift search from +/-10 to +/-180 since cross-jig
+has no shared mechanical datum (MA600 raw zero is local per sensor -- established finding from
+the 2026-08-03 JIG1-vs-JIG4 root-cause plan). Note: the script's printed label text still says
+"[-10,10]" (stale string, not updated) -- the actual loop range used was confirmed as -180..180
+before running; the result is not an artifact of a narrow search.
+
+- **r = 0.9683 at shift = 0** (0 remained optimal across the full search) -- markedly lower than
+  S5.1/S5.2's same-jig value of 0.9993.
+- RMSE after centering = **0.178 deg**, about 6-7x the same-jig value (0.026-0.027 deg).
+- Top-5 (max-error) overlap: only 2/5 (294, 334); JIG8's 244/253/254 do not appear in JIG7's
+  top-5 at all (JIG7: 174, 214, 293 instead).
+- Bottom-5 (min-error) overlap: 3/5 (27, 106, 107).
+- Per-point delta (JIG7 minus JIG8): mean **-0.219 deg** (a real systematic offset, unlike the
+  ~0 mean seen in both same-jig comparisons), SD 0.178 deg, max deviation **0.68 deg** at index
+  246.
+
+### S5.3 verdict
+
+**Objective 2 (cross-jig NL synchronization) is not yet demonstrated.** Not a pass/fail
+statement about the product (no threshold exists, per AGENTS.md) -- an objective measurement of
+how much curve correlation degrades cross-jig (0.9993 -> 0.9683) versus same-jig remount
+(0.9993 -> 0.9993, unchanged). The degradation concentrates in the low-order/geometric harmonics
+(A1/A2), not the motor-intrinsic A36 -- consistent with, not new evidence against, this
+project's original governing question remaining open. This is the first clean open-loop
+(non-creep-contaminated) data point quantifying that gap's actual size.
+
+## A1/A2 cross-jig deep dive — evidence points to jig-locked, not motor-locked
+
+Applied the 2026-08-03 JIG1-vs-JIG4 root-cause plan's reference-frame correction (section 2):
+`phase_absolute = (H_PhaseSweepDeg + N * theta_start) mod 360`, `theta_start =
+AnalysisStartRaw/65536*360`, computed for H1 (A1) and H2 (A2) across all three logs so far
+(JIG8 remount01, JIG8 remount02, JIG7). Caveat: the firmware's phase sign convention isn't
+independently confirmed, so absolute values carry that uncertainty -- but all three logs share
+the same convention, so the *relative* comparison below is sound regardless.
+
+| | theta_start | A1 | H1_abs | A2 | H2_abs |
+|---|---:|---:|---:|---:|---:|
+| JIG8 remount01 | 61.6 deg | 0.210 deg | 329.3 deg | 0.163 deg | **315.8 deg** |
+| JIG8 remount02 | 62.7 deg | 0.214 deg | 327.7 deg | 0.157 deg | **314.0 deg** |
+| JIG7           | 62.3 deg | 0.191 deg | 306.6 deg | 0.061 deg | **39.8 deg** |
+
+**Finding**: `H2_abs` (A2's absolute phase) is nearly identical across two *independent* JIG8
+remounts (315.8 vs 314.0 deg, 1.8 deg apart) but jumps ~276 deg when the same motor (P03) moves
+to JIG7. `H1_abs` shows the same pattern more weakly (1.7 deg apart within JIG8, ~22 deg apart
+cross-jig) -- consistent with A1's smaller amplitude swing (-12%) versus A2's (-59%).
+
+**Interpretation**: stable-within-jig-but-different-across-jig is the signature of a
+**jig-locked**, not motor-locked, component. This is the opposite of what a casual reading of
+the earlier polar-chart order-2 "motor-locked tilt angle" cross-check (276/96 deg, computed with
+a different tool/reference convention) might suggest -- **flagged as an open contradiction to
+reconcile, not resolved here**, since the two methods' reference frames haven't been confirmed
+equivalent. Taken at face value, this pattern explains why A36 (36th order, tied directly to
+the motor's own 6 pole-pair electrical structure -- travels with the rotor regardless of jig)
+stayed stable cross-jig while A1/A2 (mechanical-scale, order 1-2) did not: A1/A2 are plausibly
+dominated by each jig's own MA600 sensor-mount eccentricity, which is fixed per jig, not
+something that travels with the motor.
+
+**Practical implication for objective 2**: if A1/A2 are genuinely jig-locked, synchronizing
+low-order NL across jigs is not fixable by better motor-mounting procedure -- it needs
+per-jig sensor/mount eccentricity characterization and correction, which is exactly the
+direction the existing (not-yet-calibrated) `MountValid` effort was already pointed at, not a
+new work item.
+
+**Not yet done**: reconciling this with the earlier polar-chart "motor-locked" cross-check's
+own reference convention; a third jig or a second JIG7 remount would strengthen (or break) the
+jig-locked hypothesis, since two data points per jig is the minimum, not confirmation.
+
+## Reconciled with the polar-chart method — was a unit bug on this session's side, not a real contradiction
+
+Root cause: `motor_quality_polar.py`'s `_order2_locked_angles()` computes `phi2 =
+atan2(b,a)/2` -- the final `/2` converts from the order-2 "doubled" DFT-phase space back to a
+physical mechanical angle (order-2 advances twice as fast as true angle). Confirmed numerically:
+`H2_PhaseSweepDeg/2` for run02 = -167.4817/2 = -83.74 deg -> pair (276.26, 96.26) deg, exactly
+matching the polar chart's earlier reported 276/96 deg. So `H2_PhaseSweepDeg` itself lives in
+that same doubled-phase space -- the earlier "H2_abs" table in this doc added `2*theta_start`
+(correct for the doubled space) but never took the final `/2` back to physical angle, so its
+values were not physical angles at all.
+
+Corrected table (theta-start-corrected AND order-divided):
+
+| | theta_start | H2 (frame-corrected, doubled space) | Physical angle pair |
+|---|---:|---:|---|
+| JIG8 remount01 | 61.6 deg | 315.8 deg | **157.9 / 337.9 deg** |
+| JIG8 remount02 | 62.7 deg | 314.0 deg | **157.0 / 337.0 deg** |
+| JIG7           | 62.3 deg | 39.8 deg  | **19.9 / 199.9 deg** |
+
+The jig-locked-not-motor-locked finding **holds**: physical angle is stable to <1 deg across two
+independent JIG8 remounts (157.9 vs 157.0 deg). The cross-jig shift is real but smaller than
+first computed: **~42 deg** (nearest pair distance), not the previously mis-stated 276 deg.
+A1 (order 1) needed no correction -- order-1 has no doubling, so the earlier H1_abs values
+(329.3/327.7/306.6 deg) were already physical angles.
+
+The polar chart's own 276/96 deg for run02 is not wrong -- it is the **sweep-relative** angle
+(no `theta_start` correction), valid only for describing where the peak falls within that one
+log's own sweep, not comparable across logs/jigs directly (exactly the warning in the
+2026-08-03 root-cause plan). It happened to look close to a physically-meaningful number here
+only because today's three runs' `theta_start` values were coincidentally similar (61.6-62.7
+deg) -- not something to rely on in general.
+
+## New product P010 on JIG7 -- independent test of the jig-locked hypothesis
+
+First log from a different product this session: `S4-P010-JIG7-openloop-v1-run01.txt`. Confirmed
+compliant (`SchemaVersion=6`, `MeasurementProfile=GREMSY_COMPAT_OPEN_LOOP_NL_V1`, same
+`BuildID=Aug 12 2026 16:45:25`, `MotorPoleCount=12`/`MotorPolePairs=6` -- same 6-pole-pair
+geometry as P03, so `A36` stays comparable). `OfficialValid=10/10`, `AutoVerdict=PASS`, clean
+integrity.
+
+| Metric | P010/JIG7 | P03/JIG7 (reference) |
+|---|---:|---:|
+| RawP2P | 3.572 deg | 2.843 deg |
+| RobustP2P | 3.340 deg | 2.656 deg |
+| A1 | 0.267 deg | 0.191 deg |
+| A2 | 0.230 deg | 0.061 deg |
+| A9 | 0.423 deg | 0.157 deg |
+| A36 | 0.916 deg | 0.903 deg |
+
+P010 reads objectively higher on nearly every scalar -- not interpreted as pass/fail (no
+threshold exists per AGENTS.md), just noted as a different product with no direct comparison
+basis yet.
+
+**Jig-locked hypothesis check with independent data**: computed P010's A2 physical angle the
+same corrected way -- `theta_start=46.5 deg`, doubled-space corrected value 75.3 deg, physical
+angle pair **37.65 / 217.65 deg**. Compared to P03/JIG7's own pair (19.9 / 199.9 deg): **minimum
+separation ~17.8 deg**.
+
+This is supporting evidence, not proof: **two different motors (P010, P03) on the same jig
+(JIG7) land ~18 deg apart**, noticeably closer than **the same motor (P03) moved between two
+jigs (JIG8->JIG7), which was ~42 deg apart**. That is the direction the jig-locked hypothesis
+predicts (different-motor-same-jig closer than same-motor-different-jig) -- one more data point
+consistent with it, still not confirmation (would need more products/jigs to rule out
+coincidence).
+
+## P08 on JIG8 -- 5th data point complicates the jig-locked hypothesis, does not confirm it
+
+`S4-P08-JIG8-openloop-v1-run01.txt`: confirmed compliant (schema 6, same build, 6 pole pairs),
+`OfficialValid=10/10`, `PASS`, clean integrity. `RawP2P=3.152 deg`, `RobustP2P=2.918 deg`,
+`A1=0.148 deg`, `A2=0.151 deg`, `A9=0.433 deg`, `A36=0.900 deg` (not interpreted as pass/fail --
+no threshold exists).
+
+A2 physical angle (same corrected method): `theta_start=85.1 deg`, doubled-space corrected
+44.65 deg, physical pair **22.3 / 202.3 deg**.
+
+| Comparison | Type | Angular separation |
+|---|---|---:|
+| P03/JIG8 vs P03/JIG7 | same motor, different jig | ~42 deg |
+| P03/JIG7 vs P010/JIG7 | different motor, same jig | ~17.8 deg |
+| **P03/JIG8 vs P08/JIG8** | **different motor, same jig** | **~44.8 deg** |
+| P08/JIG8 vs P010/JIG7 | different motor, different jig | ~15.3 deg |
+
+The bolded row breaks the simple story: two different motors (P03, P08) on the **same** JIG8
+show almost as large an angular separation (~44.8 deg) as the same motor moved **between**
+jigs (~42 deg) -- if A2 were purely jig-locked, same-jig-different-motor should have stayed
+small, like the P03/P010 JIG7 pair did. Instead P08/JIG8 (22.3 deg) sits close to the *JIG7*
+cluster (~20-38 deg: P03/JIG7 19.9, P010/JIG7 37.65), not close to P03's own JIG8 angle
+(~157.5 deg).
+
+**Honest read**: the "pure jig-locked" hypothesis does not survive this 5th point. More likely
+A2 is a **vector sum of a jig component and a motor/clocking component**, and P03's <1 deg
+stability across two JIG8 remounts may be specific to P03 (small motor-component, or its
+clocking happened to repeat) rather than a general JIG8 signature every motor would show. Five
+points (3 motors, not a full 2-jig factorial for each) is too few to separate the two
+components -- this has effectively become a variance-components / Gage R&R question, which is
+exactly what roadmap milestone S6 already anticipated needing, not something resolvable from a
+handful of opportunistic points.
+
+**Most informative next point**: P08 on JIG7 (user is already testing there) -- if it lands
+near the ~20-38 deg JIG7 cluster, that further supports a real jig-component; if it lands near
+P08/JIG8's own 22.3 deg regardless of jig, that would instead suggest a motor/product-specific
+component dominates for P08.
+
+## Cross-tab P03 x P08 on JIG7/JIG8 -- same-jig correlation beats same-motor cross-jig correlation
+
+Computed the missing same-jig, cross-product correlations to complete the first 2x2 (2
+products x 2 jigs) block: `JIG8: P03 vs P08` and `JIG7: P03 vs P08`.
+
+| Comparison | Type | r |
+|---|---|---:|
+| P03: JIG8 vs JIG7 | same motor, different jig | 0.9683 |
+| P08: JIG8 vs JIG7 | same motor, different jig | 0.9851 |
+| JIG8: P03 vs P08 | same jig, different motor | 0.9234 |
+| JIG7: P03 vs P08 | same jig, different motor | 0.9371 |
+
+Also: P08's RawP2P reads ~7.5-8.5% higher than P03's **on both jigs** (JIG8: 2.932->3.152,
+JIG7: 2.843->3.086) -- same direction, similar magnitude on both jigs, i.e. both jigs agree on
+the relative ranking of these two products.
+
+**Read at this point (2 products only)**: cross-jig same-product correlation (0.968-0.985) was
+higher than same-jig cross-product correlation (0.923-0.937) -- suggesting most of what's
+measured was real product-to-product difference, not jig artifact. This reading did not survive
+the third product (see below).
+
+## P010 on JIG8 -- reverses the read above, P010 correlates poorly everywhere
+
+`S4-P010-JIG8-openloop-v1-run01.txt`. Confirmed compliant (schema 6, same build,
+`AnalysisStartRaw=8076`), `OfficialValid=10/10`, `AutoVerdict=PASS`, clean integrity.
+
+### Scalar: P010's cross-jig gap is much larger than P03's or P08's
+
+| Metric | JIG7 (prior) | JIG8 (new) | Delta |
+|---|---:|---:|---:|
+| RawP2P | 3.572 deg | 4.177 deg | **+16.9%** |
+| RobustP2P | 3.340 deg | 3.961 deg | **+18.6%** |
+| A1 | 0.267 deg | 0.330 deg | +23.6% |
+| A2 | 0.230 deg | 0.620 deg | **+169.6%** |
+| A9 | 0.423 deg | 0.430 deg | +1.7% |
+| A36 | 0.916 deg | 0.908 deg | -0.9% |
+
+A36 stayed stable as in every prior comparison. RawP2P and A2 moved far more than the equivalent
+P03 (-3.0%/A2 down 58.7%) or P08 (-2.1%/A2 down 19.3%) cross-jig deltas -- first time the
+primary scalar itself shifted this much (~17%) cross-jig.
+
+### Correlation: P010 correlates weakly with everything, not just cross-jig
+
+| Comparison | r |
+|---|---:|
+| P010: JIG8 vs JIG7 (cross-jig, same motor) | **0.7682** |
+| JIG8: P03 vs P010 | 0.7945 |
+| JIG8: P08 vs P010 | 0.7230 |
+| JIG7: P03 vs P010 | 0.8363 |
+| JIG7: P08 vs P010 | 0.7875 |
+| (reference) P03 vs P08, either jig | 0.923-0.985 |
+
+P010's within-batch repeatability is not degraded (A2 cv=1.29%, RawP2P cv=1.11% on JIG8 --
+comparable to P03/P08's own tight repeatability), so this is not sweep-to-sweep measurement
+noise: P010's error-curve *shape* is genuinely, consistently different from P03's and P08's,
+and does not reproduce well across jigs either.
+
+### A2 physical angle: P010/JIG8 clusters with P03/JIG8, not with P08/JIG8
+
+`theta_start=44.36 deg`, physical pair **146.7 / 326.7 deg**.
+
+| | Physical angle on JIG8 |
+|---|---:|
+| P03/JIG8 | ~157.5 deg |
+| P010/JIG8 | 146.7 deg (10.8 deg from P03) |
+| P08/JIG8 | 22.3 deg (55.6 deg from P010) |
+
+This reverses the previous entry's tentative read ("P03/JIG8 is the outlier"): with P010 added,
+**P03 and P010 now cluster together on JIG8 (~150 deg), and P08 is the one that differs**
+(~22 deg). JIG7 still shows all three products clustered (19.9-37.65 deg).
+
+### Where this leaves the picture
+
+No longer a single clean story. JIG7 shows fairly consistent cross-product correlation; JIG8
+splits (P03/P010 cluster, P08 differs). P010 itself correlates weakly against every other
+curve compared so far despite being internally repeatable -- open whether this is a genuine
+product-shape difference or a mounting-instance artifact specific to this P010/JIG8 capture.
+**Next most informative step**: a P010 remount on the same jig (mirroring the P03
+remount01/remount02 pair) to separate "P010's own repeatable shape" from "this particular
+mounting's artifact" -- without that, P010's low correlation numbers can't yet be attributed to
+either cause.
+
+## P010 JIG8 remount (run02) -- confirms run01 was a mounting artifact, but reveals a new finding
+
+`S4-P010-JIG8-openloop-v1-run02.txt`, same motor remounted on JIG8. `OfficialValid=10/10`,
+`AutoVerdict=PASS`, clean.
+
+### Scalars land in the same range as JIG7 now (unlike run01)
+
+| Metric | run01 (JIG8) | run02 (JIG8, remount) | JIG7 | Delta run02 vs JIG7 |
+|---|---:|---:|---:|---:|
+| RawP2P | 4.177 deg | **3.448 deg** | 3.572 deg | **-3.5%** |
+| RobustP2P | 3.961 deg | 3.252 deg | 3.340 deg | -2.6% |
+| A1 | 0.330 deg | 0.288 deg | 0.267 deg | +7.9% |
+| A2 | 0.620 deg | **0.216 deg** | 0.230 deg | **-6.1%** |
+| A36 | 0.908 deg | 0.911 deg | 0.916 deg | -0.5% |
+
+Run02's cross-jig deltas (-3.5%/-2.6%/-6.1%) now sit in the same magnitude range as P03's
+(-3.0%) and P08's (-2.1%), instead of run01's anomalous +16.9%/+169.6%. **Confirms run01 was an
+atypical mounting instance for P010, not its repeatable signature.**
+
+### Curve correlation confirms the user's direct observation
+
+| Comparison | r |
+|---|---:|
+| P010 JIG8 run02 vs JIG7 | **0.9385** (was 0.7682 for run01) |
+| P010 JIG8 run01 vs run02 (same jig, remount) | 0.9277 |
+| JIG8: P03 vs P010(run02) | 0.8257 (was 0.7945) |
+| JIG8: P08 vs P010(run02) | 0.7712 (was 0.7230) |
+
+Run02 correlates much better with JIG7 and with the other JIG8 products than run01 did --
+matches the user's direct read of the polar chart.
+
+### New finding: P010's own remount repeatability is looser than P03's
+
+run01-to-run02 (same motor, same jig, just remounted) gives r=0.9277 -- compare P03's
+remount01-to-remount02 result of **0.9993**. P010's A2 physical angle also moved a real amount
+between mounts (146.7 deg -> 165.2 deg, ~18.5 deg), and even after the improvement, run02's A2
+angle (165.2 deg) is still ~52 deg from JIG7's (37.65 deg) -- closer than run01's ~71 deg gap,
+but not tight. This does not contradict the scalar/curve-shape improvement (A36's amplitude,
+~0.91 deg, dominates overall correlation far more than A2's, ~0.22 deg, so overall r can look
+good even while the low-order A1/A2 phase story stays unresolved).
+
+**Read**: run01 was genuinely atypical (confirmed by remount), which is reassuring for the
+project overall -- but P010 itself now looks like it has more inherent remount-to-remount
+sensitivity than P03. Not yet known whether that's a property of this specific motor unit
+(shaft/coupling tolerance) or coincidence from two data points. A third P010 mount would
+distinguish "P010 has a real wider mount-repeatability spread" from "run01/run02 just happened
+to differ."
+
+## P010 JIG7 remount (run02) -- best-mount pair shows P010 converges to P03/P08's cross-jig quality
+
+`S4-P010-JIG7-openloop-v1-run02.txt`, same motor remounted on JIG7. `OfficialValid=10/10`,
+`AutoVerdict=PASS`, clean.
+
+### JIG7 remount also shifted, but less than JIG8's did
+
+| Metric | run01 (JIG7) | run02 (JIG7, remount) | Delta |
+|---|---:|---:|---:|
+| RawP2P | 3.572 deg | 3.178 deg | -11.0% |
+| A2 | 0.230 deg | 0.043 deg | **-81.3%** |
+| A36 | 0.916 deg | 0.918 deg | +0.2% |
+
+Remount correlation run01->run02 on JIG7: **r=0.9749** -- tighter than JIG8's remount result
+(0.9277). P010's remount looseness is not symmetric across jigs: looser on JIG8, fairly tight
+on JIG7.
+
+### Best-mount cross-jig comparison (run02 vs run02) -- the key result
+
+| Comparison | r |
+|---|---:|
+| **P010: JIG8(run02) vs JIG7(run02)** | **0.9708** |
+| P010: JIG8(run01) vs JIG7(run01) | 0.7682 |
+| P010: JIG8(run02) vs JIG7(run01) | 0.9385 |
+| (reference) P03 cross-jig | 0.9683 |
+| (reference) P08 cross-jig | 0.9851 |
+
+When both sides use a "good" mount, **P010 reaches cross-jig curve correlation (0.97) matching
+P03 (0.968) and approaching P08 (0.985)**. Strong evidence that P010's earlier inconsistency was
+dominated by mounting-instance quality, not a genuinely different NL shape for this product.
+
+A2 physical angle for run02/JIG7: `theta_start=46.03 deg`, pair **13.8 / 193.8 deg**. Cross-jig
+gap using both good mounts (run02 vs run02): **~28.6 deg** -- better than run01-run01's ~71 deg,
+between P08's 8.6 deg and P03's 42 deg.
+
+### Where this leaves objective 2
+
+All three products, when well-mounted, now show cross-jig curve correlation in the **0.97-0.99
+range** -- a real convergence, not an isolated result. The practical lesson this batch of P010
+data adds: **mounting quality affects the result more than which jig (JIG7 vs JIG8) is used** --
+consistent with, and now better evidenced than, the mount-sensitivity concern flagged earlier
+this session. Still not a designed experiment (opportunistic remounts, not a controlled Gage
+R&R), but the signal is now consistent across two independent products (P03, P010).
+
+## Why correlation is high but the NL scalar still differs -- and does averaging more points fix it
+
+User asked to reconcile "if mounting matters more than jig identity, why don't the NL values
+themselves match" and to quantify what happens if the primary metric used a broader window (5
+points) instead of a strict single max/min point.
+
+**Reconciliation**: Pearson r is computed on mean-centered data, so it is mathematically blind
+to absolute amplitude/offset -- it only measures whether the relative shape (peaks/troughs in
+the same places) co-varies. The dominant shape driver is A36 (motor-family, stable ~0.87-0.92
+deg across every jig/mount seen today), so high r is expected regardless of mount. RawP2P, in
+contrast, IS an amplitude statistic (max-min) -- it directly picks up the smaller but real
+A1/A2 mount-eccentricity contribution, which does change with each physical mount. High
+correlation + different NL scalar is therefore the expected combination, not a contradiction.
+
+**1-point vs 5-point NL, computed directly on today's parsed curves** (`nl_1pt = max-min`,
+`nl_5pt = mean(top5) - mean(bottom5)`):
+
+| Dataset | NL 1pt | NL 5pt | Reduction |
+|---|---:|---:|---:|
+| P03/JIG8 | 2.921 deg | 2.768 deg | 5.2% |
+| P03/JIG7 | 2.828 deg | 2.655 deg | 6.1% |
+| P08/JIG8 | 3.146 deg | 2.917 deg | 7.3% |
+| P08/JIG7 | 3.064 deg | 2.965 deg | 3.3% |
+| P010/JIG8 run02 | 3.435 deg | 3.247 deg | 5.5% |
+| P010/JIG7 run02 | 3.166 deg | 3.023 deg | 4.5% |
+
+Cross-jig delta, 1pt vs 5pt:
+
+| | 1pt delta | 5pt delta |
+|---|---:|---:|
+| P03 | -3.2% | -4.1% |
+| P08 | -2.6% | +1.6% |
+| P010 (bad mounts) | -14.2% | -15.7% |
+| P010 (good mounts) | -7.8% | -6.9% |
+
+**Result: switching from 1 point to 5 points does not reduce the cross-jig delta** -- it stays
+the same order of magnitude (sometimes slightly worse). This confirms the cross-jig NL gap is a
+real whole-curve amplitude effect (A1/A2 content genuinely differing by mount), not single-point
+sampling noise that a broader statistic would average away. Broadening the window only shrinks
+the absolute number (~5% smaller, from trimming the sharpest single outlier), it does not make
+the value more stable across jigs/mounts.
+
+## P011 -- 4th product, first test on both jigs
+
+`S4-P011-JIG8-openloop-v1-run01.txt` and `S4-P011-JIG7-openloop-v1-run01.txt`. Both confirmed
+compliant, `OfficialValid=10/10`, `AutoVerdict=PASS`, clean.
+
+### Scalars
+
+| Metric | JIG8 | JIG7 | Delta |
+|---|---:|---:|---:|
+| RawP2P | 3.212 deg | 2.679 deg | -16.6% |
+| RobustP2P | 2.969 deg | 2.581 deg | -13.1% |
+| A1 | 0.328 deg | 0.073 deg | -77.9% |
+| A2 | 0.101 deg | 0.036 deg | -64.4% |
+| A36 | 0.869 deg | 0.875 deg | +0.7% |
+
+A36 stable as always. RawP2P delta (-16.6%) is on the larger side (comparable to P010's bad-mount
+run), but this is P011's first test on either jig -- no remount data yet to know if this
+mounting was typical.
+
+### Curve correlation
+
+`P011: JIG8 vs JIG7 = r=0.9511` -- lands in the same 0.95-0.99 band as P03 (0.968), P08 (0.985),
+and P010's best mounts (0.971). Fourth product now supporting "well-mounted products sync well
+cross-jig at the shape level."
+
+### A2 physical angle -- JIG8 cluster now has 3 of 4 products
+
+`theta_start(JIG8)=53.03 deg` -> pair **165.7 / 345.7 deg**.
+`theta_start(JIG7)=53.27 deg` -> pair **30.3 / 210.3 deg**.
+
+| | Physical angle on JIG8 |
+|---|---:|
+| P03 | 157.5 deg |
+| P010 (run02, good mount) | 165.2 deg |
+| **P011** | **165.7 deg** |
+| P08 | 22.3 deg (still the outlier) |
+
+**Three of four products now cluster tightly (157.5-165.7 deg, ~8 deg spread) on JIG8.** Only
+P08 remains apart (~22 deg, ~135-144 deg from the cluster). On JIG7, all four products remain
+clustered (13.8-30.9 deg, ~17 deg spread), no outlier.
+
+**Updated read**: this is the strongest evidence yet for a genuine JIG8-specific angular
+signature that most motors pick up -- P08 is now the specific anomaly requiring explanation
+(motor-specific trait, or an unverified atypical mount for that one unit), not JIG8 lacking a
+signature at all. A P08 remount on JIG8 would be the most informative next check: landing near
+the ~160 deg cluster would confirm P08's first result was atypical; staying near ~22 deg would
+mean P08 itself is a genuine exception to the JIG8 signature.
+
+## P013 -- 5th product, both jigs tested together; confirms JIG8 cluster, breaks JIG7 cluster
+
+`S4-P013-JIG8-openloop-v1-run01.txt` and `S4-P013-JIG7-openloop-v1-run01.txt`. Both confirmed
+compliant, `OfficialValid=10/10`, `AutoVerdict=PASS`, clean.
+
+### Scalars -- one of the tightest cross-jig scalar matches today
+
+| Metric | JIG8 | JIG7 | Delta |
+|---|---:|---:|---:|
+| RawP2P | 3.024 deg | 3.112 deg | **+2.9%** |
+| RobustP2P | 2.899 deg | 2.968 deg | +2.4% |
+| A1 | 0.373 deg | 0.125 deg | -66.5% |
+| A2 | 0.176 deg | 0.410 deg | +132.4% |
+| A36 | 0.858 deg | 0.862 deg | +0.5% |
+
+RawP2P/RobustP2P deltas (+2.9%/+2.4%) are in the smallest group seen today, alongside P03
+(-3.0%) and P08 (-2.1%). A1/A2 percentage swings look large only because their absolute values
+are small; they don't dominate total RawP2P.
+
+### Curve correlation
+
+| Comparison | r |
+|---|---:|
+| **P013: JIG8 vs JIG7 (cross-jig)** | **0.9315** |
+| JIG8: P011 vs P013 | 0.9172 |
+| JIG8: P03 vs P013 | 0.8352 |
+| JIG8: P010 vs P013 | 0.7504 |
+| JIG8: P08 vs P013 | 0.6798 |
+
+Fifth product landing in the established 0.93-0.99 cross-jig band. Notably high same-jig
+cross-product correlation between P011 and P013 (0.917) -- higher than any other cross-product
+pair seen today.
+
+### A2 physical angle -- JIG8 cluster strengthens, JIG7 cluster breaks for the first time
+
+`theta_start(JIG8)=79.00 deg` -> pair **158.3 / 338.3 deg**.
+`theta_start(JIG7)=79.19 deg` -> pair **141.2 / 321.2 deg**.
+
+JIG8 update:
+
+| | Physical angle on JIG8 |
+|---|---:|
+| P03 | 157.5 deg |
+| P010 (good mount) | 165.2 deg |
+| P011 | 165.7 deg |
+| **P013** | **158.3 deg** (only 0.84 deg from P03) |
+| P08 | 22.3 deg (still the outlier) |
+
+**4 of 5 products now cluster within 157.5-165.7 deg (~8 deg spread) on JIG8.**
+
+JIG7 -- first break in an otherwise-stable pattern:
+
+| | Physical angle on JIG7 |
+|---|---:|
+| P03 | 19.9 deg |
+| P08 | 30.9 deg |
+| P010 | 13.8 deg |
+| P011 | 30.3 deg |
+| **P013** | **141.2 deg** -- well outside the 14-31 deg cluster |
+
+P013 on JIG7 breaks the tight cluster four straight products had held -- and its value (141.2
+deg) sits closer to JIG8's cluster region (~158 deg) than to JIG7's own established cluster.
+
+### Read
+
+The JIG8-signature evidence keeps strengthening (4/5 products, ~8 deg spread). But P013 on
+JIG7 breaks the pattern in the opposite direction from P08's break on JIG8 -- P08 was the
+outlier on JIG8 while matching JIG7's cluster; P013 is the outlier on JIG7 while matching
+JIG8's cluster region. This argues against a simple "each jig adds one fixed phase vector"
+model, since that model predicts every product should land near each jig's own cluster
+regardless of which product it is. **Most informative next step**: remount P013 on JIG7 --
+consistent with today's repeated pattern (P08/JIG8, P010/JIG8, P010/JIG7 all turned out to be
+mounting-instance artifacts on first test), the first-order guess is this is another atypical
+mount rather than a genuine P013-specific trait, but that needs verification, not assumption.
+
+## P013 remounted on both jigs (JIG8 run02, JIG7 run03) -- refutes the "mounting artifact" guess
+
+`S4-P013-JIG8-openloop-v1-run02.txt` and `S4-P013-JIG7-openloop-v1-run03.txt`. Both confirmed
+compliant, `OfficialValid=10/10`, `AutoVerdict=PASS`, clean.
+
+### Remount repeatability is tight on BOTH jigs -- not a mounting-artifact case
+
+| Comparison | r |
+|---|---:|
+| P013 JIG8 remount (run01 vs run02) | **0.9946** |
+| P013 JIG7 remount (run01 vs run03) | **0.9824** |
+
+Both are tight -- JIG8's is close to P03's own remount ceiling (0.9993), and JIG7's is tighter
+than P010's JIG7 remount (0.9749). **P013 repeats reliably on both jigs.** The prior entry's
+guess (that P013/JIG7's outlier angle was probably an atypical mount, per this session's usual
+pattern) does not hold up -- the value repeats.
+
+### A2 physical angle -- all four P013 readings cluster together, none match the JIG7 group
+
+`theta_start(JIG8 run02)=77.43 deg` -> pair **152.1 / 332.1 deg**.
+`theta_start(JIG7 run03)=78.09 deg` -> pair **150.8 / 330.8 deg**.
+
+**Cross-jig gap using the two repeatable mounts: only 1.29 deg** -- the tightest cross-jig A2
+agreement seen for any product today.
+
+All four P013 readings so far:
+
+| | Angle |
+|---|---:|
+| JIG7 run01 | 141.2 deg |
+| JIG8 run01 | 158.3 deg |
+| JIG8 run02 | 152.1 deg |
+| JIG7 run03 | 150.8 deg |
+
+All four sit in **141-166 deg** -- none land near the ~14-31 deg cluster that P03/P08/P010/P011
+all shared on JIG7. Curve correlation for the repeatable pair (run02 JIG8 vs run03 JIG7):
+**r=0.9430**, still within today's established 0.93-0.99 band.
+
+### Read -- reverses the prior tentative guess
+
+P013's ~141-166 deg angle is not a mounting artifact -- it is a **real, repeatable, product-
+specific trait**, confirmed by two independent, tightly-repeating mounts on each jig. The most
+coherent model now: A2's observed angle is a **vector sum of a jig-side component and a
+motor-side component**. For P03/P08/P010/P011, the jig-side component apparently dominates on
+JIG7 (pulling all four toward the same ~14-31 deg region regardless of motor). For P013, the
+motor-side component is apparently large enough to dominate on **both** jigs, keeping the
+resultant angle nearly jig-independent (~141-166 deg everywhere). This is the first clean
+empirical case this session where a genuine motor-locked component is distinguishable from the
+jig-locked one, rather than one hypothesis needing to explain every product uniformly -- which
+product dominates depends on the specific motor, not a fixed rule.
+
+## P08 on JIG7 -- 6th point lands the cluster, reframes the hypothesis again
+
+`S4-P08-JIG7-openloop-v1-run01.txt`. Same build. `AutoVerdict=CAPTURE INVALID` -- but the cause
+is benign: 1 of 360 points missing (index 14) in one sweep (TestID=10), everything else clean
+(`DecodeErrors=0`, `AcqFailedSamples=0`); result **9/10 official sweeps valid** rather than the
+usual 10/10. Treated the 9 valid sweeps as usable data, not discarded.
+
+### Scalar/harmonic: P08 JIG8 -> JIG7
+
+| Metric | JIG8 | JIG7 | Delta |
+|---|---:|---:|---:|
+| RawP2P | 3.152 deg | 3.086 deg | -2.1% |
+| RobustP2P | 2.918 deg | 2.970 deg | +1.8% |
+| A1 | 0.146 deg | 0.217 deg | **+49.1%** |
+| A2 | 0.144 deg | 0.116 deg | -19.3% |
+| A9 | 0.433 deg | 0.431 deg | -0.6% |
+| A36 | 0.888 deg | 0.888 deg | +0.1% |
+
+A36 again essentially unchanged cross-jig, consistent with every prior comparison. A1 moved the
+*opposite direction* from P03's cross-jig A1 shift (+49% here vs -12% for P03) -- a new wrinkle,
+not yet explained.
+
+### Curve correlation: P08 syncs cross-jig much better than P03 did
+
+`r = 0.9851`, RMSE(centered) = 0.130 deg, mean per-point delta = **-0.021 deg** (essentially no
+systematic offset). Compare P03's cross-jig result: r = 0.9683, RMSE = 0.178 deg, mean delta =
+**-0.219 deg** (a real systematic offset). P08's whole 360-point curve reproduces across jigs
+noticeably more faithfully than P03's did -- the first evidence that cross-jig sync quality is
+not uniform across products.
+
+### A2 physical angle: P08/JIG7 = 30.9/210.9 deg
+
+Using the validated method (`theta_start=86.08 deg`, order-2 division): pair **30.9 / 210.9
+deg**. Cross-jig shift for P08 itself (JIG8->JIG7): only **~8.6 deg** -- an order of magnitude
+smaller than P03's ~42 deg cross-jig shift.
+
+Full physical-angle table so far:
+
+| | Physical angle pair |
+|---|---|
+| P03/JIG8 (both remounts) | 157.9 / 337.9 deg |
+| P03/JIG7 | 19.9 / 199.9 deg |
+| P010/JIG7 | 37.65 / 217.65 deg |
+| P08/JIG8 | 22.3 / 202.3 deg |
+| P08/JIG7 | 30.9 / 210.9 deg |
+
+### Reframed hypothesis
+
+This walks back the previous entry's "vector sum of jig + motor component" framing. With this
+6th point, **four of five readings (P03/JIG7, P010/JIG7, P08/JIG8, P08/JIG7) cluster tightly in
+a ~20-38 deg band regardless of jig or motor**, and curve correlation confirms P08's whole curve
+(not just A2) travels cross-jig with much smaller distortion than P03's did. **The only outlier
+in the dataset is P03/JIG8 at ~157 deg**, isolated ~120-140 deg from every other reading.
+
+The sharper, more falsifiable question this now raises: is P03/JIG8's ~157 deg reading a
+one-off specific to that motor+JIG8 mounting event (clocking, seating, torque), rather than
+JIG8 having a general "signature" -- since P08 on the *same* JIG8 did not reproduce it? A
+second motor tested on JIG8 would settle this directly: landing near 157 deg would revive the
+jig-locked reading for JIG8 specifically; landing in the ~20-38 deg cluster like P08 did would
+point to P03/JIG8 being the anomaly instead. Still only 6 opportunistic points, not a designed
+experiment -- this remains a variance-components / Gage R&R question for S6, not something to
+conclude from ad hoc data.
