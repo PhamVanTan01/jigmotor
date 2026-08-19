@@ -1,0 +1,10 @@
+BATCH,BatchID=1,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1,PreconditionCount=1,RunCount=10,TotalCycleCount=11,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug 12 2026 16:45:25,MCU_UID=004600323235511835383831,JigID=JIG7,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=4.41 deg settled=0/500 cmdPos=-17899
+MA600 move-to-zero: error=-2.18 deg settled=0/500 cmdPos=-19192
+MA600 move-to-zero: error=-1.63 deg settled=0/500 cmdPos=-19119
+MA600 move-to-zero: error=-1.03 deg settled=0/500 cmdPos=-19039
+MA600 move-to-zero: error=-0.71 deg settled=0/500 cmdPos=-19001
+MA600 move-to-zero: error=-0.46 deg settled=0/500 cmdPos=-18970
+MA600 move-to-zero: error=-0.31 deg settled=0/500 cmdPos=-18950

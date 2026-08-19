@@ -1,0 +1,21 @@
+RUNTIME,FreeHeap=85544,MinEverFreeHeap=85544,TestStackHighWaterWords=910
+MA600 noise (last 5s): P2P=61.22deg StdDev=28.54deg Drift=-61.20deg MaxStep=61.18deg N=25 valid=0
+MA600 noise (last 5s): P2P=24.05deg StdDev=133.29deg Drift=21.35deg MaxStep=147.76deg N=25 valid=0
+BATCH,BatchID=3,Status=START,PreconditionProtocol=ONE_FULL_SWEEP_120S_V1_FAST3,PreconditionCount=1,RunCount=3,TotalCycleCount=4,CooldownTargetMs=120000
+Getting result!
+CONFIG,RecordVersion=1,GatePolicy=POLICY_A_LOCKED_V1,ConfigContext=PRECONDITION_PRE_MOTOR,Firmware=jigmotor-nl2,BuildID=Aug 19 2026 12:21:06,MCU_UID=004600323235511835383831,JigID=JIG7,JigKnown=1,ConfigGateSelfTest=1,PointSamplerSelfTest=1,ExpectedCalibrationState=ZERO_TABLE,ConfigReadValid=1,ConfigValid=1,PolicyAGatePassed=1,AuditFieldsLocked=1,ExpectedProfileFound=1,RejectReason=NONE,PolicyABypassOverride=0,ExpectedZero=0x0000,ExpectedDir=0x00,ExpectedFilt=0x05,ExpectedStatus=0x00,ExpectedPrt=0x00,ExpectedRmapId=0x00,ExpectedCorrCRC32=0x190A55AD,Zero=0x0000,Dir=0x00,Filt=0x05,Status=0x00,Prt=0x00,RmapId=0x00,CorrNonZeroCount=0,CorrCRC32=0x190A55AD
+MA600 move-to-zero: error=46.12 deg settled=0/500 cmdPos=-2845
+MA600 move-to-zero: error=-5.53 deg settled=0/500 cmdPos=-14081
+MA600 move-to-zero: error=24.11 deg settled=0/500 cmdPos=-24104
+MA600 move-to-zero: error=53.02 deg settled=0/500 cmdPos=-25889
+MA600 move-to-zero: error=-5.52 deg settled=0/500 cmdPos=-35773
+MA600 move-to-zero: error=23.96 deg settled=0/500 cmdPos=-46958
+MA600 move-to-zero: error=55.96 deg settled=0/500 cmdPos=-49418
+MA600 move-to-zero: error=-5.47 deg settled=0/500 cmdPos=-57508
+MA600 move-to-zero: error=-20.91 deg settled=0/500 cmdPos=-69288
+MA600 move-to-zero: error=54.57 deg settled=0/500 cmdPos=-72968
+MA600 move-to-zero: error=-5.38 deg settled=0/500 cmdPos=-79231
+MA600 move-to-zero: error=-11.73 deg settled=0/500 cmdPos=-91027
+MA600 move-to-zero: error=53.54 deg settled=0/500 cmdPos=-96344
+MA600 move-to-zero: error=-5.32 deg settled=0/500 cmdPos=-100997
+MA600 move-to-zero: error=-13.78 deg settled=0/500 cmdPos=-112859

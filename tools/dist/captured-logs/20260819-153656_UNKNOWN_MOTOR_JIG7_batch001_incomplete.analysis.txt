@@ -1,0 +1,25 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\20260819-153656_UNKNOWN_MOTOR_JIG7_batch001_incomplete.txt
+TerminalStatus=INCOMPLETE
+AnalysisMode=OFFICIAL_MEASUREMENT
+OfficialValid=0/3
+GatedConfigInvalid=0/1,BootSmokeInvalid=0
+CaptureIntegrityValid=0,DecodeErrors=0,ExpectedOfficialCountValid=0
+AutoVerdict=CAPTURE INVALID
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================
