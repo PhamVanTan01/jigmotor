@@ -89,6 +89,43 @@ A36 confirms correct motor identity for every pair (no mislabeling in this batch
   and SOP lock) — it is now empirical evidence, from 5 motors, that the current path1/path2 labels do not
   yet correspond to a fixed, day-to-day-repeatable mechanical datum.
 
+## How many physical MA600 units were actually used across S4 (indirect inference, then field-confirmed)
+
+MA600 exposes no per-unit serial number over SPI -- `Core/Inc/ma600.h`'s register map (ZERO/DIR/FILT/
+STATUS/PRT/RMAPID/CORR0-31) has no unique-ID field; `RMAPID` is a register-map/part-revision ID shared
+by every unit of that part, not a serial number. Sensor identity can currently only be inferred
+indirectly.
+
+Built `analysis/matlab/nl/build_s4_sensor_timeline.m`: parses every `S4-*.txt` log (58 files found, 53
+with usable OFFICIAL open-loop data), extracts `JigID`/`MCU_UID` (authoritative identity) and `BuildID`
+(firmware compile timestamp, the only chronological proxy available -- no capture wall-clock field
+exists) alongside RawP2P/A36/H2 amplitude+phase per file.
+
+Findings:
+- JIG7 (44 files): exactly two `BuildID` values -- `12-Aug-2026 16:45:25` (run01-run06, the earliest S4
+  batch) and `19-Aug-2026 12:21:06` (every `path1`/`path2` file, including all of today 2026-08-21's data
+  -- confirms the firmware has not been rebuilt/reflashed since 2026-08-19, consistent with today's
+  path1/path2 convergence being explained by the documented 2026-08-19 mid-session sensor swap, not a
+  code change).
+- JIG8 (9 files): a single `BuildID` throughout, never touched by the 08-19+ build -- outside the whole
+  path1/path2 investigation.
+- Documented-certain: at least 2 distinct MA600 units on JIG7 (the blind-tested old/new sensor swap from
+  2026-08-19, see that day's summary).
+- Could not detect further undocumented swaps from data alone: the shift-vs-amplitude-only signature
+  used to distinguish "sensor changed" from "mount changed" only works when comparing two captures on
+  the *same* mount -- every cross-day file pair is already confounded by an ordinary remount (which
+  itself requires a shift regardless of sensor), so the signal is not separable across days.
+- Reported minimum to the user: >=3 distinct physical MA600 units (2 on JIG7 over time + 1 on JIG8),
+  explicitly caveated as a floor, not an exact count.
+
+**User confirmed from direct hardware knowledge: exactly 3 sensors were actually used.** The indirect
+inference (BuildID grouping + the one documented swap + JIG8 being untouched by that swap) landed on the
+correct count. This validates the method as a reasonable stand-in until real serialization exists, but
+it should not be over-trusted for cases with more undocumented swaps than this one -- the same
+mount-change confound would silently hide them. Reinforces the open recommendation (not yet
+implemented): add an operator-entered `SensorHeadSerial` field to the log schema so this becomes exactly
+answerable rather than inferred.
+
 ## Open items for next session
 
 - P010: repeat path-1 today's setup and re-check against `run08`/`remountR1-path1` to see if today's result
