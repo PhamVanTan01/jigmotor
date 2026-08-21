@@ -1,0 +1,52 @@
+AUTO-CAPTURE ANALYSIS
+Source=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P013-JIG7-openloop-v1-remountR1-path1.txt
+TerminalStatus=COMPLETE
+AnalysisMode=OFFICIAL_MEASUREMENT
+OfficialValid=3/3
+GatedConfigInvalid=0/4,BootSmokeInvalid=0
+CaptureIntegrityValid=1,DecodeErrors=0,ExpectedOfficialCountValid=1
+AutoVerdict=PASS
+
+==============================================================================
+PARSE WARNINGS
+==============================================================================
+  (none)
+
+==============================================================================
+PER-SWEEP STATUS
+==============================================================================
+  [EXCLUDED] Motor=UNKNOWN Jig=JIG7 TestID=9 SweepID=9 RunOrder=0 Role=PRECONDITION Eligible=False AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P013-JIG7-openloop-v1-remountR1-path1.txt
+      - META.RunRole=PRECONDITION (excluded from official statistics)
+      - META.EligibleForStatistics=0 (excluded from official statistics)
+      RMS_AC=0.7047 RawP2P=2.8515 System_INL=1.4257 RobustP2P=2.6963 Closure=-0.0089263916015625 TrackRMS=0.7212 TrackMax=1.5985
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG7 TestID=10 SweepID=10 RunOrder=1 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P013-JIG7-openloop-v1-remountR1-path1.txt
+      RMS_AC=0.6998 RawP2P=2.8829 System_INL=1.4414 RobustP2P=2.7113 Closure=0.030641555786132812 TrackRMS=0.7108 TrackMax=1.5820
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG7 TestID=11 SweepID=11 RunOrder=2 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P013-JIG7-openloop-v1-remountR1-path1.txt
+      RMS_AC=0.6961 RawP2P=2.8399 System_INL=1.4199 RobustP2P=2.6910 Closure=0.05115509033203125 TrackRMS=0.7045 TrackMax=1.5326
+  [OFFICIAL-VALID] Motor=UNKNOWN Jig=JIG7 TestID=12 SweepID=12 RunOrder=3 Role=OFFICIAL Eligible=True AnalysisPoints=360 file=D:\tanpham\QAtoool\jigtest\motor\jigmotor\tools\dist\captured-logs\S4-P013-JIG7-openloop-v1-remountR1-path1.txt
+      RMS_AC=0.7055 RawP2P=2.8867 System_INL=1.4433 RobustP2P=2.7460 Closure=0.05278587341308594 TrackRMS=0.7149 TrackMax=1.5875
+
+==============================================================================
+GROUP SUMMARY (declared OFFICIAL + EligibleForStatistics, legacy explicitly labeled)
+==============================================================================
+
+  Motor=UNKNOWN Jig=JIG7  (runs total=4, statistically eligible=3)
+    Excluded runs:
+      - TestID=9 SweepID=9 RunOrder=0: META.RunRole=PRECONDITION (excluded from official statistics); META.EligibleForStatistics=0 (excluded from official statistics)
+    rms_ac: mean=0.7005 sd=0.0047 cv=0.67%
+    raw_p2p: mean=2.8698 sd=0.0260 cv=0.91%
+    system_inl_deg: mean=1.4349 sd=0.0130 cv=0.91%
+    robust_p2p: mean=2.7161 sd=0.0278 cv=1.02%
+    closure_error_deg: mean=0.0449 sd=0.0123 cv=27.51%
+    tracking_rms_deg: mean=0.7101 sd=0.0052 cv=0.73%
+    tracking_max_abs_deg: mean=1.5674 sd=0.0303 cv=1.93%
+    mean_dc: mean=-0.1151 sd=0.0009 cv=0.75%
+    p99_abs_deviation: mean=1.4040 sd=0.0080 cv=0.57%
+    A1: mean=0.2864 sd=0.0192 cv=6.70%
+    A2: mean=0.0772 sd=0.0120 cv=15.57%
+    A9: mean=0.2550 sd=0.0022 cv=0.87%
+    A36: mean=0.8606 sd=0.0014 cv=0.17%
+
+==============================================================================
+CROSS-JIG DELTA (same motor, different jig)
+==============================================================================

@@ -9880,8 +9880,8 @@
     "semantic_hash": ""
   },
   "docs/session-summary-2026-08-20.md": {
-    "mtime": 1787196308.7613773,
-    "ast_hash": "5501cb3fd108a0229d671cda04bb53ae",
+    "mtime": 1787194660.911054,
+    "ast_hash": "33214cfa4b7c33c6f3066543163b0826",
     "semantic_hash": ""
   },
   "docs/system-architecture-nl-power-review-2026-08-18.md": {
@@ -10017,11 +10017,6 @@
   "analysis-out/s4-cross-jig-cause-20260818/p08/charts/P08_raw_curve.png": {
     "mtime": 1787018691.6704304,
     "ast_hash": "34fbba251985dfcac8ded4dead9b6020",
-    "semantic_hash": ""
-  },
-  "docs/open-loop-nl-jig-calibration-gage-rr-plan-2026-08-20.md": {
-    "mtime": 1787196677.0625863,
-    "ast_hash": "4b1959edc548b47e75eff6149176cc2b",
     "semantic_hash": ""
   }
 }
